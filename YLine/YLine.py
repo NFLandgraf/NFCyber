@@ -1,5 +1,7 @@
 #%%
 # IMPORT & DEFINE
+# entry into area: front 80% (mind. 3 non-nans, until tail_base) are in arm 
+# exit outof area: no bp of front 80% in current area AND any bp of front 80% is in other area than current
 
 import pandas as pd
 import numpy as np
@@ -11,9 +13,11 @@ from matplotlib import image
 import os
 import re
 
-#
+data_DLC_csv = 'data\\Y.csv'
+fps = 100
 
-df = pd.read_csv('data\\Y.csv', header=None)
+
+df = pd.read_csv(data_DLC_csv, header=None)
 
 # define arena and arms
 width, height = 708, 608
@@ -26,13 +30,8 @@ right_arm = Polygon([right_corner, top_corner, (top_corner[0], 0), (width, 0), (
 bottom_arm = Polygon([(0, left_corner[1]), left_corner, right_corner, (width, right_corner[1]), (width, height), (0, height)])
 center = Polygon([top_corner, left_corner, right_corner])
 
-# arms = [left_arm, right_arm, bottom_arm]
-# arms_int = [1, 2, 3]
-
 areas = [center, left_arm, right_arm, bottom_arm]
 areas_int = [0, 1, 2, 3]
-
-fps = 100
 
 bps_all = ['nose', 'left_ear', 'right_ear', 'left_ear_tip', 'right_ear_tip', 'left_eye', 'right_eye', 'head_midpoint', 
                  'neck', 'mid_back', 'mouse_center', 'mid_backend', 'mid_backend2', 'mid_backend3', 
@@ -81,6 +80,7 @@ def cleaning_raw_df(df):
 
 df = cleaning_raw_df(df)
 
+
 def draw(frame):
     for arm in areas:
         x, y = arm.exterior.xy
@@ -94,7 +94,6 @@ def draw(frame):
     
     plt.gca().invert_yaxis()
     plt.show()
-
 
 
 
@@ -159,8 +158,6 @@ def exit_outof_arm(df, bps_80, frame, curr_area, areas, areas_int):
             return True
     
     return False
-
-
 
 
 
@@ -282,10 +279,10 @@ def create_drawn_video(video_file, folder_framesfromvideo, folder_draw_on_frames
     draw_and_write(folder_framesfromvideo, folder_draw_on_frames, areas, positions)
     video_from_frames(folder_draw_on_frames, parent_dir)
 
+#create_drawn_video(video_file, folder_framesfromvideo, folder_draw_on_frames, parent_dir, areas, all_positions)
 
-create_drawn_video(video_file, folder_framesfromvideo, folder_draw_on_frames, parent_dir, areas, all_positions)
 
-
+print('Job done, happy Ylining!')
 
 #%%
 
