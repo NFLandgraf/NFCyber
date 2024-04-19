@@ -1,6 +1,6 @@
 #%%
 # IMPORT & DEFINE
-# entry into area: front 80% (mind. 3 non-nans, until tail_base) are in arm 
+#  nto area: front 80% (mind. 3 non-nans, until tail_base) are in arm 
 # exit outof area: no bp of front 80% in current area AND any bp of front 80% is in other area than current
 
 import pandas as pd
@@ -13,7 +13,11 @@ from matplotlib import image
 import os
 import re
 
-data_DLC_csv = 'data\\Y.csv'
+
+path = 'C:\\Users\\landgrafn\\Desktop\\Y_Maze\\'
+
+
+data_DLC_csv = path + 'Y_trim.csv'
 fps = 100
 
 
@@ -38,9 +42,7 @@ bps_all = ['nose', 'left_ear', 'right_ear', 'left_ear_tip', 'right_ear_tip', 'le
                  'tail_base', 'tail1', 'tail2', 'tail3', 'tail4', 'tail5', 'tail_end',
                  'left_shoulder', 'left_midside', 'left_hip', 'right_shoulder', 'right_midside', 'right_hip']
 
-bps_80 = ['nose', 'left_ear', 'right_ear', 'left_ear_tip', 'right_ear_tip', 'left_eye', 'right_eye', 'head_midpoint', 
-                 'neck', 'mid_back', 'mouse_center', 'mid_backend', 'mid_backend2', 'mid_backend3', 
-                 'left_shoulder', 'left_midside', 'left_hip', 'right_shoulder', 'right_midside', 'right_hip']
+ 
 
 bps_head = ['nose', 'left_ear', 'right_ear', 'left_ear_tip', 'right_ear_tip', 'left_eye', 'right_eye', 'head_midpoint']
 
@@ -197,13 +199,13 @@ all_positions = big_calc(df, bps_80, areas, areas_int)
 #%%
 # CREATE VIDEO
 
-parent_dir = "C:\\Users\\landgrafn\\NFCyber\\YLine\\data"
-video_file = parent_dir + '\\Y_DLC.mp4'
+
+video_file = path + '\\Y_DLC_trim.mp4'
 vid = cv2.VideoCapture(video_file)
 nframes = int(vid.get(cv2.CAP_PROP_FRAME_COUNT))
 
-folder_framesfromvideo = parent_dir + '\\frames_from_video'
-folder_draw_on_frames = parent_dir + '\\edited_frames'
+folder_framesfromvideo = path + '\\frames_from_video'
+folder_draw_on_frames = path + '\\edited_frames'
 
 
 def write_all_frames_from_video(input_file, output_folder):
@@ -247,10 +249,10 @@ def draw_and_write(input_folder, output_folder, areas, positions):
         output_path = os.path.join(output_folder, f"frame{i}.png")
         cv2.imwrite(output_path, data)
 
-def video_from_frames(input_folder, parent_dir):
+def video_from_frames(input_folder, path):
     # created video from all frames with drawn polygons
     fps = 100
-    output = os.path.join(parent_dir, 'video_edit.mp4')
+    output = os.path.join(path, 'video_edit.mp4')
 
     images = [file for file in os.listdir(input_folder) if file.endswith('.png')]
 
@@ -274,12 +276,12 @@ def video_from_frames(input_folder, parent_dir):
     cv2.destroyAllWindows()
     video.release()
 
-def create_drawn_video(video_file, folder_framesfromvideo, folder_draw_on_frames, parent_dir, areas, positions):
+def create_drawn_video(video_file, folder_framesfromvideo, folder_draw_on_frames, path, areas, positions):
     write_all_frames_from_video(video_file, folder_framesfromvideo)
     draw_and_write(folder_framesfromvideo, folder_draw_on_frames, areas, positions)
-    video_from_frames(folder_draw_on_frames, parent_dir)
+    video_from_frames(folder_draw_on_frames, path)
 
-#create_drawn_video(video_file, folder_framesfromvideo, folder_draw_on_frames, parent_dir, areas, all_positions)
+create_drawn_video(video_file, folder_framesfromvideo, folder_draw_on_frames, path, areas, all_positions)
 
 
 print('Job done, happy Ylining!')
