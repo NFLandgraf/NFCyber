@@ -1,0 +1,17 @@
+Raw aim coordinates: [-5.4, -0.9, -3.8]
+Measured lambda: [-4.0, 0.0, 0.8]
+Normal lambda: [-4.3, 0, 0]
+Measured ML_L: [0, -1.5, -0.1]
+Measured ML_R: [0, 1.5, -0.5]
+
+SKULL SIZE COMPENSATION:
+Factor x = 0.93 (smaller than usual)
+Corrected aim coordinates: [-5.02, -0.84, -3.53]
+
+AP TILT
+Skull AP tilt alpha: 11.54 degree (Bregma < Lambda)
+Corrected aim: [-5.62, -0.84, -2.45]
+
+ML TILT
+Skull ML tilt delta: 7.59 degrees (left > right)
+Corrected aim: [-5.62, -1.16, -2.32]
