@@ -11,7 +11,7 @@ from user_input import *
 
 
 dir_path = os.getcwd()
-regular_lambda = [-4.3, 0, 0]
+regular_lambda = [-4.2, 0, 0]
 decnumb = 2
 
 
