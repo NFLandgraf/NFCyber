@@ -1,6 +1,6 @@
 #%%
 # IMPORT & DEFINE
-# into area: front 80% (mind. 3 non-nans, until tail_base) are in arm 
+# into area: front 80% (mind. 3 non-nans including tail_base) are in arm 
 # exit outof area: no bp of front 80% in current area AND any bp of front 80% is in other area than current
 
 import pandas as pd
@@ -19,12 +19,24 @@ import re
 path = 'C:\\Users\\landgrafn\\Desktop\\kat\\'
 
 # define values
-two_upper_arms = False
 width = 740
 height = 608
+
+#left arm
 left_corner = (330, 355)
 middle_corner = (370, 425)
+left_arm_end_lefter = (20, 520)
+left_arm_end_righter = (60, 610)
+
+#middle arm
 right_corner = (405, 355)
+middle_arm_end_righter = (410, 0)
+middle_arm_end_lefter = (320, 0)
+
+#right arm
+right_arm_end_righter = (720, 530)
+right_arm_end_lefter = (680, 610)
+
 fps = 30
 nframes = 9091
 duration = 303.03333333333336
@@ -37,7 +49,7 @@ duration = 303.03333333333336
 # preparation
 def get_files(path):
     # get files
-    common_name = '.csv'
+    common_name = 'Y-maze 29.04.2024.517_WT_naiveDLC_resnet50_TopoViewMouseMar22shuffle1_600000_filtered.csv'
     files = [file for file in os.listdir(path) 
                 if os.path.isfile(os.path.join(path, file)) and
                 common_name in file]
@@ -46,18 +58,10 @@ def get_files(path):
     return files
 
 def define_areas():
-    # if Y-maze has two upper arms or two lower arms
-    if two_upper_arms:
-        center = Polygon([middle_corner, left_corner, right_corner])
-        left_arm = Polygon([left_corner, middle_corner, (middle_corner[0], 0), (0, 0), (0, left_corner[1])])
-        middle_arm = Polygon([(0, left_corner[1]), left_corner, right_corner, (width, right_corner[1]), (width, height), (0, height)])
-        right_arm = Polygon([right_corner, middle_corner, (middle_corner[0], 0), (width, 0), (width, right_corner[1])])
-        
-    else:
-        center = Polygon([middle_corner, left_corner, right_corner])
-        left_arm = Polygon([left_corner, middle_corner, (middle_corner[0], height), (0, height), (0, left_corner[1])])
-        middle_arm = Polygon([(0, left_corner[1]), left_corner, right_corner, (width, right_corner[1]), (width, 0), (0, 0)])
-        right_arm = Polygon([right_corner, middle_corner, (middle_corner[0], height), (width, height), (width, right_corner[1])])
+    left_arm = Polygon([left_corner, middle_corner, left_arm_end_righter, left_arm_end_lefter])
+    right_arm = Polygon([right_corner, middle_corner, right_arm_end_lefter, right_arm_end_righter])
+    middle_arm = Polygon([left_corner, right_corner, middle_arm_end_righter, middle_arm_end_lefter])
+    center = Polygon([middle_corner, left_corner, right_corner])
         
     return center, left_arm, middle_arm, right_arm
 
@@ -69,12 +73,12 @@ def define_bodyparts():
                  'left_shoulder', 'left_midside', 'left_hip', 'right_shoulder', 'right_midside', 'right_hip']
 
     bps_80 = ['nose', 'left_ear', 'right_ear', 'left_ear_tip', 'right_ear_tip', 'left_eye', 'right_eye', 'head_midpoint', 
-                 'neck', 'mid_back', 'mouse_center', 'mid_backend', 'mid_backend2', 'mid_backend3', 
+                 'neck', 'mid_back', 'mouse_center', 'mid_backend', 'mid_backend2', 'mid_backend3', 'tail_base', 
                  'left_shoulder', 'left_midside', 'left_hip', 'right_shoulder', 'right_midside', 'right_hip']
 
-    bps_head = ['nose', 'left_ear', 'right_ear', 'left_ear_tip', 'right_ear_tip', 'left_eye', 'right_eye', 'head_midpoint']
+    # bps_head = ['nose', 'left_ear', 'right_ear', 'left_ear_tip', 'right_ear_tip', 'left_eye', 'right_eye', 'head_midpoint']
 
-    return bps_all, bps_80, bps_head
+    return bps_all, bps_80
 
 def cleaning_raw_df(csv_file):
     df = pd.read_csv(path + csv_file, header=None, low_memory=False)
@@ -120,7 +124,7 @@ def point_in_which_area(df, bp, frame, areas, areas_int):
     for i, area in enumerate(areas):
         if area.contains(bp_point):
             return areas_int[i]
-    print(f'Frame {frame} Error: Bodypart {bp} not in areas nor nan ({x}, {y})')
+    # print(f'Frame {frame} Error: Bodypart {bp} not in areas nor nan ({x}, {y})')
 
 def point_in_spec_area(df, bp, frame, area):
     # check if point is in area
@@ -134,6 +138,7 @@ def point_in_spec_area(df, bp, frame, area):
     return area.contains(bp_point)
         
 def entry_into_arm(df, bps_80, frame, areas, areas_int):
+    global frames_with_no_annot
     # returns arm of entry if front 80% are in an ARM
     # of all front 80%, none is allowed to be in another area and >= 3 bps need to be non-nan
     # entry can only happen if an exit happened before!
@@ -144,6 +149,9 @@ def entry_into_arm(df, bps_80, frame, areas, areas_int):
         areas_of_bps.append(point_in_which_area(df, bp, frame, areas, areas_int))
     
     # only care about the ones that DLC has identified
+    if all(bp is None for bp in areas_of_bps):
+        frames_with_no_annot += 1
+        return False
     areas_of_bps = [i for i in areas_of_bps if i is not None]
 
     # if all bodyparts are in the area of the first bodypart and the first bodypart is not in center (=0)
@@ -178,7 +186,6 @@ def exit_outof_arm(df, bps_80, frame, curr_area, areas, areas_int):
 
 def calc_all_pos(df, bps_80, areas, areas_int):
     # when animal is leaving an arm, position is automatically set as center
-    global all_positions
     all_positions = []
     curr_area = 0
 
@@ -238,21 +245,26 @@ def do_stuff(files):
             f.write(f'\nfile_name: {file}'
                     f'\npos_chang: {pos_changes}'
                     f'\nalt_index: {alterations} / {total_entries} = {round(alt_index, 4)}\n')
-            
-    print('\nYLine done!')
+    
+    print(f'\nYLine done!\n'
+      f'{frames_with_no_annot} frames where no DLC annotation in defined areas\n'
+      f'{len(all_positions)} positions found / {nframes} total video frames\n')
+
+    return all_positions
 
       
 #%%
 # DO STUFF 
 files = get_files(path)
+frames_with_no_annot = 0
 
 center, left_arm, middle_arm, right_arm = define_areas()
 areas = [center, left_arm, middle_arm, right_arm]
 areas_int = [0, 1, 2, 3]
 
-bps_all, bps_80, bps_head = define_bodyparts()
+bps_all, bps_80 = define_bodyparts()
 
-do_stuff(files)
+all_positions = do_stuff(files)
 
 
 #%%
@@ -294,14 +306,13 @@ def draw_and_write(input_folder, output_folder, areas, positions):
         for arm, area in enumerate(areas):
             if arm == positions[i]:
                 points = np.array(area.exterior.coords, dtype=np.int32)
-                cv2.polylines(data, [points], isClosed=True, color=(0, 0, 255), thickness=3)
+                cv2.polylines(data, [points], isClosed=True, color=(0, 0, 255), thickness=2)
         
         output_path = os.path.join(output_folder, f"frame{i}.png")
         cv2.imwrite(output_path, data)
 
 def video_from_frames(input_folder, path):
     # created video from all frames with drawn polygons
-    fps = 100
     output = os.path.join(path, 'video_edit.mp4')
 
     images = [file for file in os.listdir(input_folder) if file.endswith('.png')]
@@ -333,7 +344,7 @@ def create_drawn_video(video_file, folder_framesfromvideo, folder_draw_on_frames
 
 
 def do_video(all_positions):
-    video_file = path + '\\Y_DLC_trim.mp4'
+    video_file = path + '\\Y-maze 29.04.2024.517_WT_naiveDLC_resnet50_TopoViewMouseMar22shuffle1_600000_filtered_labeled.mp4'
     vid = cv2.VideoCapture(video_file)
     nframes = int(vid.get(cv2.CAP_PROP_FRAME_COUNT))
 
@@ -341,6 +352,7 @@ def do_video(all_positions):
     folder_draw_on_frames = path + '\\edited_frames'
     create_drawn_video(video_file, folder_framesfromvideo, folder_draw_on_frames, path, areas, all_positions)
 
-    print('Job done, happy Ylining!')
+    print('video done')
+    
 
-# do_video(all_positions)
+do_video(all_positions)

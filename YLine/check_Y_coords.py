@@ -10,11 +10,20 @@ import os
 # define folder with the csv files
 path = 'C:\\Users\\landgrafn\\Desktop\\kat\\'
 
-# define values
-two_upper_arms = False
+# left arm
 left_corner = (330, 355)
 middle_corner = (370, 425)
+left_arm_end_lefter = (20, 520)
+left_arm_end_righter = (60, 610)
+
+# middle_arm
 right_corner = (405, 355)
+middle_arm_end_lefter = (320, 0)
+middle_arm_end_righter = (410, 0)
+
+# right arm
+right_arm_end_righter = (720, 530)
+right_arm_end_lefter = (680, 610)
 
 
 
@@ -38,28 +47,30 @@ duration = nframes / fps
 
 print(f'{file}\n'
       f'copy the following lines:\n\n'
-      f'two_upper_arms = {two_upper_arms}\n'
       f'width = {width}\n'
-      f'height = {height}\n'
+      f'height = {height}\n\n'
+      f'#left arm\n'
       f'left_corner = {left_corner}\n'
       f'middle_corner = {middle_corner}\n'
+      f'left_arm_end_lefter = {left_arm_end_lefter}\n'
+      f'left_arm_end_righter = {left_arm_end_righter}\n\n'
+      f'#middle arm\n'
       f'right_corner = {right_corner}\n'
+      f'middle_arm_end_righter = {middle_arm_end_righter}\n'
+      f'middle_arm_end_lefter = {middle_arm_end_lefter}\n\n'
+      f'#right arm\n'
+      f'right_arm_end_righter = {right_arm_end_righter}\n'
+      f'right_arm_end_lefter = {right_arm_end_lefter}\n\n'
       f'fps = {fps}\n'
       f'nframes = {nframes}\n'
       f'duration = {duration}\n')
 
 
-# if Y-maze has two upper arms or two lower arms
-if two_upper_arms:
-    left_arm = Polygon([left_corner, middle_corner, (middle_corner[0], 0), (0, 0), (0, left_corner[1])])
-    right_arm = Polygon([right_corner, middle_corner, (middle_corner[0], 0), (width, 0), (width, right_corner[1])])
-    middle_arm = Polygon([(0, left_corner[1]), left_corner, right_corner, (width, right_corner[1]), (width, height), (0, height)])
-    center = Polygon([middle_corner, left_corner, right_corner])
-else:
-    left_arm = Polygon([left_corner, middle_corner, (middle_corner[0], height), (0, height), (0, left_corner[1])])
-    right_arm = Polygon([right_corner, middle_corner, (middle_corner[0], height), (width, height), (width, right_corner[1])])
-    middle_arm = Polygon([(0, left_corner[1]), left_corner, right_corner, (width, right_corner[1]), (width, 0), (0, 0)])
-    center = Polygon([middle_corner, left_corner, right_corner])
+
+left_arm = Polygon([left_corner, middle_corner, left_arm_end_righter, left_arm_end_lefter])
+right_arm = Polygon([right_corner, middle_corner, right_arm_end_lefter, right_arm_end_righter])
+middle_arm = Polygon([left_corner, right_corner, middle_arm_end_righter, middle_arm_end_lefter])
+center = Polygon([middle_corner, left_corner, right_corner])
 
 areas = [left_arm, middle_arm, right_arm]
 
