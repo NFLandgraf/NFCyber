@@ -16,9 +16,8 @@ import re
 
 # USER INPUT
 # define folder with the csv files
-path = 'C:\\Users\\landgrafn\\Desktop\\kat\\'
+path = 'C:\\Users\\landgrafn\\Desktop\\check\\'
 
-# define values
 width = 740
 height = 608
 
@@ -49,7 +48,7 @@ duration = 303.03333333333336
 # preparation
 def get_files(path):
     # get files
-    common_name = 'Y-maze 29.04.2024.517_WT_naiveDLC_resnet50_TopoViewMouseMar22shuffle1_600000_filtered.csv'
+    common_name = '.csv'
     files = [file for file in os.listdir(path) 
                 if os.path.isfile(os.path.join(path, file)) and
                 common_name in file]
@@ -72,13 +71,17 @@ def define_bodyparts():
                  'tail_base', 'tail1', 'tail2', 'tail3', 'tail4', 'tail5', 'tail_end',
                  'left_shoulder', 'left_midside', 'left_hip', 'right_shoulder', 'right_midside', 'right_hip']
 
-    bps_80 = ['nose', 'left_ear', 'right_ear', 'left_ear_tip', 'right_ear_tip', 'left_eye', 'right_eye', 'head_midpoint', 
+    bps_entry = ['nose', 'left_ear', 'right_ear', 'left_ear_tip', 'right_ear_tip', 'left_eye', 'right_eye', 'head_midpoint', 
                  'neck', 'mid_back', 'mouse_center', 'mid_backend', 'mid_backend2', 'mid_backend3', 'tail_base', 
+                 'left_shoulder', 'left_midside', 'left_hip', 'right_shoulder', 'right_midside', 'right_hip']
+    
+    bps_exit = ['nose', 'left_ear', 'right_ear', 'left_ear_tip', 'right_ear_tip', 'left_eye', 'right_eye', 'head_midpoint', 
+                 'neck', 'mid_back', 'mouse_center', 'mid_backend', 'mid_backend2', 'mid_backend3', 
                  'left_shoulder', 'left_midside', 'left_hip', 'right_shoulder', 'right_midside', 'right_hip']
 
     # bps_head = ['nose', 'left_ear', 'right_ear', 'left_ear_tip', 'right_ear_tip', 'left_eye', 'right_eye', 'head_midpoint']
 
-    return bps_all, bps_80
+    return bps_all, bps_entry, bps_exit
 
 def cleaning_raw_df(csv_file):
     df = pd.read_csv(path + csv_file, header=None, low_memory=False)
@@ -137,15 +140,17 @@ def point_in_spec_area(df, bp, frame, area):
 
     return area.contains(bp_point)
         
-def entry_into_arm(df, bps_80, frame, areas, areas_int):
-    global frames_with_no_annot
+def entry_into_arm(df, bps_list, frame, areas, areas_int):
     # returns arm of entry if front 80% are in an ARM
-    # of all front 80%, none is allowed to be in another area and >= 3 bps need to be non-nan
+    # of all front 80%, none is allowed to be in another area and >= X bps need to be non-nan
+    nonnan_bps_in_new_area = 12
     # entry can only happen if an exit happened before!
+
+    global frames_with_no_annot
 
     # create list with all the areas in which the bodyparts are in
     areas_of_bps = []
-    for bp in bps_80:
+    for bp in bps_list:
         areas_of_bps.append(point_in_which_area(df, bp, frame, areas, areas_int))
     
     # only care about the ones that DLC has identified
@@ -155,23 +160,23 @@ def entry_into_arm(df, bps_80, frame, areas, areas_int):
     areas_of_bps = [i for i in areas_of_bps if i is not None]
 
     # if all bodyparts are in the area of the first bodypart and the first bodypart is not in center (=0)
-    if len(areas_of_bps) >= 3:
+    if len(areas_of_bps) >= nonnan_bps_in_new_area:
         first_value = areas_of_bps[0]
         if all(elem == first_value for elem in areas_of_bps) and first_value != 0:
             return first_value
     return False
 
-def exit_outof_arm(df, bps_80, frame, curr_area, areas, areas_int):
+def exit_outof_arm(df, bps_list, frame, curr_area, areas, areas_int):
     # exit if front 80% not in current arm but rather parts of front 80% in other area (min 1 non-nan)
     
     # if a bp is in curr_arm, it is no exit -> return False; if no bp is in curr_arm, it may be an exit ->continue
-    for bp in bps_80:
+    for bp in bps_list:
         if point_in_spec_area(df, bp, frame, areas[curr_area]):
             return False
     
     # check if any bp is in other area than curr_arm
     areas_of_bps = []
-    for bp in bps_80:
+    for bp in bps_list:
         areas_of_bps.append(point_in_which_area(df, bp, frame, areas, areas_int))
     
     # only care for bodyparts that DLC has identified
@@ -184,14 +189,14 @@ def exit_outof_arm(df, bps_80, frame, curr_area, areas, areas_int):
     
     return False
 
-def calc_all_pos(df, bps_80, areas, areas_int):
+def calc_all_pos(df, bps_entry, bps_exit, areas, areas_int):
     # when animal is leaving an arm, position is automatically set as center
     all_positions = []
     curr_area = 0
 
     for frame in tqdm(range(len(df.index))):
         if curr_area == 0: 
-            entry = entry_into_arm(df, bps_80, frame, areas, areas_int)
+            entry = entry_into_arm(df, bps_entry, frame, areas, areas_int)
             if not entry:
                 all_positions.append(0)
             elif entry:
@@ -199,7 +204,7 @@ def calc_all_pos(df, bps_80, areas, areas_int):
                 curr_area = entry
 
         elif curr_area != 0:
-            exit = exit_outof_arm(df, bps_80, frame, curr_area, areas, areas_int)
+            exit = exit_outof_arm(df, bps_exit, frame, curr_area, areas, areas_int)
             if not exit:
                 all_positions.append(curr_area)
             elif exit:
@@ -230,7 +235,7 @@ def do_stuff(files):
     for file in files:
         print(f'\n{file}')
         df = cleaning_raw_df(file)
-        all_positions = calc_all_pos(df, bps_80, areas, areas_int)
+        all_positions = calc_all_pos(df, bps_entry, bps_exit, areas, areas_int)
 
         # only add areas that were entered after a change
         pos_changes = [pos for i, pos in enumerate(all_positions) if i == 0 or pos != all_positions[i-1]]
@@ -262,7 +267,7 @@ center, left_arm, middle_arm, right_arm = define_areas()
 areas = [center, left_arm, middle_arm, right_arm]
 areas_int = [0, 1, 2, 3]
 
-bps_all, bps_80 = define_bodyparts()
+bps_all, bps_entry, bps_exit = define_bodyparts()
 
 all_positions = do_stuff(files)
 
@@ -313,7 +318,7 @@ def draw_and_write(input_folder, output_folder, areas, positions):
 
 def video_from_frames(input_folder, path):
     # created video from all frames with drawn polygons
-    output = os.path.join(path, 'video_edit.mp4')
+    output = os.path.join(path, f'{files[0]}_edit.mp4')
 
     images = [file for file in os.listdir(input_folder) if file.endswith('.png')]
 

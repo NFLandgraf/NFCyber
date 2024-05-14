@@ -1,4 +1,4 @@
-curPath = "C:\\Users\\landgrafn\\Desktop\\PMv\\";
+curPath = "C:\\Users\\landgrafn\\Desktop\\all_VMHvl\\";
 // C1-NET, C2-Iba1, C3-Ab, C4-DAPI
 channel = "C1-";
 channel_name = "NET"

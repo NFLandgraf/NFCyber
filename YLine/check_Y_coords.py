@@ -8,7 +8,7 @@ import os
 
 # USER INPUT
 # define folder with the csv files
-path = 'C:\\Users\\landgrafn\\Desktop\\kat\\'
+path = 'C:\\Users\\landgrafn\\Desktop\\check\\'
 
 # left arm
 left_corner = (330, 355)
