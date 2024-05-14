@@ -1,6 +1,6 @@
 #%%
 # IMPORT & DEFINE
-# into area: front 80% (mind. 3 non-nans including tail_base) are in arm 
+# into area: front 80% (mind. 15 non-nans including tail_base) are in arm 
 # exit outof area: no bp of front 80% in current area AND any bp of front 80% is in other area than current
 
 import pandas as pd
@@ -17,6 +17,7 @@ import re
 # USER INPUT
 # define folder with the csv files
 path = 'C:\\Users\\landgrafn\\Desktop\\check\\'
+common_name = '.csv'
 
 width = 740
 height = 608
@@ -48,7 +49,6 @@ duration = 303.03333333333336
 # preparation
 def get_files(path):
     # get files
-    common_name = '.csv'
     files = [file for file in os.listdir(path) 
                 if os.path.isfile(os.path.join(path, file)) and
                 common_name in file]
@@ -76,7 +76,7 @@ def define_bodyparts():
                  'left_shoulder', 'left_midside', 'left_hip', 'right_shoulder', 'right_midside', 'right_hip']
     
     bps_exit = ['nose', 'left_ear', 'right_ear', 'left_ear_tip', 'right_ear_tip', 'left_eye', 'right_eye', 'head_midpoint', 
-                 'neck', 'mid_back', 'mouse_center', 'mid_backend', 'mid_backend2', 'mid_backend3', 
+                 'neck', 'mid_back', 'mouse_center', 'mid_backend',
                  'left_shoulder', 'left_midside', 'left_hip', 'right_shoulder', 'right_midside', 'right_hip']
 
     # bps_head = ['nose', 'left_ear', 'right_ear', 'left_ear_tip', 'right_ear_tip', 'left_eye', 'right_eye', 'head_midpoint']
@@ -143,7 +143,7 @@ def point_in_spec_area(df, bp, frame, area):
 def entry_into_arm(df, bps_list, frame, areas, areas_int):
     # returns arm of entry if front 80% are in an ARM
     # of all front 80%, none is allowed to be in another area and >= X bps need to be non-nan
-    nonnan_bps_in_new_area = 12
+    nonnan_bps_in_new_area = 15
     # entry can only happen if an exit happened before!
 
     global frames_with_no_annot
