@@ -79,8 +79,6 @@ def define_bodyparts():
                  'neck', 'mid_back', 'mouse_center', 'mid_backend',
                  'left_shoulder', 'left_midside', 'left_hip', 'right_shoulder', 'right_midside', 'right_hip']
 
-    # bps_head = ['nose', 'left_ear', 'right_ear', 'left_ear_tip', 'right_ear_tip', 'left_eye', 'right_eye', 'head_midpoint']
-
     return bps_all, bps_entry, bps_exit
 
 def cleaning_raw_df(csv_file):
@@ -360,4 +358,4 @@ def do_video(all_positions):
     print('video done')
     
 
-do_video(all_positions)
+# do_video(all_positions)
