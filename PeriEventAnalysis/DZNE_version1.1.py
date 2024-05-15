@@ -1,11 +1,14 @@
-#%% IMPORT & CLEAN
+#%% 
+# IMPORT & CLEAN
 
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import scipy.stats as stats
 
+
 file_traces = 'traces.csv'
+file_GPIO = 'GPIO.csv'
 
 
 def clean_df(file):
@@ -44,16 +47,42 @@ df_f, df_z = clean_df(file_traces)
 
 
 
-#%% PANEL A: EVENT-ALIGNED ACTIVITY HEATMAP
 
-df = df_z.copy(deep=True)
-event = 130.5
-stat_window = [-1, 1]
-vis_window = [-5, 5]
-color_border = [-4, 4]
 
-def event_aligned(df):
-    # Time=0 at event
+#%%
+# GET TTL EVENTS
+
+
+
+#def events(file):
+# returns a list with TTL lengths and a list with the time of their onset
+value_threshold = 5000   # which value is definitely >value_low and <value_high
+channel_name = ' GPIO-1'
+
+TTL_duration_list = []
+TTL_onset_list = []
+
+df = pd.read_csv(file_GPIO, low_memory=False)
+
+
+
+    
+    
+
+print(df)
+
+
+
+
+
+
+
+
+#%% 
+# PANEL A: EVENT-ALIGNED ACTIVITY HEATMAP
+
+def event_align_df(df, stat_window=[-1, 1], vis_window=[-5, 5], color_border=[-4, 4]):
+    # align the index to the event (time=0 at event)
     df.index = df.index - event
 
     # create new dfs for pre and post
@@ -80,9 +109,11 @@ def event_aligned(df):
 
     return df
 
+def plot_event_aligned_activity_heatmap(df, color_border=[-4, 4]):
+    # draw heatmap
 
-# draw plot
-def plot_heatmap_and_gradient(axs, data):
+    # define initial properties
+    fig, axs = plt.subplots(1, 2, gridspec_kw={'width_ratios': [25, 1]})
     timeline = list(df.index.values)
     nb_cells = len(data.columns)
     data = data.transpose()
@@ -92,7 +123,7 @@ def plot_heatmap_and_gradient(axs, data):
     im_left = axs[0].imshow(data, cmap=map_color, aspect="auto", extent=[timeline[0], timeline[-1], nb_cells, 0])
     axs[0].set_xlabel("Time from Event [s]")
     axs[0].set_ylabel("Neuron")
-    # axs[0].axvline(x=0, color="gray")
+    axs[0].axvline(x=0, color="gray")
 
     im_right = axs[1].imshow(gradient.T, cmap=map_color, aspect="auto", extent=[0, 1, color_border[0], color_border[1]])
     axs[1].set_ylabel("z-score")
@@ -101,13 +132,18 @@ def plot_heatmap_and_gradient(axs, data):
     axs[1].set_yticks(np.arange(color_border[0], color_border[1]+1, 1)) 
     axs[1].xaxis.set_visible(False)
     
-    return im_left, im_right
+    fig.suptitle("Event-Aligned Activity Heatmap")
+    plt.show()
 
-fig, axs = plt.subplots(1, 2, gridspec_kw={'width_ratios': [25, 1]})
-im_left, im_right = plot_heatmap_and_gradient(axs, event_aligned(df))
-fig.suptitle("Event-Aligned Activity Heatmap")
 
-plt.show()
+df = df_z.copy(deep=True)
+event = 130.5
+
+df_event_aligned = event_align_df(df)
+plot_event_aligned_activity_heatmap(df_event_aligned)
+
+
+
 
 
 
