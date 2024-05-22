@@ -5,10 +5,11 @@ import cv2
 import ffmpeg
 from tqdm import tqdm
 import os
+import numpy as np
 
-#path = 'C:\\Users\\landgrafn\\NFCyber\\VideoAnalysis\\data\\'
-path = 'C:\\Users\\landgrafn\\Desktop\\Paule\\3m\\'
-common_name = 'edit'
+path = 'C:\\Users\\landgrafn\\NFCyber\\VideoAnalysis\\data\\'
+#path = 'C:\\Users\\landgrafn\\Desktop\\Paule\\3m\\'
+common_name = ''
 file_format = '.mp4'
 
 
@@ -55,6 +56,8 @@ alpha = 1.25   # brightness: 1.0-original, <1.0-darker, >1.0-brighter
 beta = -50    # contrast: 0-unchanged, <0-lower contrast, >0-higher contrast
 
 
+
+
 def adjust_video(input_file, output_file, new_width, new_height, fps, nframes):
 
     cap = cv2.VideoCapture(input_file)
@@ -66,9 +69,10 @@ def adjust_video(input_file, output_file, new_width, new_height, fps, nframes):
     for curr_frame in tqdm(range(nframes)):    # nframes or 1
         ret, frame = cap.read()
 
-        if ret:            
+        if ret:      
+
             # CROP
-            frame = frame[y1:y2, x1:x2]
+            #frame = frame[y1:y2, x1:x2]
 
             # BRIGHTNESS & CONTRAST
             #frame = cv2.convertScaleAbs(frame, alpha=alpha, beta=beta)
@@ -91,6 +95,7 @@ def adjust_video(input_file, output_file, new_width, new_height, fps, nframes):
     video.release()
 
     print(f'Done! input: {nframes} frames, output: {curr_frame+1} frames\n\n')
+
 
 def main():
     for file in files:
