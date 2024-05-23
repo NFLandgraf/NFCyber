@@ -8,39 +8,67 @@ import os
 from tqdm import tqdm
 import numpy as np
 
+def get_files(path):
+    # get all file names in directory into list
+    files = [file for file in os.listdir(path) 
+                if os.path.isfile(os.path.join(path, file)) and
+                'mp4' in file]
+    
+    return files
 
-# USER INPUT
+def get_xmax_ymax(file):
+    # get video properties
+    vid = cv2.VideoCapture(file)
+    width = int(vid.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+    return width, height
+
 path = 'C:\\Users\\landgrafn\\NFCyber\\YLine\\data\\'
 file_format = '.mp4'
 
-x_shift = -56
-y_shift = 0
+files = get_files(path)
+width, height = get_xmax_ymax(files[0])
+
+def adapt(x, y):
+    # add dx/dy and multiplay with dz
+    adapt_coords = ((x + dx) * dz, (y + dy) * dz)
+
+    # check if poits are out of the image
+    if 0 <= adapt_coords[0] <= width:
+        print('point exceeds width')
+    elif 0 <= adapt_coords[1] <= width:
+        print('point exceeds height')
+
+    return adapt_coords
+
+
+# USER INPUT
+dx = 0
+dy = 0
+dz = 1
 
 # corners
-left_corner = (435+x_shift, 250+y_shift)
-middle_corner = (475+x_shift, 180+y_shift)
-right_corner = (515+x_shift, 250+y_shift)
+left_corner = adapt(435, 250)
+middle_corner = adapt(475, 180)
+right_corner = adapt(515, 250)
 
 # left arm
-left_arm_end_lefter = (115+x_shift, 70+y_shift)
-left_arm_end_righter = (165+x_shift, 0+y_shift)
+left_arm_end_lefter = adapt(115, 70)
+left_arm_end_righter = adapt(165, 0)
 
 # right arm
-right_arm_end_righter = (825+x_shift, 70+y_shift)
-right_arm_end_lefter = (785+x_shift, 0+y_shift)
+right_arm_end_righter = adapt(825, 70)
+right_arm_end_lefter = adapt(785, 0)
 
 # middle_arm
-middle_arm_end_lefter = (left_corner[0]-5, 600+y_shift)
-middle_arm_end_righter = (right_corner[0]+5, middle_arm_end_lefter[1])
+middle_arm_end_lefter = adapt(435, 600)
+middle_arm_end_righter = adapt(515, 600)
 
 
 
 
 
-# get all file names in directory into list
-files = [file for file in os.listdir(path) 
-             if os.path.isfile(os.path.join(path, file)) and
-             'mp4' in file]
 
 def print_info(file):
     # get video properties
@@ -125,7 +153,6 @@ def adjust_video(input_file, output_file):
     nframes = int(vid.get(cv2.CAP_PROP_FRAME_COUNT))
     fps = int(vid.get(cv2.CAP_PROP_FPS))
 
-
     # CROP
     x1 = left_arm_end_lefter[0]
     y1 = min(middle_arm_end_lefter[1], middle_arm_end_righter[1], left_arm_end_righter[1], right_arm_end_lefter[1])
@@ -136,6 +163,7 @@ def adjust_video(input_file, output_file):
     #new_width, new_height = int((x2-x1)*2/3), int((y2-y1)*2/3)  # USE THIS WHEN     CROP     &     REDUCE QUALITY
     
 
+    # create new video
     cap = cv2.VideoCapture(input_file)
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     video = cv2.VideoWriter(output_file, fourcc, fps, (new_width, new_height)) 
