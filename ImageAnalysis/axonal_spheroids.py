@@ -1,4 +1,9 @@
 #%%
+'''
+- lay a circle with a fixed radius on each pixel 
+- save the pixels where the number of white pixel in that circle is above a threshold
+
+'''
 
 import os
 import cv2
