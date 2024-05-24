@@ -21,23 +21,23 @@ def get_xmax_ymax(file):
     vid = cv2.VideoCapture(file)
     width = int(vid.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
-
+    
     return width, height
 
 path = 'C:\\Users\\landgrafn\\NFCyber\\YLine\\data\\'
 file_format = '.mp4'
 
 files = get_files(path)
-width, height = get_xmax_ymax(files[0])
+width, height = get_xmax_ymax(path+files[0])
 
 def adapt(x, y):
     # add dx/dy and multiplay with dz
     adapt_coords = ((x + dx) * dz, (y + dy) * dz)
 
     # check if poits are out of the image
-    if 0 <= adapt_coords[0] <= width:
+    if 0 > adapt_coords[0] or adapt_coords[0] >= width:
         print('point exceeds width')
-    elif 0 <= adapt_coords[1] <= width:
+    elif 0 > adapt_coords[1] or adapt_coords[1] >= width:
         print('point exceeds height')
 
     return adapt_coords
@@ -49,21 +49,21 @@ dy = 0
 dz = 1
 
 # corners
-left_corner = adapt(435, 250)
-middle_corner = adapt(475, 180)
-right_corner = adapt(515, 250)
+left_corner = adapt(320, 250)
+middle_corner = adapt(360, 180)
+right_corner = adapt(395, 250)
 
 # left arm
-left_arm_end_lefter = adapt(115, 70)
-left_arm_end_righter = adapt(165, 0)
+left_arm_end_lefter = adapt(10, 70)
+left_arm_end_righter = adapt(50, 0)
 
 # right arm
-right_arm_end_righter = adapt(825, 70)
-right_arm_end_lefter = adapt(785, 0)
+right_arm_end_righter = adapt(705, 70)
+right_arm_end_lefter = adapt(670, 0)
 
 # middle_arm
-middle_arm_end_lefter = adapt(435, 600)
-middle_arm_end_righter = adapt(515, 600)
+middle_arm_end_lefter = adapt(318, 600)
+middle_arm_end_righter = adapt(400, 600)
 
 
 
@@ -136,6 +136,12 @@ file = path + files[0]
 print_info(file)
 areas, whole_area = get_areas()
 write_and_draw(file, areas)
+
+
+
+
+
+
 
 
 

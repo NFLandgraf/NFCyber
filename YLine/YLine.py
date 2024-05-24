@@ -16,26 +16,26 @@ import re
 
 # USER INPUT
 # define folder with the csv files
-path = 'C:\\Users\\landgrafn\\Desktop\\check\\'
+path = 'C:\\Users\\landgrafn\\NFCyber\\YLine\\data\\'
 common_name = '.csv'
 
-width = 740
-height = 608
+width = 710
+height = 600
 
 #left arm
-left_corner = (330, 355)
-middle_corner = (370, 425)
-left_arm_end_lefter = (20, 520)
-left_arm_end_righter = (60, 610)
+left_corner = (320, 250)
+middle_corner = (360, 180)
+left_arm_end_lefter = (10, 70)
+left_arm_end_righter = (50, 0)
 
 #middle arm
-right_corner = (405, 355)
-middle_arm_end_righter = (410, 0)
-middle_arm_end_lefter = (320, 0)
+right_corner = (395, 250)
+middle_arm_end_righter = (400, 600)
+middle_arm_end_lefter = (318, 600)
 
 #right arm
-right_arm_end_righter = (720, 530)
-right_arm_end_lefter = (680, 610)
+right_arm_end_righter = (705, 70)
+right_arm_end_lefter = (670, 0)
 
 fps = 30
 nframes = 9091
@@ -55,6 +55,13 @@ def get_files(path):
     print(f'{len(files)} files found\n')
 
     return files
+
+def out_to_txt(file, pos_changes, alterations, total_entries, alt_index):
+    output_file = path + '0alteration_indices'
+    with open (output_file, 'a') as f:
+        f.write(f'\nfile_name: {file}'
+                f'\npos_chang: {pos_changes}'
+                f'\nalt_index: {alterations} / {total_entries} = {round(alt_index, 4)}\n')
 
 def define_areas():
     left_arm = Polygon([left_corner, middle_corner, left_arm_end_righter, left_arm_end_lefter])
@@ -243,11 +250,7 @@ def do_stuff(files):
 
         alterations, total_entries, alt_index = calc_alteration_index(pos_changes)
 
-        output_file = path + 'alteration_indices'
-        with open (output_file, 'a') as f:
-            f.write(f'\nfile_name: {file}'
-                    f'\npos_chang: {pos_changes}'
-                    f'\nalt_index: {alterations} / {total_entries} = {round(alt_index, 4)}\n')
+        out_to_txt(file, pos_changes, alterations, total_entries, alt_index)
     
     print(f'\nYLine done!\n'
       f'{frames_with_no_annot} frames where no DLC annotation in defined areas\n'
@@ -256,6 +259,7 @@ def do_stuff(files):
     return all_positions
 
       
+
 #%%
 # DO STUFF 
 files = get_files(path)
