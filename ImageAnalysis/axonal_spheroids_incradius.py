@@ -18,8 +18,8 @@ from tqdm import tqdm
 path = 'C:\\Users\\landgrafn\\NFCyber\\ImageAnalysis\\data\\'
 
 
-wt = ['196', '198', '200', '206', '209', '211']
-app = ['706', '707', '711', '767', '768', '777']
+wt = ['196', '209', '211']
+app = ['706', '707', '711']
 groups = [wt, app]
 
 NET_wt = [7.28, 5.95, 7.09, 3.52, 4.18, 3.67]

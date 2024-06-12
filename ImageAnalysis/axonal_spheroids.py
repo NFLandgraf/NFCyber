@@ -18,11 +18,13 @@ import math
 path = 'C:\\Users\\landgrafn\\NFCyber\\ImageAnalysis\\data\\'
 
 
-min_AS_diam_um = 4
+min_AS_diam_um = 3
 threshold = 0.95  # in decimals
 
 wt = ['198', '200', '206']
+wt = ['196', '209', '211']
 app = ['767', '768', '777']
+app = ['706', '707', '711']
 
 
 
@@ -124,9 +126,10 @@ def main():
 
 '''
 
-# divide by the %area of NET to normalize it
+# divide by the %area of NET to normalize it!
 for group in groups:
     acc_means, px_means = check_group(group, radius, threshold)
+    print(group)
     print(acc_means)
     print(px_means)
     
