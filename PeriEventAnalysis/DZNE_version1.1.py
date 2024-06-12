@@ -3,17 +3,18 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib
 import pandas as pd
 import scipy.stats as stats
 
 
 file_traces = 'traces.csv'
-file_GPIO = 'GPIO.csv'
+file_GPIO = 'GPIOs.csv'
+rec_freq = 10   # how many data points per second
 
 
 def clean_df(file):
     # clean the csv file and return df
-
     df = pd.read_csv(file, low_memory=False)
 
     # drop rejected cells/columns
@@ -26,12 +27,16 @@ def clean_df(file):
     df = df.rename(columns = {' ': 'Time'})
     df['Time'] = df['Time'].round(1)
     df = df.set_index(['Time'])
+    df.index.names = ['Time/dff']
 
     df.columns = df.columns.str.replace(' C', '')
     df.columns = df.columns.astype(int)
 
-    # also return the df as the delta_f/f
-    df_f = df.copy()
+    return df
+
+def dff_2_zscore(df):
+    # transform df/f into zscores
+    df_z = df.copy()
 
     # transform into zscores
     df_z = df.copy()
@@ -39,40 +44,91 @@ def clean_df(file):
         df_z[name] = (df_z[name] - df_z[name].mean()) / df_z[name].std()
     df_z.index.names = ['Time/zscore']
 
-    return df_f, df_z
+    return df_z
 
-
-
-df_f, df_z = clean_df(file_traces)
-
-
+df_f = clean_df(file_traces)
+df_z = dff_2_zscore(df_f)
 
 
 
 #%%
-# GET TTL EVENTS
+# TTL EVENTS
 
+def events(file, channel_name=' GPIO-1', value_threshold=500, constant=False):
+    # returns a list with the onset (and offset) timepoints, where certain channel is 'high'
+    # choose constant=True fi you have e.g. camera frames to only get high onsets
 
-
-#def events(file):
-# returns a list with TTL lengths and a list with the time of their onset
-value_threshold = 5000   # which value is definitely >value_low and <value_high
-channel_name = ' GPIO-1'
-
-TTL_duration_list = []
-TTL_onset_list = []
-
-df = pd.read_csv(file_GPIO, low_memory=False)
-
-
-
+    df = pd.read_csv(file, low_memory=False)
+    df = df.set_index(['Time (s)'])
     
+    # only take rows that show data for your channel name
+    df = df[df[' Channel Name'] == channel_name]
+
+    # iterate through rows and save on- and offsets
+    high_times, curr_high_time = [], []
+    value_low = True
+    for idx in df.index:
+        value = df.loc[idx, ' Value']
+
+        if value_low and value >= value_threshold:
+            curr_high_time.append(idx)
+            value_low = False
+
+        elif not value_low and value <= value_threshold:
+            curr_high_time.append(idx)
+            high_times.append(curr_high_time)
+            curr_high_time = []
+            value_low = True
+
+    # if we have constant signal (e.g. for camera frames), let's just go with high onset tp
+    if constant:
+        high_times = [times[0] for times in high_times]
     
+    print(f'{len(high_times)} total events in recording')
+    return high_times
 
-print(df)
+def events_length(high_times, length_rounding=2):
 
+    # iterate through high_times and check each length, add info to respective list
+    lengths_dict = {}
+    for time in high_times:
+        length = round(time[1] - time[0], length_rounding)
+        
+        if length not in lengths_dict:
+            lengths_dict[length] = [time[0]]
+        else:
+            lengths_dict[length].append(time[0])
+    
+    # transform dict into df
+    TTLs = pd.DataFrame(dict([(k, pd.Series(v)) for k, v in lengths_dict.items()]))
 
+    print(f'TTL durations: {list(TTLs.columns)}')
+    #print(TTLs)
+    return TTLs
 
+def plot_TTLs(df, TTLs):
+    # choose colormap for TTL lines
+    cmap = matplotlib.colormaps['tab10']
+
+    # iterate through TTL lengths and TTL length onsets and draw vertical line for each
+    for i, col in enumerate(TTLs.columns):
+        for idx in TTLs.index:
+            value = TTLs.loc[idx, col]
+            if idx == TTLs.index[0]:
+                plt.axvline(x=value, label=col, linestyle='-', color=cmap(i))
+            else:
+                plt.axvline(x=value, linestyle='-', color=cmap(i))
+    
+    # take x axis range from the df_z
+    plt.xlim(df.index[0], df.index[-1])
+    plt.legend()
+    plt.xlabel('Time [s]')
+    plt.gca().yaxis.set_visible(False)
+    plt.show()
+
+high_times = events(file_GPIO)
+TTLs = events_length(high_times)
+plot_TTLs(df_z, TTLs)
 
 
 
@@ -81,8 +137,9 @@ print(df)
 #%% 
 # PANEL A: EVENT-ALIGNED ACTIVITY HEATMAP
 
-def event_align_df(df, stat_window=[-1, 1], vis_window=[-5, 5], color_border=[-4, 4]):
+def event_align_df(df, stat_window=[-1,1], vis_window=[-5,5], color_border=[-4,4]):
     # align the index to the event (time=0 at event)
+    df = df.copy(deep=True)
     df.index = df.index - event
 
     # create new dfs for pre and post
@@ -109,23 +166,23 @@ def event_align_df(df, stat_window=[-1, 1], vis_window=[-5, 5], color_border=[-4
 
     return df
 
-def plot_event_aligned_activity_heatmap(df, color_border=[-4, 4]):
+def plot_event_aligned_activity_heatmap(df, color_border=[-4,4]):
     # draw heatmap
 
     # define initial properties
     fig, axs = plt.subplots(1, 2, gridspec_kw={'width_ratios': [25, 1]})
     timeline = list(df.index.values)
-    nb_cells = len(data.columns)
-    data = data.transpose()
+    nb_cells = len(df.columns)
+    df = df.transpose()
     gradient = np.vstack((np.linspace(1, 0, 256), np.linspace(1, 0, 256)))
     map_color = "seismic"
 
-    im_left = axs[0].imshow(data, cmap=map_color, aspect="auto", extent=[timeline[0], timeline[-1], nb_cells, 0])
+    heatmap = axs[0].imshow(df, cmap=map_color, aspect="auto", extent=[timeline[0], timeline[-1], nb_cells, 0])
     axs[0].set_xlabel("Time from Event [s]")
     axs[0].set_ylabel("Neuron")
     axs[0].axvline(x=0, color="gray")
 
-    im_right = axs[1].imshow(gradient.T, cmap=map_color, aspect="auto", extent=[0, 1, color_border[0], color_border[1]])
+    colorscale = axs[1].imshow(gradient.T, cmap=map_color, aspect="auto", extent=[0, 1, color_border[0], color_border[1]])
     axs[1].set_ylabel("z-score")
     axs[1].yaxis.set_label_position("right")
     axs[1].yaxis.tick_right()
@@ -136,10 +193,9 @@ def plot_event_aligned_activity_heatmap(df, color_border=[-4, 4]):
     plt.show()
 
 
-df = df_z.copy(deep=True)
 event = 130.5
 
-df_event_aligned = event_align_df(df)
+df_event_aligned = event_align_df(df_z)
 plot_event_aligned_activity_heatmap(df_event_aligned)
 
 
@@ -148,54 +204,67 @@ plot_event_aligned_activity_heatmap(df_event_aligned)
 
 
 
-#%% PANEL B: EVENT-ALIGNED RESPONSES
+#%% 
+# PANEL B: EVENT-ALIGNED RESPONSES
 
-df = df_z.copy(deep=True)
-#print(df)
 events = [130.5, 160.5, 1781.35, 1811.35, 1841.35, 1871.35, 1901.35]
-stat_window = [-0.2, 0.2]
+events = [130.5, 160.5]
+
+def event_aligned_diff(df, events, stat_window=[-0.2,0.2]):
+    # creates df with index=cells and columns=post-pre for each event
+    df = df.copy(deep=True)
+
+    # create new df (index are cell numbers, columns will be post-pre for each event)
+    df_diff = pd.DataFrame(index=df.columns)
+    df_diff.index.names = ['Cell/Event(post-pre)']
+
+    # go through events and add post-pre for every event for every cell as extra column
+    for i, event in enumerate(events):
+        # go to index of time of event, pre and post according to stat_window
+        event_pos = df.index.get_loc(round(event, 1))
+        pre = df.iloc[int(event_pos+stat_window[0]*rec_freq) : event_pos]
+        post = df.iloc[event_pos : int(event_pos+stat_window[1]*rec_freq)]
+
+        # for Wilcoxon, we only need the post-pre-difference
+        diff = (post.mean() - pre.mean())
+
+        # insert a column for the difference in post_mean - pre_mean
+        df_diff.insert(loc=len(df_diff.columns), column=i, value=diff)
+    
+    return df_diff
+
+def wilcoxon_test(df):
+    # Wilcoxon signed-rank test: go through cells/index and calc p-value with event responses
+    # input should be df with cells as index and post-pre for each event as columns
+    responses = {'up' : [], 'down' : [], 'non' : []}
+
+    for i in range(len(df)):
+        row = df.iloc[i]
+        cell = df.index[i]
+
+        statistic, p_value = stats.wilcoxon(row, alternative='two-sided')
+
+        # append cell to either up/down/non-modulated acc to p-value and event sum
+        if p_value <= 0.05:
+            responses['up'].append(cell) if np.sum(row) > 0 else responses['down'].append(cell)
+        else:
+            responses['non'].append(cell)
+
+    return responses
+
+
+df_diff = event_aligned_diff(df_z, events)
+cell_responses2events = wilcoxon_test(df_diff)
+
+
+# now we want to show the mean zscores around the mean event
+# so 1. mean responses of all cells,
+# 2. mean responses of all upregulated cells etc.
+
 vis_window = [-1, 1]
-rec_freq = 10   # how many data points per second
-
-# create new df (index are cell numbers) for storing mean pre- and post-activites
-df_diff = pd.DataFrame(index=df.columns)
-df_diff.index.names = ['Cell/Event']
-
-for i, event in enumerate(events):
-    # gets rows with the wanted indexes according to stat_window
-    event_pos = df.index.get_loc(round(event, 1))
-    pre = df.iloc[int(event_pos+stat_window[0]*rec_freq) : event_pos]
-    post = df.iloc[event_pos : int(event_pos+stat_window[1]*rec_freq)]
-
-    # for Wilcoxon, we only need the post-pre-difference
-    diff = (post.mean() - pre.mean())
-
-    # insert a column for the difference in post_mean - pre_mean
-    df_diff.insert(loc=len(df_diff.columns), column=i, value=diff)
-#print(df_diff)
-
-# Wilcoxon signed-rank test
-responses = {'up' : [], 'down' : [], 'non' : []}
-for i in range(len(df_diff)):
-    row = df_diff.iloc[i]
-    cell = df_diff.index[i]
-
-    statistic, p_value = stats.wilcoxon(row, alternative='two-sided')
-
-    if p_value <= 0.05:
-        responses['up'].append(cell) if np.sum(row) > 0 else responses['down'].append(cell)
-    else:
-        responses['non'].append(cell)
-
-cell = 0
-df_cell = pd.DataFrame(columns=np.arange(vis_window[0], vis_window[1]+0.1, 0.1))
-df_cell.index.names = ['Events/Time']
-
-a = pd.Series(df.loc[events[0]+vis_window[0] : events[0]+vis_window[1], 0])
 
 
-df_cell.loc[0] = a.values
-print(df_cell)
+
 
 
 
