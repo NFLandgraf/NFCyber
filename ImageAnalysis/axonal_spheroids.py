@@ -18,13 +18,13 @@ import math
 path = 'C:\\Users\\landgrafn\\NFCyber\\ImageAnalysis\\data\\'
 
 
-min_AS_diam_um = 3
-threshold = 0.95  # in decimals
+min_AS_diam_um = 4
+threshold = 0.85  # in decimals
 
-wt = ['198', '200', '206']
-wt = ['196', '209', '211']
-app = ['767', '768', '777']
-app = ['706', '707', '711']
+wt = ['211', '196', '206', '209']
+wt = ['209']
+app = ['706', '707', '711', '768', '777']
+
 
 
 
@@ -39,7 +39,7 @@ print(f'radius in um/px: {min_AS_diam_um} / {radius}\n'
 px_in_kernel = [0,5,13,29,49,81,113,149,197,253,317]
 threshold = int(threshold * px_in_kernel[radius])
 
-groups = [wt, app]
+groups = [wt]
 
 NET_wt = [7.28, 5.95, 7.09, 3.52, 4.18, 3.67]
 NET_app = [3.9, 2.67, 4.05, 3.25, 3.81, 9.58]
@@ -58,6 +58,7 @@ def show_image(img):
     cv2.destroyAllWindows()
 
 
+
 def get_accumulations(pic, radius, threshold):
 
     # load image in grayscale and binarize (0.0/1.0) (white_px = high values, black_px = low values)
@@ -70,6 +71,7 @@ def get_accumulations(pic, radius, threshold):
     kernel = disk(radius)
     convolution_result = cv2.filter2D(image, cv2.CV_32F, kernel)    # sum of surrounding px values
     mask = convolution_result > threshold   # saying True/False if sum(neighbour_px) > threshold
+    show_image(mask)
 
     # get results
     nb_white_acc, labels_im = cv2.connectedComponents(mask.astype(np.uint8))
@@ -80,7 +82,7 @@ def get_accumulations(pic, radius, threshold):
 
 def check_animal(common_name, radius, threshold):
     # go through all files of an animal and return the animals' mean
-
+    print(common_name)
     files = get_files(path, common_name)
     acc_list, px_list = zip(*(get_accumulations(file, radius, threshold) for file in files))
 

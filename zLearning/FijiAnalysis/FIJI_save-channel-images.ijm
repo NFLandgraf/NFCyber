@@ -1,11 +1,14 @@
-curPath = "C:\\Users\\landgrafn\\Desktop\\all_VMHvl\\";
+// for each file in folder 'data', save specific channels with certain adjustments
+
+
+curPath = "C:\\Users\\landgrafn\\Desktop\\PVN_hits\\";
 // C1-NET, C2-Iba1, C3-Ab, C4-DAPI
 channel = "C1-";
 channel_name = "NET"
 
 // create folders and define paths
-File.makeDirectory(curPath + "results_" + channel_name);
-resultPath = curPath + "results_" + channel_name + "\\";
+File.makeDirectory(curPath + "images_" + channel_name);
+resultPath = curPath + "images_" + channel_name + "\\";
 File.makeDirectory(resultPath + "results_pics");
 dataPath = curPath + "data\\";
 

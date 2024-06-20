@@ -1,5 +1,7 @@
 // data must be in folder called 'data'
-curPath = "C:\\Users\\landgrafn\\Desktop\\PVN\\";
+
+
+curPath = "C:\\Users\\landgrafn\\Desktop\\PVN_hits\\";
 // C1-NET, C2-Iba1, C3-Ab, C4-DAPI
 channel = "C1-";
 channel_name = "NET"
@@ -35,7 +37,7 @@ for(i = 0;i<file_list.length;i++){
 		
 		// Threshold
 		setAutoThreshold("Default dark no-reset");
-		setThreshold(24000, 65535, "raw");
+		setThreshold(40000, 65535, "raw");
 		setOption("BlackBackground", true);
 		run("Convert to Mask");
 		
