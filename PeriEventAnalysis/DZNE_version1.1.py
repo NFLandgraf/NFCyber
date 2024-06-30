@@ -11,6 +11,7 @@ import scipy.stats as stats
 file_traces = 'traces.csv'
 file_GPIO = 'GPIOs.csv'
 rec_freq = 10   # how many data points per second
+to_round = 1 if rec_freq <= 10 else 2
 
 
 def clean_df(file):
@@ -28,6 +29,7 @@ def clean_df(file):
     df['Time'] = df['Time'].round(1)
     df = df.set_index(['Time'])
     df.index.names = ['Time/dff']
+    df.index = df.index.round(to_round)
 
     df.columns = df.columns.str.replace(' C', '')
     df.columns = df.columns.astype(int)
@@ -54,7 +56,7 @@ df_z = dff_2_zscore(df_f)
 #%%
 # TTL EVENTS
 
-def events(file, channel_name=' GPIO-1', value_threshold=500, constant=False):
+def event_list(file, channel_name=' GPIO-1', value_threshold=500, constant=False):
     # returns a list with the onset (and offset) timepoints, where certain channel is 'high'
     # choose constant=True fi you have e.g. camera frames to only get high onsets
 
@@ -126,7 +128,8 @@ def plot_TTLs(df, TTLs):
     plt.gca().yaxis.set_visible(False)
     plt.show()
 
-high_times = events(file_GPIO)
+
+high_times = event_list(file_GPIO)
 TTLs = events_length(high_times)
 plot_TTLs(df_z, TTLs)
 
@@ -137,7 +140,7 @@ plot_TTLs(df_z, TTLs)
 #%% 
 # PANEL A: EVENT-ALIGNED ACTIVITY HEATMAP
 
-def event_align_df(df, stat_window=[-1,1], vis_window=[-5,5], color_border=[-4,4]):
+def heatmap_df(df, stat_window=[-1,1], vis_window=[-5,5], color_border=[-4,4]):
     # align the index to the event (time=0 at event)
     df = df.copy(deep=True)
     df.index = df.index - event
@@ -195,7 +198,7 @@ def plot_event_aligned_activity_heatmap(df, color_border=[-4,4]):
 
 event = 130.5
 
-df_event_aligned = event_align_df(df_z)
+df_event_aligned = heatmap_df(df_z)
 plot_event_aligned_activity_heatmap(df_event_aligned)
 
 
@@ -207,11 +210,9 @@ plot_event_aligned_activity_heatmap(df_event_aligned)
 #%% 
 # PANEL B: EVENT-ALIGNED RESPONSES
 
-events = [130.5, 160.5, 1781.35, 1811.35, 1841.35, 1871.35, 1901.35]
-events = [130.5, 160.5]
-
 def event_aligned_diff(df, events, stat_window=[-0.2,0.2]):
     # creates df with index=cells and columns=post-pre for each event
+    # stat_window is the range pre and post event from which the mean is taken
     df = df.copy(deep=True)
 
     # create new df (index are cell numbers, columns will be post-pre for each event)
@@ -252,19 +253,67 @@ def wilcoxon_test(df):
 
     return responses
 
+def one_cell_mean_response_2_events(df, events, cell, vis_window=[-4, 4]):
+    # returns the mean reponse of a cell to all events
+    # If you get an error (e.g. length is different), there may be a problem with the timeseries,
+    # e.g. [3.15001, 3.2501, 3.349999]
+    
+    # get the common [-1, -0.9, ..., 0.9, 1] index, for this, we need to round as well
+    aligned_idx = (df.index - events[0]).round(to_round)
+    common_idx = aligned_idx[(aligned_idx >= vis_window[0]) & (aligned_idx <= vis_window[1])]
+    df_events = pd.DataFrame(index=common_idx)
+
+    # takes each event and saves the zscores in vis_window to df_events
+    for i, event in enumerate(events):
+        # align the index to the event (time=0 at event)
+        aligned_idx = (df.index - event).round(to_round)    # neccessary
+        event_series = df.loc[(aligned_idx >= vis_window[0]) & (aligned_idx <= vis_window[1]), cell]
+        df_events[f'Event_{i}'] = event_series.values
+    
+    # calc and return mean of all event responses of that cell
+    df_events['cell_mean'] = df_events.mean(axis=1)
+
+    return df_events['cell_mean']
+    
+def all_cells_mean_responses_2_events(df, events):
+    # go through all cells/columns in df and collect their mean towards all events
+    df_all_cells = pd.DataFrame()
+
+    for cell in df.columns:
+        mean_response = one_cell_mean_response_2_events(df, events, cell)
+        mean_response.name = cell
+        df_all_cells[f'Cell_{cell}'] = mean_response
+    
+    sem = df_all_cells.sem(axis='columns')
+    df_all_cells['mean'] = df_all_cells.mean(axis='columns')
+    df_all_cells['sem'] = sem
+
+    return df_all_cells
+
+def plot_event_aligned_pop_response(df):
+    # plot all individual cell means plus the overall mean
+    plt.plot(df, color='gray', alpha=0.1)
+    plt.errorbar(df.index, df['mean'], yerr=df['sem'], color='red', alpha=0.2)
+    plt.plot(df['mean'], color='black', alpha=1, label='mean')
+    
+    plt.legend()
+    plt.ylabel('z-score')
+    plt.xlabel('event-aligned time [s]')
+    plt.title('Event-aligned population response')
+    plt.show()
+
+
+events = [130.5, 160.5, 1781.3, 1811.3, 1841.3, 1871.3, 1901.3]
 
 df_diff = event_aligned_diff(df_z, events)
 cell_responses2events = wilcoxon_test(df_diff)
 
-
-# now we want to show the mean zscores around the mean event
-# so 1. mean responses of all cells,
-# 2. mean responses of all upregulated cells etc.
-
-vis_window = [-1, 1]
+cells_mean_2_events = all_cells_mean_responses_2_events(df_z, events)
+plot_event_aligned_pop_response(cells_mean_2_events)
 
 
 
 
 
 
+# show the mean zscore responses of all up/down/non-regulated cells in vis_window around event
