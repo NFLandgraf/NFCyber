@@ -19,27 +19,27 @@ import re
 path = 'C:\\Users\\landgrafn\\NFCyber\\YLine\\data\\'
 common_name = '.csv'
 
-width = 710
-height = 600
+width = 968
+height = 608
 
 #left arm
-left_corner = (320, 250)
-middle_corner = (360, 180)
-left_arm_end_lefter = (10, 70)
-left_arm_end_righter = (50, 0)
+left_corner = (530, 350)
+middle_corner = (570, 430)
+left_arm_end_lefter = (200, 550)
+left_arm_end_righter = (250, 608)
 
 #middle arm
-right_corner = (395, 250)
-middle_arm_end_righter = (400, 600)
-middle_arm_end_lefter = (318, 600)
+right_corner = (610, 350)
+middle_arm_end_righter = (610, 0)
+middle_arm_end_lefter = (520, 0)
 
 #right arm
-right_arm_end_righter = (705, 70)
-right_arm_end_lefter = (670, 0)
+right_arm_end_righter = (940, 530)
+right_arm_end_lefter = (900, 608)
 
 fps = 30
-nframes = 9091
-duration = 303.03333333333336
+nframes = 9092
+duration = 303.06666666666666
 
 
 
@@ -351,7 +351,7 @@ def create_drawn_video(video_file, folder_framesfromvideo, folder_draw_on_frames
 
 
 def do_video(all_positions):
-    video_file = path + '\\Y-maze 29.04.2024.517_WT_naiveDLC_resnet50_TopoViewMouseMar22shuffle1_600000_filtered_labeled.mp4'
+    video_file = path + '\\513_TSPO-KO_NaiveDLC_resnet50_TopoViewMouseMar22shuffle1_600000_filtered_labeled.mp4'
     vid = cv2.VideoCapture(video_file)
     nframes = int(vid.get(cv2.CAP_PROP_FRAME_COUNT))
 
@@ -362,4 +362,4 @@ def do_video(all_positions):
     print('video done')
     
 
-# do_video(all_positions)
+do_video(all_positions)
