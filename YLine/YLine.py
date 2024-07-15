@@ -23,23 +23,23 @@ width = 968
 height = 608
 
 #left arm
-left_corner = (530, 350)
-middle_corner = (570, 430)
-left_arm_end_lefter = (200, 550)
-left_arm_end_righter = (250, 608)
+left_corner = (350, 250)
+middle_corner = (390, 180)
+left_arm_end_lefter = (30, 80)
+left_arm_end_righter = (70, 0)
 
 #middle arm
-right_corner = (610, 350)
-middle_arm_end_righter = (610, 0)
-middle_arm_end_lefter = (520, 0)
+right_corner = (430, 250)
+middle_arm_end_righter = (440, 608)
+middle_arm_end_lefter = (350, 608)
 
 #right arm
-right_arm_end_righter = (940, 530)
-right_arm_end_lefter = (900, 608)
+right_arm_end_righter = (750, 80)
+right_arm_end_lefter = (700, 0)
 
 fps = 30
-nframes = 9092
-duration = 303.06666666666666
+nframes = 9091
+duration = 303.03333333333336
 
 
 
@@ -56,12 +56,13 @@ def get_files(path):
 
     return files
 
-def out_to_txt(file, pos_changes, alterations, total_entries, alt_index):
+def out_to_txt(file, pos_changes, alterations, total_entries, alt_index, alert):
     output_file = path + '0alteration_indices'
     with open (output_file, 'a') as f:
         f.write(f'\nfile_name: {file}'
                 f'\npos_chang: {pos_changes}'
-                f'\nalt_index: {alterations} / {total_entries} = {round(alt_index, 4)}\n')
+                f'\nalt_index: {alterations} / {total_entries} = {round(alt_index, 4)}'
+                f'\n{alert}')
 
 def define_areas():
     left_arm = Polygon([left_corner, middle_corner, left_arm_end_righter, left_arm_end_lefter])
@@ -121,6 +122,7 @@ def cleaning_raw_df(csv_file):
 
 # position calculations
 def point_in_which_area(df, bp, frame, areas, areas_int):
+    global bp_not_in_any_area
     # return area in which bodpart is located
     x = df.loc[frame, f'{bp}_x']
     y = df.loc[frame, f'{bp}_y']
@@ -132,7 +134,11 @@ def point_in_which_area(df, bp, frame, areas, areas_int):
     for i, area in enumerate(areas):
         if area.contains(bp_point):
             return areas_int[i]
-    # print(f'Frame {frame} Error: Bodypart {bp} not in areas nor nan ({x}, {y})')
+        
+    # if point is not nan and point is in non of the areas, return 99
+    bp_not_in_any_area += 1
+    return 99
+
 
 def point_in_spec_area(df, bp, frame, area):
     # check if point is in area
@@ -250,20 +256,27 @@ def do_stuff(files):
 
         alterations, total_entries, alt_index = calc_alteration_index(pos_changes)
 
-        out_to_txt(file, pos_changes, alterations, total_entries, alt_index)
+        alert = '!CHECK MANUALLY!' if bp_not_in_any_area > 0 or frames_with_no_annot > 1*fps else ''
+        if bp_not_in_any_area > 0:
+            alert = f'!CHECK MANUALLY! {bp_not_in_any_area} bps not in area'
+        elif frames_with_no_annot > 1*fps:
+            alert.append(f' + {frames_with_no_annot} frames without annotations')
+
+        out_to_txt(file, pos_changes, alterations, total_entries, alt_index, alert)
     
     print(f'\nYLine done!\n'
-      f'{frames_with_no_annot} frames where no DLC annotation in defined areas\n'
-      f'{len(all_positions)} positions found / {nframes} total video frames\n')
+      f'{bp_not_in_any_area} frames where a bp was outside of defined areas\n'
+      f'{frames_with_no_annot} frames where no DLC annotation in frame\n')
 
     return all_positions
 
-      
+
 
 #%%
 # DO STUFF 
 files = get_files(path)
 frames_with_no_annot = 0
+bp_not_in_any_area = 0
 
 center, left_arm, middle_arm, right_arm = define_areas()
 areas = [center, left_arm, middle_arm, right_arm]

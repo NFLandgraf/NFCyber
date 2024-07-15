@@ -49,21 +49,21 @@ dy = 0
 dz = 1
 
 # corners
-left_corner = adapt(530, 350)
-middle_corner = adapt(570, 430)
-right_corner = adapt(610, 350)
+left_corner = adapt(350, 250)
+middle_corner = adapt(390, 180)
+right_corner = adapt(430, 250)
 
 # left arm
-left_arm_end_lefter = adapt(200, 550)
-left_arm_end_righter = adapt(250, height)
+left_arm_end_lefter = adapt(30, 80)
+left_arm_end_righter = adapt(70, 0)
 
 # right arm
-right_arm_end_righter = adapt(940, 530)
-right_arm_end_lefter = adapt(900, height)
+right_arm_end_righter = adapt(750, 80)
+right_arm_end_lefter = adapt(700, 0)
 
 # middle_arm
-middle_arm_end_lefter = adapt(520, 0)
-middle_arm_end_righter = adapt(610, 0)
+middle_arm_end_lefter = adapt(350, height)
+middle_arm_end_righter = adapt(440, height)
 
 
 
