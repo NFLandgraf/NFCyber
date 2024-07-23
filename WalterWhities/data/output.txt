@@ -1,0 +1,125 @@
+common_name: 3m
+total_distances_travelled: [278245.718]
+paw2centerlinecat_mean [[VL, VR, HL, HR], ...]: [[7.516, 8.622, 12.527, 11.867]]
+paw2centerlinecat_std [[VL, VR, HL, HR], ...]: [[5.011, 5.227, 2.535, 2.762]]
+paw2centerlinecat_n [[VL, VR, HL, HR], ...]: [[16776, 16760, 17257, 17254]]
+staticpaw2centerlinecat_mean [[VL, VR, HL, HR], ...]: [[nan, nan, nan, nan]]
+staticpaw2centerlinecat_std [[VL, VR, HL, HR], ...]: [[nan, nan, nan, nan]]
+staticpaw2centerlinecat_n [[VL, VR, HL, HR], ...]: [[460, 474, 440, 385]]
+
+common_name: 3m
+total_distances_travelled: [278245.718, 250959.462]
+paw2centerlinecat_mean [[VL, VR, HL, HR], ...]: [[7.516, 8.622, 12.527, 11.867], [7.48, 9.185, 12.637, 11.993]]
+paw2centerlinecat_std [[VL, VR, HL, HR], ...]: [[5.011, 5.227, 2.535, 2.762], [4.979, 5.323, 2.55, 2.557]]
+paw2centerlinecat_n [[VL, VR, HL, HR], ...]: [[16776, 16760, 17257, 17254], [17780, 17700, 17913, 17912]]
+staticpaw2centerlinecat_mean [[VL, VR, HL, HR], ...]: [[nan, nan, nan, nan], [nan, nan, 11.473, nan]]
+staticpaw2centerlinecat_std [[VL, VR, HL, HR], ...]: [[nan, nan, nan, nan], [nan, nan, 2.086, nan]]
+staticpaw2centerlinecat_n [[VL, VR, HL, HR], ...]: [[460, 474, 440, 385], [464, 450, 394, 385]]
+
+common_name: 3m
+total_distances_travelled: [278245.718, 250959.462, 262865.119]
+paw2centerlinecat_mean [[VL, VR, HL, HR], ...]: [[7.516, 8.622, 12.527, 11.867], [7.48, 9.185, 12.637, 11.993], [7.543, 7.818, 12.248, 13.495]]
+paw2centerlinecat_std [[VL, VR, HL, HR], ...]: [[5.011, 5.227, 2.535, 2.762], [4.979, 5.323, 2.55, 2.557], [5.068, 5.09, 2.551, 2.562]]
+paw2centerlinecat_n [[VL, VR, HL, HR], ...]: [[16776, 16760, 17257, 17254], [17780, 17700, 17913, 17912], [17254, 17180, 17574, 17549]]
+staticpaw2centerlinecat_mean [[VL, VR, HL, HR], ...]: [[nan, nan, nan, nan], [nan, nan, 11.473, nan], [nan, nan, nan, nan]]
+staticpaw2centerlinecat_std [[VL, VR, HL, HR], ...]: [[nan, nan, nan, nan], [nan, nan, 2.086, nan], [nan, nan, nan, nan]]
+staticpaw2centerlinecat_n [[VL, VR, HL, HR], ...]: [[460, 474, 440, 385], [464, 450, 394, 385], [483, 479, 407, 405]]
+
+common_name: 3m
+total_distances_travelled: [278245.718, 250959.462, 262865.119, 78546.059]
+paw2centerlinecat_mean [[VL, VR, HL, HR], ...]: [[7.516, 8.622, 12.527, 11.867], [7.48, 9.185, 12.637, 11.993], [7.543, 7.818, 12.248, 13.495], [6.608, 9.667, 12.7, 11.41]]
+paw2centerlinecat_std [[VL, VR, HL, HR], ...]: [[5.011, 5.227, 2.535, 2.762], [4.979, 5.323, 2.55, 2.557], [5.068, 5.09, 2.551, 2.562], [4.718, 5.377, 2.215, 2.143]]
+paw2centerlinecat_n [[VL, VR, HL, HR], ...]: [[16776, 16760, 17257, 17254], [17780, 17700, 17913, 17912], [17254, 17180, 17574, 17549], [4247, 4234, 4262, 4279]]
+staticpaw2centerlinecat_mean [[VL, VR, HL, HR], ...]: [[nan, nan, nan, nan], [nan, nan, 11.473, nan], [nan, nan, nan, nan], [5.486, 9.397, 12.138, 11.303]]
+staticpaw2centerlinecat_std [[VL, VR, HL, HR], ...]: [[nan, nan, nan, nan], [nan, nan, 2.086, nan], [nan, nan, nan, nan], [3.949, 5.931, 2.05, 2.133]]
+staticpaw2centerlinecat_n [[VL, VR, HL, HR], ...]: [[460, 474, 440, 385], [464, 450, 394, 385], [483, 479, 407, 405], [116, 108, 104, 101]]
+
+common_name: 3m
+total_distances_travelled: [278245.718, 250959.462, 262865.119, 78546.059, 142641.326]
+paw2centerlinecat_mean [[VL, VR, HL, HR], ...]: [[7.516, 8.622, 12.527, 11.867], [7.48, 9.185, 12.637, 11.993], [7.543, 7.818, 12.248, 13.495], [6.608, 9.667, 12.7, 11.41], [6.829, 9.897, 13.104, 11.46]]
+paw2centerlinecat_std [[VL, VR, HL, HR], ...]: [[5.011, 5.227, 2.535, 2.762], [4.979, 5.323, 2.55, 2.557], [5.068, 5.09, 2.551, 2.562], [4.718, 5.377, 2.215, 2.143], [4.957, 5.217, 3.282, 2.361]]
+paw2centerlinecat_n [[VL, VR, HL, HR], ...]: [[16776, 16760, 17257, 17254], [17780, 17700, 17913, 17912], [17254, 17180, 17574, 17549], [4247, 4234, 4262, 4279], [7394, 7452, 7481, 7531]]
+staticpaw2centerlinecat_mean [[VL, VR, HL, HR], ...]: [[nan, nan, nan, nan], [nan, nan, 11.473, nan], [nan, nan, nan, nan], [5.486, 9.397, 12.138, 11.303], [nan, nan, nan, nan]]
+staticpaw2centerlinecat_std [[VL, VR, HL, HR], ...]: [[nan, nan, nan, nan], [nan, nan, 2.086, nan], [nan, nan, nan, nan], [3.949, 5.931, 2.05, 2.133], [nan, nan, nan, nan]]
+staticpaw2centerlinecat_n [[VL, VR, HL, HR], ...]: [[460, 474, 440, 385], [464, 450, 394, 385], [483, 479, 407, 405], [116, 108, 104, 101], [212, 204, 183, 193]]
+
+common_name: 3m
+total_distances_travelled: [278245.718, 250959.462, 262865.119, 78546.059, 142641.326, 209483.291]
+paw2centerlinecat_mean [[VL, VR, HL, HR], ...]: [[7.516, 8.622, 12.527, 11.867], [7.48, 9.185, 12.637, 11.993], [7.543, 7.818, 12.248, 13.495], [6.608, 9.667, 12.7, 11.41], [6.829, 9.897, 13.104, 11.46], [8.053, 8.78, 13.365, 14.242]]
+paw2centerlinecat_std [[VL, VR, HL, HR], ...]: [[5.011, 5.227, 2.535, 2.762], [4.979, 5.323, 2.55, 2.557], [5.068, 5.09, 2.551, 2.562], [4.718, 5.377, 2.215, 2.143], [4.957, 5.217, 3.282, 2.361], [5.498, 4.848, 2.411, 2.397]]
+paw2centerlinecat_n [[VL, VR, HL, HR], ...]: [[16776, 16760, 17257, 17254], [17780, 17700, 17913, 17912], [17254, 17180, 17574, 17549], [4247, 4234, 4262, 4279], [7394, 7452, 7481, 7531], [12103, 12153, 12364, 12366]]
+staticpaw2centerlinecat_mean [[VL, VR, HL, HR], ...]: [[nan, nan, nan, nan], [nan, nan, 11.473, nan], [nan, nan, nan, nan], [5.486, 9.397, 12.138, 11.303], [nan, nan, nan, nan], [nan, 7.838, nan, nan]]
+staticpaw2centerlinecat_std [[VL, VR, HL, HR], ...]: [[nan, nan, nan, nan], [nan, nan, 2.086, nan], [nan, nan, nan, nan], [3.949, 5.931, 2.05, 2.133], [nan, nan, nan, nan], [nan, 4.463, nan, nan]]
+staticpaw2centerlinecat_n [[VL, VR, HL, HR], ...]: [[460, 474, 440, 385], [464, 450, 394, 385], [483, 479, 407, 405], [116, 108, 104, 101], [212, 204, 183, 193], [360, 364, 314, 311]]
+
+common_name: 3m
+total_distances_travelled: [278245.718, 250959.462, 262865.119, 78546.059, 142641.326, 209483.291, 200557.883]
+paw2centerlinecat_mean [[VL, VR, HL, HR], ...]: [[7.516, 8.622, 12.527, 11.867], [7.48, 9.185, 12.637, 11.993], [7.543, 7.818, 12.248, 13.495], [6.608, 9.667, 12.7, 11.41], [6.829, 9.897, 13.104, 11.46], [8.053, 8.78, 13.365, 14.242], [7.109, 8.725, 12.763, 13.597]]
+paw2centerlinecat_std [[VL, VR, HL, HR], ...]: [[5.011, 5.227, 2.535, 2.762], [4.979, 5.323, 2.55, 2.557], [5.068, 5.09, 2.551, 2.562], [4.718, 5.377, 2.215, 2.143], [4.957, 5.217, 3.282, 2.361], [5.498, 4.848, 2.411, 2.397], [5.205, 5.392, 2.669, 2.921]]
+paw2centerlinecat_n [[VL, VR, HL, HR], ...]: [[16776, 16760, 17257, 17254], [17780, 17700, 17913, 17912], [17254, 17180, 17574, 17549], [4247, 4234, 4262, 4279], [7394, 7452, 7481, 7531], [12103, 12153, 12364, 12366], [10746, 10724, 10953, 10948]]
+staticpaw2centerlinecat_mean [[VL, VR, HL, HR], ...]: [[nan, nan, nan, nan], [nan, nan, 11.473, nan], [nan, nan, nan, nan], [5.486, 9.397, 12.138, 11.303], [nan, nan, nan, nan], [nan, 7.838, nan, nan], [6.491, 7.487, 12.01, 12.451]]
+staticpaw2centerlinecat_std [[VL, VR, HL, HR], ...]: [[nan, nan, nan, nan], [nan, nan, 2.086, nan], [nan, nan, nan, nan], [3.949, 5.931, 2.05, 2.133], [nan, nan, nan, nan], [nan, 4.463, nan, nan], [5.722, 5.525, 2.314, 2.715]]
+staticpaw2centerlinecat_n [[VL, VR, HL, HR], ...]: [[460, 474, 440, 385], [464, 450, 394, 385], [483, 479, 407, 405], [116, 108, 104, 101], [212, 204, 183, 193], [360, 364, 314, 311], [310, 309, 293, 283]]
+
+common_name: 3m
+total_distances_travelled: [278245.718]
+paw2centerlinecat_mean [[VL, VR, HL, HR], ...]: [[7.516, 8.622, 12.527, 11.867]]
+paw2centerlinecat_std [[VL, VR, HL, HR], ...]: [[5.011, 5.227, 2.535, 2.762]]
+paw2centerlinecat_n [[VL, VR, HL, HR], ...]: [[16776, 16760, 17257, 17254]]
+staticpaw2centerlinecat_mean [[VL, VR, HL, HR], ...]: [[nan, nan, nan, nan]]
+staticpaw2centerlinecat_std [[VL, VR, HL, HR], ...]: [[nan, nan, nan, nan]]
+staticpaw2centerlinecat_n [[VL, VR, HL, HR], ...]: [[460, 474, 440, 385]]
+
+common_name: 3m
+total_distances_travelled: [278245.718, 250959.462]
+paw2centerlinecat_mean [[VL, VR, HL, HR], ...]: [[7.516, 8.622, 12.527, 11.867], [7.48, 9.185, 12.637, 11.993]]
+paw2centerlinecat_std [[VL, VR, HL, HR], ...]: [[5.011, 5.227, 2.535, 2.762], [4.979, 5.323, 2.55, 2.557]]
+paw2centerlinecat_n [[VL, VR, HL, HR], ...]: [[16776, 16760, 17257, 17254], [17780, 17700, 17913, 17912]]
+staticpaw2centerlinecat_mean [[VL, VR, HL, HR], ...]: [[nan, nan, nan, nan], [nan, nan, 11.473, nan]]
+staticpaw2centerlinecat_std [[VL, VR, HL, HR], ...]: [[nan, nan, nan, nan], [nan, nan, 2.086, nan]]
+staticpaw2centerlinecat_n [[VL, VR, HL, HR], ...]: [[460, 474, 440, 385], [464, 450, 394, 385]]
+
+common_name: 3m
+total_distances_travelled: [278245.718, 250959.462, 262865.119]
+paw2centerlinecat_mean [[VL, VR, HL, HR], ...]: [[7.516, 8.622, 12.527, 11.867], [7.48, 9.185, 12.637, 11.993], [7.543, 7.818, 12.248, 13.495]]
+paw2centerlinecat_std [[VL, VR, HL, HR], ...]: [[5.011, 5.227, 2.535, 2.762], [4.979, 5.323, 2.55, 2.557], [5.068, 5.09, 2.551, 2.562]]
+paw2centerlinecat_n [[VL, VR, HL, HR], ...]: [[16776, 16760, 17257, 17254], [17780, 17700, 17913, 17912], [17254, 17180, 17574, 17549]]
+staticpaw2centerlinecat_mean [[VL, VR, HL, HR], ...]: [[nan, nan, nan, nan], [nan, nan, 11.473, nan], [nan, nan, nan, nan]]
+staticpaw2centerlinecat_std [[VL, VR, HL, HR], ...]: [[nan, nan, nan, nan], [nan, nan, 2.086, nan], [nan, nan, nan, nan]]
+staticpaw2centerlinecat_n [[VL, VR, HL, HR], ...]: [[460, 474, 440, 385], [464, 450, 394, 385], [483, 479, 407, 405]]
+
+common_name: 3m
+total_distances_travelled: [278245.718, 250959.462, 262865.119, 78546.059]
+paw2centerlinecat_mean [[VL, VR, HL, HR], ...]: [[7.516, 8.622, 12.527, 11.867], [7.48, 9.185, 12.637, 11.993], [7.543, 7.818, 12.248, 13.495], [6.608, 9.667, 12.7, 11.41]]
+paw2centerlinecat_std [[VL, VR, HL, HR], ...]: [[5.011, 5.227, 2.535, 2.762], [4.979, 5.323, 2.55, 2.557], [5.068, 5.09, 2.551, 2.562], [4.718, 5.377, 2.215, 2.143]]
+paw2centerlinecat_n [[VL, VR, HL, HR], ...]: [[16776, 16760, 17257, 17254], [17780, 17700, 17913, 17912], [17254, 17180, 17574, 17549], [4247, 4234, 4262, 4279]]
+staticpaw2centerlinecat_mean [[VL, VR, HL, HR], ...]: [[nan, nan, nan, nan], [nan, nan, 11.473, nan], [nan, nan, nan, nan], [5.486, 9.397, 12.138, 11.303]]
+staticpaw2centerlinecat_std [[VL, VR, HL, HR], ...]: [[nan, nan, nan, nan], [nan, nan, 2.086, nan], [nan, nan, nan, nan], [3.949, 5.931, 2.05, 2.133]]
+staticpaw2centerlinecat_n [[VL, VR, HL, HR], ...]: [[460, 474, 440, 385], [464, 450, 394, 385], [483, 479, 407, 405], [116, 108, 104, 101]]
+
+common_name: 3m
+total_distances_travelled: [278245.718, 250959.462, 262865.119, 78546.059, 142641.326]
+paw2centerlinecat_mean [[VL, VR, HL, HR], ...]: [[7.516, 8.622, 12.527, 11.867], [7.48, 9.185, 12.637, 11.993], [7.543, 7.818, 12.248, 13.495], [6.608, 9.667, 12.7, 11.41], [6.829, 9.897, 13.104, 11.46]]
+paw2centerlinecat_std [[VL, VR, HL, HR], ...]: [[5.011, 5.227, 2.535, 2.762], [4.979, 5.323, 2.55, 2.557], [5.068, 5.09, 2.551, 2.562], [4.718, 5.377, 2.215, 2.143], [4.957, 5.217, 3.282, 2.361]]
+paw2centerlinecat_n [[VL, VR, HL, HR], ...]: [[16776, 16760, 17257, 17254], [17780, 17700, 17913, 17912], [17254, 17180, 17574, 17549], [4247, 4234, 4262, 4279], [7394, 7452, 7481, 7531]]
+staticpaw2centerlinecat_mean [[VL, VR, HL, HR], ...]: [[nan, nan, nan, nan], [nan, nan, 11.473, nan], [nan, nan, nan, nan], [5.486, 9.397, 12.138, 11.303], [nan, nan, nan, nan]]
+staticpaw2centerlinecat_std [[VL, VR, HL, HR], ...]: [[nan, nan, nan, nan], [nan, nan, 2.086, nan], [nan, nan, nan, nan], [3.949, 5.931, 2.05, 2.133], [nan, nan, nan, nan]]
+staticpaw2centerlinecat_n [[VL, VR, HL, HR], ...]: [[460, 474, 440, 385], [464, 450, 394, 385], [483, 479, 407, 405], [116, 108, 104, 101], [212, 204, 183, 193]]
+
+common_name: 3m
+total_distances_travelled: [278245.718, 250959.462, 262865.119, 78546.059, 142641.326, 209483.291]
+paw2centerlinecat_mean [[VL, VR, HL, HR], ...]: [[7.516, 8.622, 12.527, 11.867], [7.48, 9.185, 12.637, 11.993], [7.543, 7.818, 12.248, 13.495], [6.608, 9.667, 12.7, 11.41], [6.829, 9.897, 13.104, 11.46], [8.053, 8.78, 13.365, 14.242]]
+paw2centerlinecat_std [[VL, VR, HL, HR], ...]: [[5.011, 5.227, 2.535, 2.762], [4.979, 5.323, 2.55, 2.557], [5.068, 5.09, 2.551, 2.562], [4.718, 5.377, 2.215, 2.143], [4.957, 5.217, 3.282, 2.361], [5.498, 4.848, 2.411, 2.397]]
+paw2centerlinecat_n [[VL, VR, HL, HR], ...]: [[16776, 16760, 17257, 17254], [17780, 17700, 17913, 17912], [17254, 17180, 17574, 17549], [4247, 4234, 4262, 4279], [7394, 7452, 7481, 7531], [12103, 12153, 12364, 12366]]
+staticpaw2centerlinecat_mean [[VL, VR, HL, HR], ...]: [[nan, nan, nan, nan], [nan, nan, 11.473, nan], [nan, nan, nan, nan], [5.486, 9.397, 12.138, 11.303], [nan, nan, nan, nan], [nan, 7.838, nan, nan]]
+staticpaw2centerlinecat_std [[VL, VR, HL, HR], ...]: [[nan, nan, nan, nan], [nan, nan, 2.086, nan], [nan, nan, nan, nan], [3.949, 5.931, 2.05, 2.133], [nan, nan, nan, nan], [nan, 4.463, nan, nan]]
+staticpaw2centerlinecat_n [[VL, VR, HL, HR], ...]: [[460, 474, 440, 385], [464, 450, 394, 385], [483, 479, 407, 405], [116, 108, 104, 101], [212, 204, 183, 193], [360, 364, 314, 311]]
+
+common_name: 3m
+total_distances_travelled: [278245.718, 250959.462, 262865.119, 78546.059, 142641.326, 209483.291, 200557.883]
+paw2centerlinecat_mean [[VL, VR, HL, HR], ...]: [[7.516, 8.622, 12.527, 11.867], [7.48, 9.185, 12.637, 11.993], [7.543, 7.818, 12.248, 13.495], [6.608, 9.667, 12.7, 11.41], [6.829, 9.897, 13.104, 11.46], [8.053, 8.78, 13.365, 14.242], [7.109, 8.725, 12.763, 13.597]]
+paw2centerlinecat_std [[VL, VR, HL, HR], ...]: [[5.011, 5.227, 2.535, 2.762], [4.979, 5.323, 2.55, 2.557], [5.068, 5.09, 2.551, 2.562], [4.718, 5.377, 2.215, 2.143], [4.957, 5.217, 3.282, 2.361], [5.498, 4.848, 2.411, 2.397], [5.205, 5.392, 2.669, 2.921]]
+paw2centerlinecat_n [[VL, VR, HL, HR], ...]: [[16776, 16760, 17257, 17254], [17780, 17700, 17913, 17912], [17254, 17180, 17574, 17549], [4247, 4234, 4262, 4279], [7394, 7452, 7481, 7531], [12103, 12153, 12364, 12366], [10746, 10724, 10953, 10948]]
+staticpaw2centerlinecat_mean [[VL, VR, HL, HR], ...]: [[nan, nan, nan, nan], [nan, nan, 11.473, nan], [nan, nan, nan, nan], [5.486, 9.397, 12.138, 11.303], [nan, nan, nan, nan], [nan, 7.838, nan, nan], [6.491, 7.487, 12.01, 12.451]]
+staticpaw2centerlinecat_std [[VL, VR, HL, HR], ...]: [[nan, nan, nan, nan], [nan, nan, 2.086, nan], [nan, nan, nan, nan], [3.949, 5.931, 2.05, 2.133], [nan, nan, nan, nan], [nan, 4.463, nan, nan], [5.722, 5.525, 2.314, 2.715]]
+staticpaw2centerlinecat_n [[VL, VR, HL, HR], ...]: [[460, 474, 440, 385], [464, 450, 394, 385], [483, 479, 407, 405], [116, 108, 104, 101], [212, 204, 183, 193], [360, 364, 314, 311], [310, 309, 293, 283]]

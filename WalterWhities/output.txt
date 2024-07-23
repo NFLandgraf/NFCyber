@@ -1,8 +1,0 @@
-common_name: 3m_293_shorty
-total_distances_travelled: [5580.096]
-paw2centerlinecat_mean [[VL, VR, HL, HR], ...]: [[9.941, 7.578, 11.115, 13.119]]
-paw2centerlinecat_std [[VL, VR, HL, HR], ...]: [[4.201, 3.2, 1.997, 1.712]]
-paw2centerlinecat_n [[VL, VR, HL, HR], ...]: [[232, 232, 232, 232]]
-staticpaw2centerlinecat_mean [[VL, VR, HL, HR], ...]: [[10.254, 9.025, 11.117, 12.699]]
-staticpaw2centerlinecat_std [[VL, VR, HL, HR], ...]: [[4.807, 2.245, 0.681, 1.693]]
-staticpaw2centerlinecat_n [[VL, VR, HL, HR], ...]: [[6, 7, 6, 6]]

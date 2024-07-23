@@ -13,7 +13,7 @@ from PIL import ImageDraw
 
 
 
-input_file = '3m_293_edit.mp4'
+input_file = '3m_292_editDLC_resnet50_WalterWhitiesMar26shuffle1_750000_filtered_labeled.mp4'
 
 
 raw_folder = 'raw'
