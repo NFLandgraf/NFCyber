@@ -50,18 +50,12 @@ def euclidian_dist(point1x, point1y, point2x, point2y):
     return distance_mm
 
 def point2line_dist(slope, intercept, point_x, point_y):
+
     # returns the shortest distance between a line (given slope and intercept) and a xy point
     A, B, C = slope, -1, intercept
-    distance = (abs(A*point_x + B*point_y + C) / np.sqrt(A**2 + B**2))# / px_per_mm
+    distance = (abs(A*point_x + B*point_y + C) / np.sqrt(A**2 + B**2))
 
     return distance
-
-def fuse_dfs(df1, df2):
-    # FUSE 2 dfs by reindexing df2 to the index of df1 (important if you have nan gaps)
-    df2 = df2.reindex(df1.index)
-    df1 = df1.join(df2)
-
-    return df1
 
 def timestamps_onsets(series, min_duration_s, onset_cond=float):
     # you have a series with conditions (e.g. True/False or float/nan) in each row
@@ -81,7 +75,7 @@ def timestamps_onsets(series, min_duration_s, onset_cond=float):
             
             elif (val != onset_cond) and (start_idx != None):
                 if idx - start_idx >= min_frame_nb:
-                    timestamp_list.append([start_idx, prev_idx])
+                    timestamp_list.append((start_idx, prev_idx))
                 start_idx = None
             prev_idx = idx
 
@@ -98,7 +92,7 @@ def timestamps_onsets(series, min_duration_s, onset_cond=float):
             
             elif np.isnan(val) and (start_idx is not None):
                 if idx - start_idx >= min_frame_nb:
-                    timestamp_list.append([start_idx, prev_idx])
+                    timestamp_list.append((start_idx, prev_idx))
                 start_idx = None
             prev_idx = idx
 
@@ -164,16 +158,16 @@ def animal_moving(df, min_speed=50, min_moving_duration_s=0.5):
     df['animalmoving'] = animalmoving
 
     # get True on- and offset
-    animalmoving_timestamps = timestamps_onsets(animalmoving, min_moving_duration_s, onset_cond=True)
+    moving_segments = timestamps_onsets(animalmoving, min_moving_duration_s, onset_cond=True)
 
-    print(moving_segments)
-    return df, animalmoving_timestamps
+    #print(f'mov_seg: {moving_segments}')
+    return df, moving_segments
 
 def paw_speed(df):
 
     # for calculating paw movement speed
     frames_shifted_paw_speed = 1
-    for paw in ['paw_HL', 'paw_HR']:
+    for paw in ['paw_HL', 'paw_HR', 'paw_VL', 'paw_VR']:
 
         df[f'{paw}_x_shifted'] = df[f'{paw}_x'].shift(periods=frames_shifted_paw_speed)
         df[f'{paw}_y_shifted'] = df[f'{paw}_y'].shift(periods=frames_shifted_paw_speed)
@@ -183,26 +177,176 @@ def paw_speed(df):
 
     return df
 
-def paw_speed_minmax(series, nec_speed_on=150, nec_speed_off=80):
+def paw_speed_minmax(df, nec_speed_on=80, nec_speed_off=80):
 
-    # returns the indices of the toe-off and foot-strike of each step
-    in_swing = False
-    step_start = None
-    all_steps = []
+    # goes through all paws and saves the toe-off and foot-strike as one step
+    steps_dict = {}
 
-    for idx, val in series.items():
-        if not in_swing and val >= nec_speed_on:
-            step_start = idx-3
-            in_swing = True
-        
-        elif in_swing and val <= nec_speed_off and idx-step_start >= 10:
+    for paw in paws:
+        in_swing = False
+        step_start = None
+        steps_this_paw = []
 
-                step_end = idx
-                all_steps.append((step_start, step_end))
-                in_swing = False
+        for idx, val in df[f'{paw}_speed'].items():
+            if not in_swing and val >= nec_speed_on:
+                step_start = idx
+                in_swing = True
+            
+            elif in_swing and val <= nec_speed_off:
+                    if (idx - step_start) <= 10:
+                        in_swing = False
+                    else:
+                        step_end = idx
+                        steps_this_paw.append((step_start, step_end))
+                        in_swing = False
+
+        steps_dict[paw] = steps_this_paw
                 
-    return all_steps
+    return steps_dict
 
+def strides(df, steps_dict):
+
+    # declares strides as END: one frame after foot-strike, START: frame of foot-strike
+    steps_HL = steps_dict.get('paw_HL', [])
+    strides = []
+    stride_began = False
+
+    for start, end in steps_HL:
+
+        if not stride_began:
+            stride_start = end + 1
+            stride_began = True
+        
+        elif stride_began:
+            stride_end = end
+            strides.append((stride_start, stride_end))
+
+            stride_start = end + 1
+    
+
+    # discard strides that are not inside the animal_moving_segments
+    strides_in_move = []
+    for start, end in strides:
+        if df.loc[start:end, 'animalmoving'].all() == True:
+            strides_in_move.append((start, end))
+    
+    strides = strides_in_move
+
+    '''
+    # discard strides where there is no toe-off and foot-strike of paw_HR
+    steps_HR = steps_dict.get('paw_HR', [])
+    strides_in_move_and_HR = []
+    for start_HL, end_HL in strides_in_move:
+        for start_HR, end_HR in steps_HR:
+            if start_HL < start_HR and end_HL > end_HR:
+                strides_in_move_and_HR.append((start_HL, end_HL))
+    
+    print(f'steps_HR: {steps_HR}')
+    print(f'strid_HL: {strides_in_move_and_HR}')
+    '''
+
+    # discard strides when they are the first or last of a track
+    good_strides = []
+    for mov_start, mov_end in moving_segments:
+
+        # collect strides within current moving segment
+        segment_strides = [(stride_start, stride_end) 
+                            for stride_start, stride_end in strides_in_move
+                            if mov_start < stride_start and mov_end > stride_end]
+        
+        # delete first and last stride of the movement segment
+        if len(segment_strides) >= 3:
+            segment_strides = segment_strides[1:-1]
+            good_strides.extend(segment_strides)
+    
+    strides = good_strides
+
+
+    # discard strides if nose/mouth/middle/anus/tail_start coordinates during stride are nan
+    relevant_bps = ['snout', 'middle', 'anus', 'tail_start', 'paw_HR', 'paw_HL', 'paw_VL', 'paw_VR', 'tail_middle', 'tail_end']
+    very_good_strides = []
+
+    for stride_start, stride_end in good_strides:
+        all_clear = True
+
+        for bp in relevant_bps:
+            if df.loc[stride_start:stride_end, f'{bp}_x'].isna().any():
+                all_clear = False
+        if all_clear:
+            very_good_strides.append((stride_start, stride_end))
+    
+    strides = very_good_strides
+    print(len(strides))
+
+    print(strides)
+    #stride_df = pd.DataFrame
+
+
+
+    return strides
+
+def calc_stride_vectors(df, stride_segments):
+
+    # get the middle point at the start of the stride and the end of the stride and calc distance and vector
+    stride_distances = []
+    stride_vectors = []
+
+    for start, end in stride_segments:
+        x1 = np.mean(df.loc[start-1 : start+1, 'middle_x'])
+        y1 = np.mean(df.loc[start-1 : start+1, 'middle_y'])
+        x2 = np.mean(df.loc[end-1 : end+1, 'middle_x'])
+        y2 = np.mean(df.loc[end-1 : end+1, 'middle_y'])
+
+        stride_distances.append(euclidian_dist(x1, y1, x2, y2))
+
+        slope, intercept, r_value, p_value, std_err = linregress([x1, x2], [y1, y2])
+        stride_vectors.append((slope, intercept))
+
+    return stride_distances, stride_vectors
+
+def lateral_displacement_snout(df, stride_segments, stride_vectors, num_bins=20):
+
+    # for every frame in the stride, get the snout coordinates and claculate its distance from the intrinsic stride vector
+    lateral_snout_displacements = []
+    for i, stride in enumerate(stride_segments):
+
+        slope, intercept = stride_vectors[i]
+
+        lateral_snout = []
+        for frame in range(stride[0], stride[1]+1):
+            lateral_snout.append(point2line_dist(slope, intercept, df.loc[frame, 'snout_x'], df.loc[frame, 'snout_y']))
+        
+        lateral_snout_displacements.append(lateral_snout)
+    
+    
+    # you'll have lists with different lengths, therefore trim everything into num_bins
+    lateral_snout_displacements_norm = []
+    for stride in lateral_snout_displacements:
+        n = len(stride)
+        bin_edges = np.linspace(0, n, num_bins+1, dtype=int)
+
+        bin_means = []
+        for i in range(num_bins):
+            bin_start = bin_edges[i]
+            bin_end = bin_edges[i+1]
+            bin_data = stride[bin_start:bin_end]
+            bin_mean = np.mean(bin_data) if len(bin_data) > 0 else np.nan
+            bin_means.append(bin_mean)
+        
+        lateral_snout_displacements_norm.append(bin_means)
+
+
+    # create a list of the means of lateral snout displacements
+    mean_lateral_snout_displacements = []
+    for i in range(num_bins):
+        values = [stride[i] for stride in lateral_snout_displacements_norm]
+        mean_lateral_snout_displacements.append(np.mean(values))
+
+
+    return lateral_snout_displacements_norm, mean_lateral_snout_displacements
+
+
+        
 
 
 def plot_bodyparts(timewindow, df, spec_bodyparts, bodyparts, title):
@@ -244,20 +388,81 @@ def plot_bodyparts(timewindow, df, spec_bodyparts, bodyparts, title):
     plt.title(title)
     plt.show()
 
-def plot_paws(x):
-        plt.plot(range(x[0],x[1]+1), main_df.loc[x[0]:x[1], 'paw_HL_speed'], c='r')
-        plt.plot(range(x[0],x[1]+1), main_df.loc[x[0]:x[1], 'paw_HR_speed'], c='b')
+def plot_steps(df, steps_dict, paws, lim):
         
+    # plots paw speeds and their steps as horizontal lines
+    for i, paw in enumerate(paws):
+
+        x = range(lim[0], lim[1]+1)
+        y = df.loc[lim[0]:lim[1], f'{paw}_speed']
+
+        plt.plot(x, y, c=colors[i], label=paw)
+        plt.fill_between(x, y, color=colors[i], alpha=0.2)
+
+        lines = steps_dict.get(paw, [])
+        for start, end in lines:
+            plt.hlines(-50 + i*15, start, end, colors[i], linewidth=2)
+
+    plt.xlim(lim[0], lim[1])
+    plt.xlabel('Time (frames)')
+    plt.ylabel('Paw Speed (mm/s)')
+    plt.legend()
+    plt.title('Steps')
+    plt.show()
+
+def plot_displacement(lateral_snout_displacements_norm, mean_lateral_snout_displacements):
+
+    for move in lateral_snout_displacements_norm:
+        x = np.linspace(0, 100, len(move))
+        plt.plot(x, move, c='g', alpha=0.2)
+    plt.plot(x, mean_lateral_snout_displacements, c='r')
+
+    plt.xlim(0, max(x))
+    plt.xlabel('Percent Stride')
+    plt.ylabel('Displacement [mm]')
+    plt.title('Lateral Snout Displacement')
+    plt.show()
+
+def plot_stride(df, stride_segments, num_bins=20):
+    
+    # you'll have lists with different lengths, therefore trim everything into num_bins
+    norm_stride = []
+    for start, end in stride_segments:
+        speeds = df.loc[start:end+1, 'paw_HL_speed']
+
+        n = len(speeds)
+        bin_edges = np.linspace(0, n, num_bins+1, dtype=int)
+
+        bin_means = []
+        for i in range(num_bins):
+            bin_start = bin_edges[i]
+            bin_end = bin_edges[i+1]
+            bin_data = speeds[bin_start:bin_end]
+            bin_mean = np.mean(bin_data) if len(bin_data) > 0 else np.nan
+            bin_means.append(bin_mean)
         
-        for start, end in steps_HL:
-            plt.hlines(0, start, end, colors='r')
-
-        for start, end in steps_HR:
-            plt.hlines(10, start, end, colors='b')
+        norm_stride.append(bin_means)
 
 
-        plt.xlim(x[0], x[1])
-        plt.show()
+    # create a list of the means of lateral snout displacements
+    mean_stride = []
+    for i in range(num_bins):
+        values = [stride[i] for stride in norm_stride]
+        mean_stride.append(np.mean(values))
+
+
+
+
+    x = np.linspace(0, 100, len(mean_stride))
+    for stride in norm_stride:
+        plt.plot(x, stride, c='g', alpha=0.2)
+    plt.plot(x, mean_stride, c='r')
+
+    plt.xlabel('Percent Stride')
+    plt.ylabel('Speed Paw [mm/s]')
+    plt.title('Stride according to paw_HL')
+    plt.show()
+
 
 
 file_list = get_files(path)
@@ -269,13 +474,22 @@ for file in file_list:
     main_df = cleaning_raw_df(main_df)
     main_df, moving_segments = animal_moving(main_df)
     main_df = paw_speed(main_df)
-    steps_HL = paw_speed_minmax(main_df['paw_HL_speed'])
-    steps_HR = paw_speed_minmax(main_df['paw_HR_speed'])
+    steps_dict = paw_speed_minmax(main_df)
+    
+    stride_segments = strides(main_df, steps_dict)
+    stride_distances, stride_vectors = calc_stride_vectors(main_df, stride_segments)
 
+    lateral_snout_displacements_norm, mean_lateral_snout_displacements = lateral_displacement_snout(main_df, stride_segments, stride_vectors)
+    
 
-    plot_paws([600, 700])
+    
+
+    plot_displacement(lateral_snout_displacements_norm, mean_lateral_snout_displacements)
+    plot_steps(main_df, steps_dict, ['paw_HL', 'paw_HR'], [stride_segments[0][0], stride_segments[0][1]])
+    plot_stride(main_df, stride_segments, num_bins=20)
     
 
     
 # (list of [start, stop], df, special_bodyparts=['center', 'static_feet', 'raw_feet'], bodypart=[e.g. 'snout', 'mouth'], title of plot)
     #plot_bodyparts(moving_segments[0:1], main_df, [], ['paw_HL'], f'Moving {file}')
+
