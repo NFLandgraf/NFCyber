@@ -44,9 +44,9 @@ def adapt(x, y):
 
 
 # USER INPUT
-dx = 0
-dy = 0
-dz = 1
+dx = 0      # if you want to shift the whole thing horizontally 
+dy = 0      # if you want to shift the whole thing vertically
+dz = 1      # if you want to change the size of the whole thing
 
 # corners
 left_corner = adapt(350, 250)
@@ -62,14 +62,12 @@ right_arm_end_righter = adapt(750, 80)
 right_arm_end_lefter = adapt(700, 0)
 
 # middle_arm
-middle_arm_end_lefter = adapt(350, height)
-middle_arm_end_righter = adapt(440, height)
+middle_arm_end_lefter = adapt(350, 600)
+middle_arm_end_righter = adapt(440, 600)
 
 
 
-
-
-
+# FUNCTIONS
 def print_info(file):
     # get video properties
     vid = cv2.VideoCapture(file)
@@ -139,16 +137,7 @@ write_and_draw(file, areas)
 
 
 
-
-
-
-
-
-
-#%%
-# EDIT VIDEOS
-
-# BRIGHTNESS & CONTRAST
+# ADJUST BRIGHTNESS & CONTRAST
 alpha = 1   # brightness: 1.0-original, <1.0-darker, >1.0-brighter
 beta = 0    # contrast: 0-unchanged, <0-lower contrast, >0-higher contrast
 
@@ -212,5 +201,5 @@ def main():
 
         adjust_video(input_file, output_file)
 
-main()
+#main()
 

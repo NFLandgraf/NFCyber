@@ -1,4 +1,3 @@
-#%%
 # IMPORT & DEFINE
 # into area: front 80% (mind. 15 non-nans including tail_base) are in arm 
 # exit outof area: no bp of front 80% in current area AND any bp of front 80% is in other area than current
@@ -43,9 +42,7 @@ duration = 303.03333333333336
 
 
 
-#%%
 # FUNCTIONS
-
 # preparation
 def get_files(path):
     # get files
@@ -119,7 +116,6 @@ def cleaning_raw_df(csv_file):
     
     return df
 
-
 # position calculations
 def point_in_which_area(df, bp, frame, areas, areas_int):
     global bp_not_in_any_area
@@ -138,7 +134,6 @@ def point_in_which_area(df, bp, frame, areas, areas_int):
     # if point is not nan and point is in non of the areas, return 99
     bp_not_in_any_area += 1
     return 99
-
 
 def point_in_spec_area(df, bp, frame, area):
     # check if point is in area
@@ -239,7 +234,6 @@ def calc_alteration_index(pos_changes):
 
     return alterations, total_entries, alt_index
 
-
 # main function
 def do_stuff(files):
 
@@ -272,7 +266,6 @@ def do_stuff(files):
 
 
 
-#%%
 # DO STUFF 
 files = get_files(path)
 frames_with_no_annot = 0
@@ -287,9 +280,8 @@ bps_all, bps_entry, bps_exit = define_bodyparts()
 all_positions = do_stuff(files)
 
 
-#%%
-# CREATE VIDEO
 
+# CREATE VIDEO
 def write_all_frames_from_video(input_file, output_folder):
     # takes video and creates png for every frame in video
     os.makedirs(output_folder, exist_ok=True)
@@ -362,9 +354,8 @@ def create_drawn_video(video_file, folder_framesfromvideo, folder_draw_on_frames
     draw_and_write(folder_framesfromvideo, folder_draw_on_frames, areas, positions)
     video_from_frames(folder_draw_on_frames, path)
 
-
-def do_video(all_positions):
-    video_file = path + '\\513_TSPO-KO_NaiveDLC_resnet50_TopoViewMouseMar22shuffle1_600000_filtered_labeled.mp4'
+def do_video(all_positions, file_name):
+    video_file = path + file_name
     vid = cv2.VideoCapture(video_file)
     nframes = int(vid.get(cv2.CAP_PROP_FRAME_COUNT))
 
@@ -375,4 +366,6 @@ def do_video(all_positions):
     print('video done')
     
 
-do_video(all_positions)
+# USER INPUT 2
+videofile_name = '\\513_TSPO-KO_NaiveDLC_resnet50_TopoViewMouseMar22shuffle1_600000_filtered_labeled.mp4'
+# do_video(all_positions, videofile_name)
