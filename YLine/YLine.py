@@ -1,3 +1,4 @@
+#%%
 # IMPORT & DEFINE
 # into area: front 80% (mind. 15 non-nans including tail_base) are in arm 
 # exit outof area: no bp of front 80% in current area AND any bp of front 80% is in other area than current
@@ -168,7 +169,7 @@ def entry_into_arm(df, bps_list, frame, areas, areas_int):
     # if all bodyparts are in the area of the first bodypart and the first bodypart is not in center (=0)
     if len(areas_of_bps) >= nonnan_bps_in_new_area:
         first_value = areas_of_bps[0]
-        if all(elem == first_value for elem in areas_of_bps) and first_value != 0:
+        if all(elem == first_value for elem in areas_of_bps) and first_value != 0 and first_value != 99:
             return first_value
     return False
 
@@ -177,6 +178,7 @@ def exit_outof_arm(df, bps_list, frame, curr_area, areas, areas_int):
     
     # if a bp is in curr_arm, it is no exit -> return False; if no bp is in curr_arm, it may be an exit ->continue
     for bp in bps_list:
+        
         if point_in_spec_area(df, bp, frame, areas[curr_area]):
             return False
     
@@ -203,6 +205,7 @@ def calc_all_pos(df, bps_entry, bps_exit, areas, areas_int):
     for frame in tqdm(range(len(df.index))):
         if curr_area == 0: 
             entry = entry_into_arm(df, bps_entry, frame, areas, areas_int)
+            
             if not entry:
                 all_positions.append(0)
             elif entry:
@@ -252,7 +255,7 @@ def do_stuff(files):
 
         alert = '!CHECK MANUALLY!' if bp_not_in_any_area > 0 or frames_with_no_annot > 1*fps else ''
         if bp_not_in_any_area > 0:
-            alert = f'!CHECK MANUALLY! {bp_not_in_any_area} bps not in area'
+            alert = f'!CHECK MANUALLY! {bp_not_in_any_area} frames where bps not in an area'
         elif frames_with_no_annot > 1*fps:
             alert.append(f' + {frames_with_no_annot} frames without annotations')
 
@@ -278,6 +281,10 @@ areas_int = [0, 1, 2, 3]
 bps_all, bps_entry, bps_exit = define_bodyparts()
 
 all_positions = do_stuff(files)
+
+
+
+
 
 
 
