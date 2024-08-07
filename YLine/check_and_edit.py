@@ -15,7 +15,7 @@ def get_files(path):
                 'mp4' in file]
     
     return files
-
+sdis
 def get_xmax_ymax(file):
     # get video properties
     vid = cv2.VideoCapture(file)
@@ -65,7 +65,7 @@ right_arm_end_lefter = adapt(700, 0)
 middle_arm_end_lefter = adapt(350, 600)
 middle_arm_end_righter = adapt(440, 600)
 
-#
+
 
 # FUNCTIONS
 def print_info(file):
