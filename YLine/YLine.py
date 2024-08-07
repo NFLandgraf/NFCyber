@@ -1,7 +1,11 @@
 #%%
+# 7.8.24
 # IMPORT & DEFINE
-# into area: front 80% (mind. 15 non-nans including tail_base) are in arm 
-# exit outof area: no bp of front 80% in current area AND any bp of front 80% is in other area than current
+'''''
+into area: front 80% (mind. 15 non-nans including tail_base) are in arm 
+exit out of area: no bp of front 80% in current area AND any bp of front 80% is in other area than current
+
+'''''
 
 import pandas as pd
 import numpy as np
@@ -44,13 +48,17 @@ duration = 303.03333333333336
 
 
 # FUNCTIONS
+
 # preparation
 def get_files(path):
     # get files
     files = [file for file in os.listdir(path) 
                 if os.path.isfile(os.path.join(path, file)) and
                 common_name in file]
-    print(f'{len(files)} files found\n')
+    
+    print(f'{len(files)} files found')
+    for file in files:
+        print(file)
 
     return files
 
@@ -376,3 +384,74 @@ def do_video(all_positions, file_name):
 # USER INPUT 2
 videofile_name = '\\513_TSPO-KO_NaiveDLC_resnet50_TopoViewMouseMar22shuffle1_600000_filtered_labeled.mp4'
 # do_video(all_positions, videofile_name)
+
+
+
+
+
+
+
+
+
+
+#%%
+
+
+def adjust_video(input_file, output_file):
+
+    # original stuff
+    vid = cv2.VideoCapture(input_file)
+    width = int(vid.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    nframes = int(vid.get(cv2.CAP_PROP_FRAME_COUNT))
+    fps = int(vid.get(cv2.CAP_PROP_FPS))
+    print(f'Origin: width x height {width}x{height}px, {nframes} frames, {fps} fps')
+
+
+    # future dimensions after cropping
+    x1 = left_arm_end_lefter[0]
+    y1 = min(middle_arm_end_lefter[1], middle_arm_end_righter[1], left_arm_end_righter[1], right_arm_end_lefter[1])
+    x2 = right_arm_end_righter[0]
+    y2 = max(middle_arm_end_lefter[1], middle_arm_end_righter[1], left_arm_end_righter[1], right_arm_end_lefter[1])
+    new_width, new_height = x2-x1, y2-y1
+    print(f'Wanted: width x height {new_width}x{new_height}px, {nframes} frames, {fps} fps')
+    
+
+    # create new video
+    cap = cv2.VideoCapture(input_file)
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    video = cv2.VideoWriter(output_file, fourcc, fps, (new_width, new_height)) 
+
+    for curr_frame in tqdm(range(nframes)):
+        ret, frame = cap.read()
+        if ret:    
+
+            # white mask around Y maze
+            if curr_frame == 0:
+                white_frame = np.ones_like(frame) * 255
+                mask = np.zeros_like(frame[:, :, 0])
+                cv2.fillPoly(mask, [whole_area], 255)
+            frame = np.where(mask[:, :, None] == 255, frame, white_frame)
+
+            # crop frame
+            frame = frame[y1:y2, x1:x2]
+
+            video.write(frame)
+
+        else:
+            break
+    
+    print(f'Edited: width x height {np.shape(frame)[1]}x{np.shape(frame)[0]}px, {curr_frame+1} frames, {fps} fps\n\n')
+    cap.release()
+    video.release()
+
+    
+
+def main():
+    for file in files:
+        input_file = path + file
+        output_file = input_file.replace(file_format, '') + '_edit' + file_format
+        print(input_file)
+        adjust_video(input_file, output_file)
+
+main()
