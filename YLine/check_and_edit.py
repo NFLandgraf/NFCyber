@@ -14,8 +14,12 @@ def get_files(path):
                 if os.path.isfile(os.path.join(path, file)) and
                 'mp4' in file]
     
+    print(f'{len(files)} videos found:')
+    for file in files: 
+        print(file)
+    
     return files
-sdis
+
 def get_xmax_ymax(file):
     # get video properties
     vid = cv2.VideoCapture(file)
@@ -43,6 +47,8 @@ def adapt(x, y):
     return adapt_coords
 
 
+
+#%%
 # USER INPUT
 dx = 0      # if you want to shift the whole thing horizontally 
 dy = 0      # if you want to shift the whole thing vertically
@@ -137,25 +143,35 @@ write_and_draw(file, areas)
 
 
 
-# ADJUST BRIGHTNESS & CONTRAST
-alpha = 1   # brightness: 1.0-original, <1.0-darker, >1.0-brighter
-beta = 0    # contrast: 0-unchanged, <0-lower contrast, >0-higher contrast
+#%%HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
+# CROP & MASK
+'''''
+1. Crop the videos into new dimensions so that the arena corners limit the frame:
+    x[left_arm_end_lefter:left_arm_end_righter]
+    y[min:max of any y maze point]
+
+2. Fill the area outside of the arena with white jibber
+
+'''''
 
 def adjust_video(input_file, output_file):
+
+    # original stuff
     vid = cv2.VideoCapture(input_file)
     width = int(vid.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
     nframes = int(vid.get(cv2.CAP_PROP_FRAME_COUNT))
     fps = int(vid.get(cv2.CAP_PROP_FPS))
+    print(f'Origin: width x height {width}x{height}px, {nframes} frames, {fps} fps')
 
-    # CROP
+
+    # future dimensions after cropping
     x1 = left_arm_end_lefter[0]
     y1 = min(middle_arm_end_lefter[1], middle_arm_end_righter[1], left_arm_end_righter[1], right_arm_end_lefter[1])
     x2 = right_arm_end_righter[0]
     y2 = max(middle_arm_end_lefter[1], middle_arm_end_righter[1], left_arm_end_righter[1], right_arm_end_lefter[1])
-
-    new_width, new_height = x2-x1, y2-y1                        # USE THIS WHEN     CROP     & NOT REDUCE QUALITY
-    #new_width, new_height = int((x2-x1)*2/3), int((y2-y1)*2/3)  # USE THIS WHEN     CROP     &     REDUCE QUALITY
+    new_width, new_height = x2-x1, y2-y1
+    print(f'Wanted: width x height {new_width}x{new_height}px, {nframes} frames, {fps} fps')
     
 
     # create new video
@@ -167,39 +183,31 @@ def adjust_video(input_file, output_file):
         ret, frame = cap.read()
         if ret:    
 
-            # MASK
+            # white mask around Y maze
             if curr_frame == 0:
                 white_frame = np.ones_like(frame) * 255
                 mask = np.zeros_like(frame[:, :, 0])
                 cv2.fillPoly(mask, [whole_area], 255)
             frame = np.where(mask[:, :, None] == 255, frame, white_frame)
 
-            # CROP
+            # crop frame
             frame = frame[y1:y2, x1:x2]
-
-            # BRIGHTNESS & CONTRAST
-            #frame = cv2.convertScaleAbs(frame, alpha=alpha, beta=beta)
-
-            # RESIZE
-            #frame = cv2.resize(frame, (new_width, new_height))  # must be the same dimensions as in video = cv2.VideoWriter() 
 
             video.write(frame)
 
         else:
             break
-
+    
+    print(f'Edited: width x height {np.shape(frame)[1]}x{np.shape(frame)[0]}px, {curr_frame+1} frames, {fps} fps\n\n')
     cap.release()
     video.release()
-
-    print(f'Done! input: {nframes} frames, output: {curr_frame+1} frames\n\n')
 
 def main():
     for file in files:
         input_file = path + file
         output_file = input_file.replace(file_format, '') + '_edit' + file_format
         print(input_file)
-
         adjust_video(input_file, output_file)
 
-#main()
+main()
 
