@@ -1,5 +1,4 @@
 #%%
-# 7.8.24
 # IMPORT
 import cv2
 from matplotlib import pyplot as plt 
@@ -8,12 +7,12 @@ from shapely.geometry import Polygon, Point
 import os
 from tqdm import tqdm
 import numpy as np
+from pathlib import Path
+
 
 def get_files(path):
     # get all file names in directory into list
-    files = [file for file in os.listdir(path) 
-                if os.path.isfile(os.path.join(path, file)) and
-                'mp4' in file]
+    files = [file for file in Path(path).iterdir() if file.is_file() and '.mp4' in file.name]
     
     print(f'{len(files)} videos found:')
     for file in files: 
@@ -23,26 +22,26 @@ def get_files(path):
 
 def get_xmax_ymax(file):
     # get video properties
-    vid = cv2.VideoCapture(file)
+    vid = cv2.VideoCapture(str(file))
     width = int(vid.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
     
     return width, height
 
 path = 'C:\\Users\\landgrafn\\NFCyber\\YLine\\data\\'
-file_format = '.mp4'
+video_file_format = '.mp4'
 
 files = get_files(path)
-width, height = get_xmax_ymax(path+files[0])
+width, height = get_xmax_ymax(files[0])
 
 def adapt(x, y):
     # add dx/dy and multiplay with dz
     adapt_coords = ((x + dx) * dz, (y + dy) * dz)
 
     # check if poits are out of the image
-    if 0 > adapt_coords[0] or adapt_coords[0] >= width:
+    if 0 > adapt_coords[0] or adapt_coords[0] > width:
         print('point exceeds width')
-    elif 0 > adapt_coords[1] or adapt_coords[1] >= width:
+    elif 0 > adapt_coords[1] or adapt_coords[1] > height:
         print('point exceeds height')
 
     return adapt_coords
@@ -51,33 +50,34 @@ def adapt(x, y):
 
 #%%
 # USER INPUT
-dx = 0      # if you want to shift the whole thing horizontally 
+dx = 63      # if you want to shift the whole thing horizontally 
 dy = 0      # if you want to shift the whole thing vertically
 dz = 1      # if you want to change the size of the whole thing
+# width = maximum(x-axis), height = maximum(y-axis)
 
 # corners
-left_corner = adapt(350, 250)
-middle_corner = adapt(390, 180)
-right_corner = adapt(430, 250)
+left_corner = adapt(313, 250)
+middle_corner = adapt(352, 179)
+right_corner = adapt(392, 248)
 
 # left arm
-left_arm_end_lefter = adapt(30, 80)
-left_arm_end_righter = adapt(70, 0)
+left_arm_end_lefter = adapt(8, 70)
+left_arm_end_righter = adapt(45, 0)
 
 # right arm
-right_arm_end_righter = adapt(750, 80)
-right_arm_end_lefter = adapt(700, 0)
+right_arm_end_righter = adapt(700, 70)
+right_arm_end_lefter = adapt(660, 0)
 
 # middle_arm
-middle_arm_end_lefter = adapt(350, 600)
-middle_arm_end_righter = adapt(440, 600)
+middle_arm_end_lefter = adapt(313, 600)
+middle_arm_end_righter = adapt(392, 600)
 
 
 
 # FUNCTIONS
 def print_info(file):
     # get video properties
-    vid = cv2.VideoCapture(file)
+    vid = cv2.VideoCapture(str(file))
     width = int(vid.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
     nframes = int(vid.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -122,7 +122,7 @@ def get_areas():
 def write_and_draw(file, areas):
 
     # write the first frame
-    cap = cv2.VideoCapture(file)
+    cap = cv2.VideoCapture(str(file))
     first_frame = 'first_frame.png'
 
     ret, frame = cap.read()
@@ -137,7 +137,7 @@ def write_and_draw(file, areas):
 
     plt.imshow(frame)
 
-file = path + files[0]
+file = files[0]
 print_info(file)
 areas, whole_area = get_areas()
 write_and_draw(file, areas)
@@ -158,12 +158,12 @@ write_and_draw(file, areas)
 def adjust_video(input_file, output_file):
 
     # original stuff
-    vid = cv2.VideoCapture(input_file)
+    vid = cv2.VideoCapture(str(input_file))
     width = int(vid.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
     nframes = int(vid.get(cv2.CAP_PROP_FRAME_COUNT))
     fps = int(vid.get(cv2.CAP_PROP_FPS))
-    print(f'Origin: width x height {width}x{height}px, {nframes} frames, {fps} fps')
+    print(f'Origin: {width}x{height}px, {nframes} frames, {fps} fps')
 
 
     # future dimensions after cropping
@@ -172,16 +172,15 @@ def adjust_video(input_file, output_file):
     x2 = right_arm_end_righter[0]
     y2 = max(middle_arm_end_lefter[1], middle_arm_end_righter[1], left_arm_end_righter[1], right_arm_end_lefter[1])
     new_width, new_height = x2-x1, y2-y1
-    print(f'Wanted: width x height {new_width}x{new_height}px, {nframes} frames, {fps} fps')
+    print(f'Wanted: {new_width}x{new_height}px, {nframes} frames, {fps} fps')
     
 
     # create new video
-    cap = cv2.VideoCapture(input_file)
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    video = cv2.VideoWriter(output_file, fourcc, fps, (new_width, new_height)) 
+    video = cv2.VideoWriter(str(output_file), fourcc, fps, (new_width, new_height)) 
 
     for curr_frame in tqdm(range(nframes)):
-        ret, frame = cap.read()
+        ret, frame = vid.read()
         if ret:    
 
             # white mask around Y maze
@@ -199,16 +198,15 @@ def adjust_video(input_file, output_file):
         else:
             break
     
-    print(f'Edited: width x height {np.shape(frame)[1]}x{np.shape(frame)[0]}px, {curr_frame+1} frames, {fps} fps\n\n')
-    cap.release()
+    print(f'Edited: {np.shape(frame)[1]}x{np.shape(frame)[0]}px, {curr_frame+1} frames, {fps} fps\n\n')
+    vid.release()
     video.release()
 
 def main():
-    for file in files:
-        input_file = path + file
-        output_file = input_file.replace(file_format, '') + '_edit' + file_format
-        print(input_file)
-        adjust_video(input_file, output_file)
+    for video_file in files:
+        output_video_file = video_file.with_name(video_file.stem + '_YLineMasked' + video_file_format)
+        print(video_file)
+        adjust_video(video_file, output_video_file)
 
 main()
 

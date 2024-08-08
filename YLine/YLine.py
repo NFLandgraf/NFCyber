@@ -1,5 +1,4 @@
 #%%
-# 7.8.24
 # IMPORT & DEFINE
 '''''
 into area: front 80% (mind. 15 non-nans including tail_base) are in arm 
@@ -9,37 +8,37 @@ exit out of area: no bp of front 80% in current area AND any bp of front 80% is 
 
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 from shapely.geometry import Polygon, Point
 from tqdm import tqdm
 import cv2
-from matplotlib import image 
-import os
-import re
+from pathlib import Path
 
 
 # USER INPUT
-# define folder with the csv files
+# folder with the csv files and for each csv file, copy the corresponding video (best case with DLC annotations) into that folder
 path = 'C:\\Users\\landgrafn\\NFCyber\\YLine\\data\\'
-common_name = '.csv'
+common_name_csv = '.csv'
+create_video = True
+common_video_name = '.csv'
+video_file_format = '.mp4'
 
-width = 968
+width = 700
 height = 608
 
 #left arm
-left_corner = (350, 250)
-middle_corner = (390, 180)
-left_arm_end_lefter = (30, 80)
-left_arm_end_righter = (70, 0)
+left_corner = (315, 250)
+middle_corner = (350, 180)
+left_arm_end_lefter = (0, 70)
+left_arm_end_righter = (35, 0)
 
 #middle arm
-right_corner = (430, 250)
-middle_arm_end_righter = (440, 608)
-middle_arm_end_lefter = (350, 608)
+right_corner = (390, 250)
+middle_arm_end_righter = (390, 608)
+middle_arm_end_lefter = (310, 608)
 
 #right arm
-right_arm_end_righter = (750, 80)
-right_arm_end_lefter = (700, 0)
+right_arm_end_righter = (700, 67)
+right_arm_end_lefter = (660, 0)
 
 fps = 30
 nframes = 9091
@@ -48,24 +47,23 @@ duration = 303.03333333333336
 
 
 # FUNCTIONS
-
 # preparation
-def get_files(path):
+def get_files(path, common_name):
+
     # get files
-    files = [file for file in os.listdir(path) 
-                if os.path.isfile(os.path.join(path, file)) and
-                common_name in file]
+    files = [file for file in Path(path).iterdir() if file.is_file() and common_name in file.name]
     
     print(f'{len(files)} files found')
     for file in files:
         print(file)
+    print('\n')
 
     return files
 
 def out_to_txt(file, pos_changes, alterations, total_entries, alt_index, alert):
     output_file = path + '0alteration_indices'
     with open (output_file, 'a') as f:
-        f.write(f'\nfile_name: {file}'
+        f.write(f'\n\nfile_name: {file}'
                 f'\npos_chang: {pos_changes}'
                 f'\nalt_index: {alterations} / {total_entries} = {round(alt_index, 4)}'
                 f'\n{alert}')
@@ -96,7 +94,7 @@ def define_bodyparts():
     return bps_all, bps_entry, bps_exit
 
 def cleaning_raw_df(csv_file):
-    df = pd.read_csv(path + csv_file, header=None, low_memory=False)
+    df = pd.read_csv(csv_file, header=None, low_memory=False)
 
     # combines the string of the two rows to create new header
     new_columns = [f"{col[0]}_{col[1]}" for col in zip(df.iloc[1], df.iloc[2])]     # df.iloc[0] takes all values of first row
@@ -246,212 +244,116 @@ def calc_alteration_index(pos_changes):
     return alterations, total_entries, alt_index
 
 # main function
-def do_stuff(files):
+def do_stuff(file):
 
-    for file in files:
-        print(f'\n{file}')
-        df = cleaning_raw_df(file)
-        all_positions = calc_all_pos(df, bps_entry, bps_exit, areas, areas_int)
+    df = cleaning_raw_df(file)
+    all_positions = calc_all_pos(df, bps_entry, bps_exit, areas, areas_int)
 
-        # only add areas that were entered after a change
-        pos_changes = [pos for i, pos in enumerate(all_positions) if i == 0 or pos != all_positions[i-1]]
+    # only add areas that were entered after a change
+    pos_changes = [pos for i, pos in enumerate(all_positions) if i == 0 or pos != all_positions[i-1]]
 
-        # remove center (0) position
-        pos_changes = [i for i in pos_changes if i != 0]
+    # remove center (0) position
+    pos_changes = [i for i in pos_changes if i != 0]
 
-        alterations, total_entries, alt_index = calc_alteration_index(pos_changes)
+    alterations, total_entries, alt_index = calc_alteration_index(pos_changes)
 
-        alert = '!CHECK MANUALLY!' if bp_not_in_any_area > 0 or frames_with_no_annot > 1*fps else ''
-        if bp_not_in_any_area > 0:
-            alert = f'!CHECK MANUALLY! {bp_not_in_any_area} frames where bps not in an area'
-        elif frames_with_no_annot > 1*fps:
-            alert.append(f' + {frames_with_no_annot} frames without annotations')
+    alert = '!!!' if bp_not_in_any_area > 0 or frames_with_no_annot > 1*fps else ''
+    if bp_not_in_any_area > 0:
+        alert = f'!!! {bp_not_in_any_area} frames where bps not in an area'
+    elif frames_with_no_annot > 1*fps:
+        alert.append(f' + {frames_with_no_annot} frames without annotations')
 
-        out_to_txt(file, pos_changes, alterations, total_entries, alt_index, alert)
+    out_to_txt(file, pos_changes, alterations, total_entries, alt_index, alert)
     
-    print(f'\nYLine done!\n'
-      f'{bp_not_in_any_area} frames where a bp was outside of defined areas\n'
-      f'{frames_with_no_annot} frames where no DLC annotation in frame\n')
-
     return all_positions
 
+def do_video(csv_file, all_positions):
+
+    # FIND VIDEO that corresponds to csv file !!needs to have the same beginning!!
+    input_video_found = False
+    csv_stem = Path(csv_file).stem
+    endings = ['', 'YLineMasked', '_labeled']
+
+    for i in range(len(csv_stem), 0, -1):       # start, stop, step
+
+        for ending in endings:
+            input_video_file = Path(path) / (csv_stem[:i] + ending + video_file_format)
+
+            if input_video_file.exists():
+                input_video_found = True
+                break
+
+        if input_video_found:
+            break
+            
+    if not input_video_found:
+        print(f'No matching video file found for {csv_file}')
+        return
 
 
-# DO STUFF 
-files = get_files(path)
-frames_with_no_annot = 0
-bp_not_in_any_area = 0
-
-center, left_arm, middle_arm, right_arm = define_areas()
-areas = [center, left_arm, middle_arm, right_arm]
-areas_int = [0, 1, 2, 3]
-
-bps_all, bps_entry, bps_exit = define_bodyparts()
-
-all_positions = do_stuff(files)
-
-
-
-
-
-
-
-# CREATE VIDEO
-def write_all_frames_from_video(input_file, output_folder):
-    # takes video and creates png for every frame in video
-    os.makedirs(output_folder, exist_ok=True)
-
-    vidcap = cv2.VideoCapture(input_file)
-    nframes = vidcap.get(cv2.CAP_PROP_FRAME_COUNT)
-    success, image = vidcap.read()
-
-    print('\nwrite_all_frames_from_video')
-    count = 0
-    pbar = tqdm(total=int(nframes))
-    while success:
-        cv2.imwrite(output_folder + '\\frame%d.png' % count, image)
-        success,image = vidcap.read()
-        count += 1
-        pbar.update(1)
-
-def draw_and_write(input_folder, output_folder, areas, positions):
-    # takes pngs and draws polygon onto it, if mouse in that position
-    os.makedirs(output_folder, exist_ok=True)
-
-    images = [file for file in os.listdir(input_folder) if file.endswith('.png')]
-
-    # sort the list of strings based on the int in the string
-    sorted_intimages = sorted([int(re.sub("[^0-9]", "", element)) for element in images])
-    sorted_images = [f'frame{element}.png' for element in sorted_intimages]
-
-    print('\ndraw_and_write')
-    for i in tqdm(range(len(sorted_images))):
-        
-        image_path = os.path.join(input_folder, sorted_images[i])
-        data = cv2.imread(image_path)
-
-        for arm, area in enumerate(areas):
-            if arm == positions[i]:
-                points = np.array(area.exterior.coords, dtype=np.int32)
-                cv2.polylines(data, [points], isClosed=True, color=(0, 0, 255), thickness=2)
-        
-        output_path = os.path.join(output_folder, f"frame{i}.png")
-        cv2.imwrite(output_path, data)
-
-def video_from_frames(input_folder, path):
-    # created video from all frames with drawn polygons
-    output = os.path.join(path, f'{files[0]}_edit.mp4')
-
-    images = [file for file in os.listdir(input_folder) if file.endswith('.png')]
-
-    # sort the list of strings based on the int in the string
-    sorted_intimages = sorted([int(re.sub("[^0-9]", "", element)) for element in images])
-    sorted_images = [f'frame{element}.png' for element in sorted_intimages]
-
-    # setting the video properties according to first image 
-    frame0 = cv2.imread(os.path.join(input_folder, sorted_images[0]))
-    height, width, layers = frame0.shape 
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    video = cv2.VideoWriter(output, fourcc, fps, (width, height)) 
-
-    # Appending the images to the video
-    print('\nvideo_from_frames')
-    for i in tqdm(range(len(sorted_images))):
-        img_path = os.path.join(input_folder, sorted_images[i])
-        img = cv2.imread(img_path)
-        video.write(img)
-
-    cv2.destroyAllWindows()
-    video.release()
-
-def create_drawn_video(video_file, folder_framesfromvideo, folder_draw_on_frames, path, areas, positions):
-    write_all_frames_from_video(video_file, folder_framesfromvideo)
-    draw_and_write(folder_framesfromvideo, folder_draw_on_frames, areas, positions)
-    video_from_frames(folder_draw_on_frames, path)
-
-def do_video(all_positions, file_name):
-    video_file = path + file_name
-    vid = cv2.VideoCapture(video_file)
-    nframes = int(vid.get(cv2.CAP_PROP_FRAME_COUNT))
-
-    folder_framesfromvideo = path + '\\frames_from_video'
-    folder_draw_on_frames = path + '\\edited_frames'
-    create_drawn_video(video_file, folder_framesfromvideo, folder_draw_on_frames, path, areas, all_positions)
-
-    print('video done')
-    
-
-# USER INPUT 2
-videofile_name = '\\513_TSPO-KO_NaiveDLC_resnet50_TopoViewMouseMar22shuffle1_600000_filtered_labeled.mp4'
-# do_video(all_positions, videofile_name)
-
-
-
-
-
-
-
-
-
-
-#%%
-
-
-def adjust_video(input_file, output_file):
-
+    # CREATE VIDEO
     # original stuff
-    vid = cv2.VideoCapture(input_file)
+    vid = cv2.VideoCapture(str(input_video_file))
     width = int(vid.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
     nframes = int(vid.get(cv2.CAP_PROP_FRAME_COUNT))
     fps = int(vid.get(cv2.CAP_PROP_FPS))
-    print(f'Origin: width x height {width}x{height}px, {nframes} frames, {fps} fps')
-
-
-    # future dimensions after cropping
-    x1 = left_arm_end_lefter[0]
-    y1 = min(middle_arm_end_lefter[1], middle_arm_end_righter[1], left_arm_end_righter[1], right_arm_end_lefter[1])
-    x2 = right_arm_end_righter[0]
-    y2 = max(middle_arm_end_lefter[1], middle_arm_end_righter[1], left_arm_end_righter[1], right_arm_end_lefter[1])
-    new_width, new_height = x2-x1, y2-y1
-    print(f'Wanted: width x height {new_width}x{new_height}px, {nframes} frames, {fps} fps')
+    if nframes != len(all_positions):
+        print('nframe of video different than len(all_positions)')
     
-
     # create new video
-    cap = cv2.VideoCapture(input_file)
+    output_video_file = input_video_file.with_name(input_video_file.stem + '_YLineAreas' + video_file_format)
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    video = cv2.VideoWriter(output_file, fourcc, fps, (new_width, new_height)) 
+    video = cv2.VideoWriter(str(output_video_file), fourcc, fps, (width, height)) 
 
     for curr_frame in tqdm(range(nframes)):
-        ret, frame = cap.read()
+        ret, frame = vid.read()
         if ret:    
 
-            # white mask around Y maze
-            if curr_frame == 0:
-                white_frame = np.ones_like(frame) * 255
-                mask = np.zeros_like(frame[:, :, 0])
-                cv2.fillPoly(mask, [whole_area], 255)
-            frame = np.where(mask[:, :, None] == 255, frame, white_frame)
-
-            # crop frame
-            frame = frame[y1:y2, x1:x2]
+            # in which area is mouse in this frame
+            mouse_area_nb = all_positions[curr_frame]
+            mouse_area = areas[mouse_area_nb]
+            points_of_area = np.array(mouse_area.exterior.coords, dtype=np.int32)
+            
+            # draw on frame
+            cv2.polylines(frame, [points_of_area], isClosed=True, color=(0, 0, 255), thickness=2)
+            cv2.putText(frame, f'{mouse_area_nb}', (int(width/3), 50), cv2.FONT_HERSHEY_SIMPLEX , 1, (0, 0, 255), 2, cv2.LINE_AA)
 
             video.write(frame)
 
         else:
             break
     
-    print(f'Edited: width x height {np.shape(frame)[1]}x{np.shape(frame)[0]}px, {curr_frame+1} frames, {fps} fps\n\n')
-    cap.release()
+    vid.release()
     video.release()
 
-    
+    return nframes
 
-def main():
-    for file in files:
-        input_file = path + file
-        output_file = input_file.replace(file_format, '') + '_edit' + file_format
-        print(input_file)
-        adjust_video(input_file, output_file)
 
-main()
+
+
+csv_files = get_files(path, common_name_csv)
+
+# necessary definitions
+frames_with_no_annot = 0
+bp_not_in_any_area = 0
+center, left_arm, middle_arm, right_arm = define_areas()
+areas = [center, left_arm, middle_arm, right_arm]
+areas_int = [0, 1, 2, 3]
+bps_all, bps_entry, bps_exit = define_bodyparts()
+
+
+for csv_file in csv_files:
+
+    print(f'\n\n{csv_file}')
+    all_positions = do_stuff(csv_file)
+
+    if create_video:
+        nframes = do_video(csv_file, all_positions)
+
+    print(f'YLine done!\n'
+          f'{bp_not_in_any_area} frames where bp outside of areas\n'
+          f'{frames_with_no_annot} frames where no DLC annot in frame')
+
+
+
