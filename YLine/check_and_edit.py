@@ -50,7 +50,7 @@ def adapt(x, y):
 
 #%%
 # USER INPUT
-dx = 63      # if you want to shift the whole thing horizontally 
+dx = -8      # if you want to shift the whole thing horizontally 
 dy = 0      # if you want to shift the whole thing vertically
 dz = 1      # if you want to change the size of the whole thing
 # width = maximum(x-axis), height = maximum(y-axis)

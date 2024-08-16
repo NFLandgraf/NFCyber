@@ -22,23 +22,23 @@ create_video = True
 common_video_name = '.csv'
 video_file_format = '.mp4'
 
-width = 700
-height = 608
+width = 692
+height = 600
 
 #left arm
-left_corner = (315, 250)
-middle_corner = (350, 180)
+left_corner = (305, 250)
+middle_corner = (344, 179)
 left_arm_end_lefter = (0, 70)
-left_arm_end_righter = (35, 0)
+left_arm_end_righter = (37, 0)
 
 #middle arm
-right_corner = (390, 250)
-middle_arm_end_righter = (390, 608)
-middle_arm_end_lefter = (310, 608)
+right_corner = (384, 248)
+middle_arm_end_righter = (384, 600)
+middle_arm_end_lefter = (305, 600)
 
 #right arm
-right_arm_end_righter = (700, 67)
-right_arm_end_lefter = (660, 0)
+right_arm_end_righter = (692, 70)
+right_arm_end_lefter = (652, 0)
 
 fps = 30
 nframes = 9091
