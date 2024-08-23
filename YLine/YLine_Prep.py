@@ -4,7 +4,6 @@ import cv2
 from matplotlib import pyplot as plt 
 from matplotlib import image 
 from shapely.geometry import Polygon, Point
-import os
 from tqdm import tqdm
 import numpy as np
 from pathlib import Path
@@ -36,36 +35,47 @@ width, height = get_xmax_ymax(files[0])
 
 def adapt(x, y):
     # add dx/dy and multiplay with dz
-    adapt_coords = ((x + dx) * dz, (y + dy) * dz)
+    adapt_x = (x + dx) * dz
+    adapt_y = (y + dy) * dz
 
-    # check if poits are out of the image
-    if 0 > adapt_coords[0] or adapt_coords[0] > width:
-        print('point exceeds width')
-    elif 0 > adapt_coords[1] or adapt_coords[1] > height:
-        print('point exceeds height')
+    # check if points are out of the image and if so, adapt
+    if adapt_x < 0:
+        print(f'x_coord {adapt_x} < 0 (has been changed to 0)')
+        adapt_x = 0
+    elif adapt_x > width:
+        print(f'x_coord ({adapt_x}px) > width ({width}px) (has been changed to {width}px)')
+        adapt_x = width
 
-    return adapt_coords
+
+    if adapt_y < 0:
+        print(f'y_coord {adapt_y} < 0 (has been changed to 0)')
+        adapt_y = 0
+    elif adapt_y > height:
+        print(f'y_coord {adapt_y} > height ({height}px) (has been changed to height={height}px)')
+        adapt_y = height
+
+    return (adapt_x, adapt_y)
 
 
 
 #%%
 # USER INPUT
-dx = -8      # if you want to shift the whole thing horizontally 
+dx = 0      # if you want to shift the whole thing horizontally 
 dy = 0      # if you want to shift the whole thing vertically
 dz = 1      # if you want to change the size of the whole thing
-# width = maximum(x-axis), height = maximum(y-axis)
+# use width and height as the maximum of the x- and y-axis
 
 # corners
-left_corner = adapt(313, 250)
+left_corner = adapt(313, 248)
 middle_corner = adapt(352, 179)
 right_corner = adapt(392, 248)
 
 # left arm
-left_arm_end_lefter = adapt(8, 70)
+left_arm_end_lefter = adapt(0, 70)
 left_arm_end_righter = adapt(45, 0)
 
 # right arm
-right_arm_end_righter = adapt(700, 70)
+right_arm_end_righter = adapt(680, 70)
 right_arm_end_lefter = adapt(660, 0)
 
 # middle_arm
@@ -123,7 +133,7 @@ def write_and_draw(file, areas):
 
     # write the first frame
     cap = cv2.VideoCapture(str(file))
-    first_frame = 'first_frame.png'
+    first_frame = 'YLine_fframe.png'
 
     ret, frame = cap.read()
     cv2.imwrite(first_frame, frame)
