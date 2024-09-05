@@ -1,7 +1,7 @@
 #%%
 # IMPORT & DEFINE
 '''
-We only care about the head positions
+We only care about the head positions.
 Exit = Doesn't exist, we only score an Exit if there is an Entry
 Entry= All bps_head are in a new area
 
