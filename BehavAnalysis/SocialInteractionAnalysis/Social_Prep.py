@@ -8,6 +8,7 @@ from tqdm import tqdm
 import numpy as np
 from pathlib import Path
 
+colors = [(255,0,0), (0,255,0), (0,0,255), (255,255,0)]
 
 def get_files(path):
     # get all file names in directory into list
@@ -27,21 +28,22 @@ def get_xmax_ymax(file):
     
     return width, height
 
-path = 'C:\\Users\\nicol\\NFCyber\\BehavAnalysis\\SocialInteractionAnalysis\\data'
+path = 'C:\\Users\\landgrafn\\NFCyber\\BehavAnalysis\\SocialInteractionAnalysis\\data'
 video_file_format = '.mp4'
 
 files = get_files(path)
 width, height = get_xmax_ymax(files[0])
 
 
-#%%
+
 # USER INPUT
 
-center_N = 133, 472
-center_O = 475, 130
+center_N = 141, 465
+center_O = 476, 130
 
-radius_invest = 100
-radius_cage = 50
+radius_invest = 7.3 * 11.55
+
+radius_cage = 4.3 * 11.55
 offset_invest = radius_invest/3
 
 
@@ -83,7 +85,9 @@ def get_areas():
     cage_N = Point(center_N).buffer(radius_cage)
     cage_O = Point(center_O).buffer(radius_cage)
 
-    areas = [area_large_N, area_large_O, area_inv_N, area_inv_O, cage_N, cage_O]
+    areas = [area_inv_N, area_inv_O, cage_N, cage_O]
+    areas = [area_large_N, area_large_O, area_inv_N, area_inv_O, ]
+
     
     return areas
 
@@ -105,8 +109,51 @@ def write_and_draw(file, areas):
 
     plt.imshow(frame)
 
+
+def do_video(input_video_file, areas):
+
+    # CREATE VIDEO
+    # original stuff
+    vid = cv2.VideoCapture(str(input_video_file))
+    width = int(vid.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    nframes = int(vid.get(cv2.CAP_PROP_FRAME_COUNT))
+    fps = int(vid.get(cv2.CAP_PROP_FPS))
+    
+    # create new video
+    output_video_file = input_video_file.with_name(input_video_file.stem + '_AnalyAreas' + video_file_format)
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    video = cv2.VideoWriter(str(output_video_file), fourcc, fps, (width, height)) 
+
+    for curr_frame in tqdm(range(nframes)):
+        ret, frame = vid.read()
+        if ret:    
+
+
+            overlay = frame.copy()
+            
+            for i, area in enumerate(areas):
+                points_of_area = np.array(area.exterior.coords, dtype=np.int32)
+                
+                # draw on overlay
+                cv2.fillPoly(overlay, [points_of_area], color=colors[i])
+
+            # Blend the overlay with the frame using the alpha parameter
+            frame = cv2.addWeighted(overlay, 0.5, frame, 1 - 0.5, 0)
+
+            video.write(frame)
+
+        else:
+            break
+    
+    vid.release()
+    video.release()
+
+
+
 file = files[0]
 print_info(file)
 areas = get_areas()
 write_and_draw(file, areas)
+do_video(files[0], areas)
 

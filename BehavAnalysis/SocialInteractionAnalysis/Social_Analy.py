@@ -18,22 +18,25 @@ from pathlib import Path
 
 # USER INPUT
 # folder with the csv files and for each csv file, copy the corresponding video (best case with DLC annotations) into that folder
-path = 'C:\\Users\\nicol\\NFCyber\\BehavAnalysis\\SocialInteractionAnalysis\\data'
+path = 'C:\\Users\\landgrafn\\NFCyber\\BehavAnalysis\\SocialInteractionAnalysis\\data'
 common_name_csv = '.csv'
-create_video = True
+create_video = False
 common_video_name = '.csv'
 video_file_format = '.mp4'
 
 width = 608
 height = 608
-
 fps = 30
+px_per_cm = 11.55
 
-center_N = 133, 472
-center_O = 475, 130
 
-radius_invest = 100
-offset_invest = radius_invest/3
+
+center_N = 141, 465
+center_O = 476, 130
+
+# radius of the cup is around 4.3cm 
+radii_invest_cm = [7.3]
+
 
 
 # FUNCTIONS
@@ -50,16 +53,17 @@ def get_files(path, common_name):
 
     return files
 
-def out_to_txt(file, time_spent, alterations, total_distance):
+def out_to_txt(file, time_spent, alterations, total_distance, radius_invest):
     output_file = path + '\\analysis.txt'
     with open (output_file, 'a') as f:
         f.write(f'\n\nfile_name: {file}\n'
+                f'Radius_invest: {round(radius_invest/px_per_cm, 2)} cm\n'
                 f'Time spent in [area_inv_N, area_inv_O, area_large_N, area_large_O]:\n'
                 f'{time_spent}\n'
                 f'Alterations between area_inv: {alterations}\n'
-                f'Distance travelled: {total_distance} px\n')
+                f'Distance travelled: {round(total_distance/px_per_cm, 2)} cm\n')
 
-def define_areas():
+def define_areas(radius_invest, offset_invest):
     # define large areas that split the whole arena
     area_large_N = Polygon([(0, 0), (width, height), (0, height)])
     area_large_O = Polygon([(0, 0), (width, height), (width, 0)])
@@ -116,6 +120,10 @@ def cleaning_raw_df(csv_file, bps_all):
         df.loc[filter, f'{bodypart}_x'] = np.nan
         df.loc[filter, f'{bodypart}_y'] = np.nan
         df = df.drop(labels=f'{bodypart}_likelihood', axis="columns")
+
+    # !!!!!!!DELETE FIRST FRAMES OF CSV FILE!!!!!! (mouse was placed into arena)
+    df = df.iloc[600:]
+    df.reset_index(drop=True, inplace=True)
     
     return df
 
@@ -176,7 +184,7 @@ def calc_all_pos(df, bps_head, areas, areas_int):
     
     return all_positions
 
-def analyze(all_positions, df, areas_int):
+def analyze(all_positions, df, areas_int, radius_invest):
 
     # how many frames in each area
     time_spent = []
@@ -199,7 +207,8 @@ def analyze(all_positions, df, areas_int):
     df['distance'] = np.sqrt((df[f'{bp}_x'].diff())**2 + (df[f'{bp}_y'].diff())**2)
     total_distance = round(df['distance'].sum(), 0)
 
-    print(f'Time spent in [area_inv_N, area_inv_O, area_large_N, area_large_O]:\n'
+    print(f'Radius_invest: {round(radius_invest/px_per_cm, 1)}\n'
+          f'Time spent in [area_inv_N, area_inv_O, area_large_N, area_large_O]:\n'
           f'{time_spent}\n'
           f'Alterations between area_inv: {alterations}\n'
           f'Distance travelled: {total_distance}px\n')
@@ -238,10 +247,10 @@ def do_video(csv_file, all_positions, areas, areas_int):
     nframes = int(vid.get(cv2.CAP_PROP_FRAME_COUNT))
     fps = int(vid.get(cv2.CAP_PROP_FPS))
     if nframes != len(all_positions):
-        print('nframe of video different than len(all_positions)')
+        print(f'{nframes} of video different than {len(all_positions)}')
     
     # create new video
-    output_video_file = input_video_file.with_name(input_video_file.stem + '_YLineAreas' + video_file_format)
+    output_video_file = input_video_file.with_name(input_video_file.stem + '_AnalyAreas' + video_file_format)
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     video = cv2.VideoWriter(str(output_video_file), fourcc, fps, (width, height)) 
 
@@ -274,22 +283,34 @@ def main():
 
     csv_files = get_files(path, common_name_csv)
 
-    # necessary definitions
-    areas = define_areas()
     areas_int = [0, 1, 2, 3]
     bps_all, bps_large, bps_head = define_bodyparts()
+
+    
 
     for csv_file in csv_files:
         print(f'\n\n{csv_file}')
 
         df = cleaning_raw_df(csv_file, bps_all)
-        all_positions = calc_all_pos(df, bps_head, areas, areas_int)
-        time_spent, alterations, total_distance = analyze(all_positions, df, areas_int)
 
-        out_to_txt(csv_file, time_spent, alterations, total_distance)
 
-        if create_video:
-            do_video(csv_file, all_positions, areas, areas_int)
+        for radius_invest in radii_invest_cm:
+
+            # convert into px
+            radius_invest = radius_invest * px_per_cm
+            offset_invest = radius_invest/3
+            
+            # necessary definitions
+            areas = define_areas(radius_invest, offset_invest)
+            
+
+            all_positions = calc_all_pos(df, bps_head, areas, areas_int)
+            time_spent, alterations, total_distance = analyze(all_positions, df, areas_int, radius_invest)
+
+            out_to_txt(csv_file, time_spent, alterations, total_distance, radius_invest)
+
+            if create_video:
+                do_video(csv_file, all_positions, areas, areas_int)
 
 
 main()
