@@ -19,8 +19,8 @@ plt.rcParams['xtick.labelsize']= 10
 plt.rcParams['legend.fontsize']=12
 plt.rcParams['legend.markerscale']=2
 
-path = 'C:\\Users\\nicol\\NFCyber\\FFAnalysis\\data\\'
-file = '2024-08-27_FF-Test_m626_LockIn.doric'
+path = 'Y:\\proj_Weilin\\FF_Test\\'
+file = '2024-09-18_m747_20.40%_FC.doric'
 #dr.h5print(path)
 
     
@@ -43,6 +43,26 @@ def plot_sig(time_sec, fluo, isos, title):
     ax1.set_title(title)
 
     lines = plot1 + plot2 # line handle for legend
+    labels = [l.get_label() for l in lines]  #get legend labels
+    legend = ax1.legend(lines, labels, loc='upper right')
+
+
+def plot_sig_fluo(time_sec, fluo, title):
+
+    # plots raw Fluo and Isos on different y-axis
+    fig, ax1 = plt.subplots()
+    ax2=plt.twinx()
+    plot2 = ax2.plot(time_sec, fluo, 'g', label='Fluo') # fluo on new right y-axis
+
+    #ax1.set_ylim(1.25, 1.65)
+    #ax2.set_ylim(1.35, 1.75)
+    #ax1.set_xlim(100, 200)
+    ax1.set_xlabel('Time [sec]')
+    ax1.set_ylabel('Isos [V]', color='m')
+    ax2.set_ylabel('Fluo [V]', color='g')
+    ax1.set_title(title)
+
+    lines = plot2 # line handle for legend
     labels = [l.get_label() for l in lines]  #get legend labels
     legend = ax1.legend(lines, labels, loc='upper right')
 
@@ -153,24 +173,16 @@ fluo_detrend, isos_detrend, fluo_expfit = b_bleaching(time_sec, fluo_denoised, i
 fluo_motcorrected, estimated_motion = c_movement_correction(fluo_detrend, isos_detrend)
 fluo_dff, fluo_zscore = d_normalization(fluo_motcorrected, fluo_expfit)
 
-plot_sig(time_sec, fluo_raw, isos_raw, 'Raw Signal')
-plot_sig(time_sec, fluo_denoised, isos_denoised, 'Denoised Signal')
-plot_sig(time_sec, fluo_detrend, 'Detrended Signal')
+# plot_sig(time_sec, fluo_raw, isos_raw, 'Raw Signal')
+# plot_sig(time_sec, fluo_denoised, isos_denoised, 'Denoised Signal')
+# plot_sig(time_sec, fluo_detrend, isos_detrend, 'Detrended Signal')
+# plot_sig_fluo(time_sec, fluo_motcorrected, 'Motion Corrected Signal')
+# #plot_sig_fluo(time_sec, fluo_dff, 'dF/F')
+# plot_sig_fluo(time_sec, fluo_zscore, 'Z-Score')
+
+with open('output.txt', 'w') as f:
+    for item in fluo_denoised:
+        f.write(f"{item}\n")
 
 
 
-
-
-
-
-
-#%%
-
-plt.plot(time, isos, label='isos', c='purple')
-plt.plot(time, fluo, label='fluo', c='green')
-
-plt.xlabel('Time [s]')
-plt.ylabel('Signal [V]')
-plt.title(file)
-plt.legend()
-plt.show()
