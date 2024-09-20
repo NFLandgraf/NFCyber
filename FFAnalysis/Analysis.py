@@ -20,7 +20,7 @@ plt.rcParams['legend.fontsize']=12
 plt.rcParams['legend.markerscale']=2
 
 path = 'Y:\\proj_Weilin\\FF_Test\\'
-file = '2024-09-18_m747_20.40%_FC.doric'
+file = '2024-08-29_FF-Test_m637_LockIn_40,80%.doric'
 #dr.h5print(path)
 
     
@@ -177,7 +177,7 @@ fluo_dff, fluo_zscore = d_normalization(fluo_motcorrected, fluo_expfit)
 # plot_sig(time_sec, fluo_denoised, isos_denoised, 'Denoised Signal')
 # plot_sig(time_sec, fluo_detrend, isos_detrend, 'Detrended Signal')
 # plot_sig_fluo(time_sec, fluo_motcorrected, 'Motion Corrected Signal')
-# #plot_sig_fluo(time_sec, fluo_dff, 'dF/F')
+# plot_sig_fluo(time_sec, fluo_dff, 'dF/F')
 # plot_sig_fluo(time_sec, fluo_zscore, 'Z-Score')
 
 with open('output.txt', 'w') as f:

@@ -259,7 +259,7 @@ def do_stuff(file):
 
     alert = '!!!' if bp_not_in_any_area > 0 or frames_with_no_annot > 1*fps else ''
     if bp_not_in_any_area > 0:
-        alert = f'!!! {bp_not_in_any_area} frames where bps not in an area'
+        alert = f'!!! {bp_not_in_any_area} frames where bps not in any area'
     elif frames_with_no_annot > 1*fps:
         alert.append(f' + {frames_with_no_annot} frames without annotations')
 
@@ -272,7 +272,7 @@ def do_video(csv_file, all_positions):
     # FIND VIDEO that corresponds to csv file !!needs to have the same beginning!!
     input_video_found = False
     csv_stem = Path(csv_file).stem
-    endings = ['', 'YLineMasked', '_labeled']
+    endings = ['', 'YLineMasked', '_labeled', '_filtered_labeled']
 
     for i in range(len(csv_stem), 0, -1):       # start, stop, step
 
