@@ -7,11 +7,7 @@ from PIL import Image
 import re
 
 
-
-#%%
 # CREATE VIDEO FROM FRAMES
-
-
 # Folder which contains all the images from which video is to be generated 
 path = "C:\\Users\\nicol\\NFCyber\\VideoAnalysis\\data\\"
 common_name = '.png'

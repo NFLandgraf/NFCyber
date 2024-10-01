@@ -1,7 +1,6 @@
-'''
-Goes through all frames of an mp4 video and checks the mean brightness 
 
-'''
+
+'''Goes through all frames of an mp4 video and checks the mean brightness per frame'''
 
 
 import cv2

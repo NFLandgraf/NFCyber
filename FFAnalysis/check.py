@@ -1,6 +1,6 @@
 #%%
 '''
-Find out which kind of FF file it is and create easy csv file from it
+Find out which kind of FF file it is and create easy csv file from it, no preprocessing!
 '''
 
 import h5py
@@ -8,10 +8,11 @@ import numpy as np
 import pandas as pd
 import os
 path = 'C:\\Users\\landgrafn\\Desktop\\ff\\'
+common_name = '.doric'
 rec_type = None
 
 
-def get_files(path, common_name):
+def get_files(path):
 
     # get files
     files = [os.path.join(path, file) for file in os.listdir(path) 
@@ -111,7 +112,7 @@ def do_LockIn(file):
     data.to_csv(f'{title}.csv', index=False)
 
 def main():
-    files = get_files(path, '.doric')
+    files = get_files(path)
     for file in files:
 
         print(f'\n{file}')
