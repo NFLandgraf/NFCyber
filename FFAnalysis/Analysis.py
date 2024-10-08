@@ -1,6 +1,6 @@
 
 #%%
-import doric as dr
+#import doric as dr
 import h5py
 import numpy as np
 import pandas as pd
@@ -22,7 +22,7 @@ plt.rcParams['legend.markerscale']=2
 
 path = 'C:\\Users\\landgrafn\\Desktop\\ff\\'
 rec_type = 'LockIn'
-#rec_type = 'NormFilter'
+digital_io = True
 
 
 def get_files(path, common_name):
@@ -30,14 +30,14 @@ def get_files(path, common_name):
     # get files
     files = [file for file in Path(path).iterdir() if file.is_file() and common_name in file.name]
     
-    print(f'{len(files)} files found')
+    print(f'\n{len(files)} files found')
     for file in files:
         print(file)
     print('\n')
 
     return files
 
-files = get_files(path, '')
+files = get_files(path, 'csv')
 
 
 
@@ -46,47 +46,42 @@ def plot_sig(time_sec, fluo, isos, title):
     # plots raw Fluo and Isos on different y-axis
     fig, ax1 = plt.subplots()
     ax2=plt.twinx()
-    plot1 = ax1.plot(time_sec, isos, 'm', label='Isos') # isos on regular left axis
-    plot2 = ax2.plot(time_sec, fluo, 'g', label='Fluo') # fluo on new right y-axis
+    plot1 = ax1.plot(time_sec, fluo, 'g', label='Fluo') # fluo on new right y-axis
+    plot2 = ax2.plot(time_sec, isos, 'm', label='Isos') # isos on regular left axis
 
     #ax1.set_ylim(1.25, 1.65)
     #ax2.set_ylim(1.35, 1.75)
     #ax1.set_xlim(100, 200)
     ax1.set_xlabel('Time [sec]')
-    ax1.set_ylabel('Isos [V]', color='m')
-    ax2.set_ylabel('Fluo [V]', color='g')
+    ax1.set_ylabel('Fluo [V]', color='g')
+    ax2.set_ylabel('Isos [V]', color='m')
     ax1.set_title(title)
 
     lines = plot1 + plot2 # line handle for legend
     labels = [l.get_label() for l in lines]  #get legend labels
     legend = ax1.legend(lines, labels, loc='upper right')
+    plt.show()
 
-def plot_sig_fluo(time_sec, fluo, title):
+def plot_sig_fluo(time, fluo, title):
 
-    # plots raw Fluo and Isos on different y-axis
-    fig, ax1 = plt.subplots()
-    ax2=plt.twinx()
-    plot2 = ax2.plot(time_sec, fluo, 'g', label='Fluo') # fluo on new right y-axis
+    plt.plot(time, fluo, 'g', label='Fluo') # fluo on new right y-axis
 
     #ax1.set_ylim(1.25, 1.65)
     #ax2.set_ylim(1.35, 1.75)
     #ax1.set_xlim(100, 200)
-    ax1.set_xlabel('Time [sec]')
-    ax1.set_ylabel('Isos [V]', color='m')
-    ax2.set_ylabel('Fluo [V]', color='g')
-    ax1.set_title(title)
+    plt.xlabel('Time [sec]')
+    plt.ylabel('Fluo [V]', color='g')
+    plt.title(title)
 
-    lines = plot2 # line handle for legend
-    labels = [l.get_label() for l in lines]  #get legend labels
-    legend = ax1.legend(lines, labels, loc='upper right')
+    plt.legend(loc='upper right')
+    plt.show()
 
 def get_data(file):
-    global rec_type
 
     with h5py.File(file, 'r') as f:
         path = 'DataAcquisition/NC500/Signals/Series0001/'
 
-        try:
+        if rec_type == 'NormFilter':
             time_sec    = np.array(f[path + 'AnalogIN/Time'])
             sig         = np.array(f[path + 'AnalogIN/AIN01'])
             output      = np.array(f[path + 'AnalogOUT/AOUT01'])
@@ -99,18 +94,20 @@ def get_data(file):
                   f'Datapoints: {len(time_sec)} (Time), {len(sig)} (Signal)\n'
                   f'Duration: {duration}s, Sampling_rate: {sampling_rate}Hz\n')
 
-            rec_type = 'NormFilter'
             return time_sec, sig, output, sampling_rate
-        except:
-            pass
-
         
-        try:
+        
+        
+        elif rec_type == 'LockIn':
+
             time_sec    = np.array(f[path + 'LockInAOUT01/Time'])
             isos        = np.array(f[path + 'LockInAOUT01/AIN01'])
             fluo        = np.array(f[path + 'LockInAOUT02/AIN01'])
             output_isos = np.array(f[path + 'AnalogOut/AOUT01'])
             output_fluo = np.array(f[path + 'AnalogOut/AOUT02'])
+            digital_io  = np.array(f[path + 'DigitalIO/DIO01'])
+            digital_time= np.array(f[path + 'DigitalIO/Time'])
+
 
             duration = max(time_sec)
             sampling_rate = round(len(isos) / duration, 2)
@@ -118,27 +115,36 @@ def get_data(file):
             print(f'LockIn\n'
                   f'Output_Isos: {[round(min(output_isos), 1), round(np.mean(output_isos), 1), round(max(output_isos), 1)]}V\n'
                   f'Output_Fluo: {[round(min(output_fluo), 1), round(np.mean(output_fluo), 1), round(max(output_fluo), 1)]}V\n'
-                  f'Datapoints: {len(time_sec)} (Time), {len(isos)} (Isos), {len(fluo)} (Fluo)\n'
+                  f'Datapoints: {len(time_sec)} (Time), {len(isos)} (Isos), {len(fluo)} (Fluo), {len(digital_io)} (IO)\n'
                   f'Duration: {duration}s, Sampling_rate: {sampling_rate}Hz\n')
 
-            rec_type = 'LockIn'
-            return time_sec, fluo, isos, output_fluo, output_isos, sampling_rate
-        except:
-            pass
+            return time_sec, fluo, isos, output_fluo, output_isos, sampling_rate, digital_io, digital_time
+        
+def get_data_csv(file):
 
+    df = pd.read_csv(file)
+    df.index = df['Time']
+    del df['Time']
 
-def a_filtering(fluo, isos, sampling_rate):
+    return df
+
+def a_denoising(df):
+
+    time = np.array(df.index.values)
+    sampling_rate = len(time) / np.max(time)
 
     # low-pass cutoff freq depends on indicator (2-10Hz for GCaMP6f)
     # use zero-phase filter that changes amplitude but not phase of freq components/ no signal distortion'''
     b, a = signal.butter(2, 10, btype='low', fs=sampling_rate)
 
-    fluo_denoised = signal.filtfilt(b, a, fluo)   
-    isos_denoised = signal.filtfilt(b, a, isos)
+    df['Fluo_denoised'] = signal.filtfilt(b, a, df['Fluo'])   
+    df['Isos_denoised'] = signal.filtfilt(b, a, df['Isos'])
 
-    return fluo_denoised, isos_denoised
+    return df
 
-def b_bleaching(time_sec, fluo, isos):
+def b_bleaching(df):
+
+    time = np.array(df.index.values)
 
     # fits a double-exponential function to trace to correct for all possible bleaching reasons
     def double_exponential(t, const, amp_fast, amp_slow, tau_slow, tau_multiplier):
@@ -163,19 +169,20 @@ def b_bleaching(time_sec, fluo, isos):
 
         return trace_expfit
     
-    fluo_expfit = get_parameters(time_sec, fluo)
-    isos_expfit = get_parameters(time_sec, isos)
+    fluo_expofit = get_parameters(time, df['Fluo_denoised'])
+    isos_expofit = get_parameters(time, df['Isos_denoised'])
 
     # If bleaching results from a reduction of autofluorescence, signal amplitude should not be affected
     # --> subtract function from trace (signal is V)
     # If bleaching comes from bleaching of the fluorophore, the amplitude suffers as well 
     # --> division is needed (signal is df/f)
-    fluo_detrend = fluo - fluo_expfit
-    isos_detrend = isos - isos_expfit
+    df['Fluo_detrend'] = df['Fluo_denoised'] - fluo_expofit
+    df['Fluo_expofit'] = fluo_expofit
+    df['Isos_detrend'] = df['Isos_denoised'] - isos_expofit
     
-    return fluo_detrend, isos_detrend, fluo_expfit
+    return df
 
-def c_movement_correction(fluo, isos):
+def c_motion_correction(df):
     '''Although quite similar, movement artefacts will be different between signal and control channel.
     -> necessary to scale movement signals from control channels to match artefacts in signal channel
     linear regression predicts the signal channel from control channel,
@@ -193,52 +200,56 @@ def c_movement_correction(fluo, isos):
         plt.title('Signal correlation')
         plt.show()
 
-    slope, intercept, r_value, p_value, std_err = stats.linregress(x=fluo, y=isos)
+    slope, intercept, r_value, p_value, std_err = stats.linregress(x=df['Fluo_detrend'], y=df['Isos_detrend'])
     # plot_sig_correlation(fluo, isos, intercept, slope, r_value)
 
-    estimated_motion = intercept + slope * isos   # calculate estimated motion acc to isos
-    fluo_motcorrected = fluo - estimated_motion   # subtract to get corrected
+    estimated_motion = intercept + slope * df['Isos_detrend']   # calculate estimated motion acc to isos
+    df['Fluo_motcorrected'] = df['Fluo_detrend'] - estimated_motion   # subtract to get corrected
 
-    return fluo_motcorrected, estimated_motion
+    return df
 
-def d_normalization(signal, expfit):
-    signal_dff = 100 * signal / expfit
-    signal_zscore = (signal - np.mean(signal)) / np.std(signal)
+def d_normalization(df):
 
-    return signal_dff, signal_zscore
+    signal = df['Fluo_motcorrected']
+
+    df['Fluo_dff'] = 100 * signal / df['Fluo_expofit']
+    df['Fluo_zscore'] = (signal - np.mean(signal)) / np.std(signal)
+
+    return df
 
 
-
-
-
+all_animals = []
 for file in files:
 
     print(f'\n{file}')
-
-    if rec_type == 'NormFilter':
-        time_sec, sig, output, sampling_rate = get_data(file)
-    elif rec_type == 'LockIn':
-        time_sec, fluo_raw, isos_raw, output_fluo, output_isos, sampling_rate = get_data(file)
-
-    fluo_denoised, isos_denoised = a_filtering(fluo_raw, isos_raw, sampling_rate)
-    # fluo_detrend, isos_detrend, fluo_expfit = b_bleaching(time_sec, fluo_denoised, isos_denoised)
-    # fluo_motcorrected, estimated_motion = c_movement_correction(fluo_detrend, isos_detrend)
-    # fluo_dff, fluo_zscore = d_normalization(fluo_motcorrected, fluo_expfit)
-
-    # plot_sig(time_sec, fluo_raw, isos_raw, 'Raw Signal')
-    # plot_sig(time_sec, fluo_denoised, isos_denoised, 'Denoised Signal')
-    # plot_sig(time_sec, fluo_detrend, isos_detrend, 'Detrended Signal')
-    # plot_sig_fluo(time_sec, fluo_motcorrected, 'Motion Corrected Signal')
-    # plot_sig_fluo(time_sec, fluo_dff, 'dF/F')
-    # plot_sig_fluo(time_sec, fluo_zscore, 'Z-Score')
-
-    with open(f'{file}_fluo_{sampling_rate}Hz.txt', 'w') as f:
-        for item in fluo_denoised[:6000]:
-            f.write(f"{item}\n")
     
-    with open(f'{file}_isos_{sampling_rate}Hz.txt', 'w') as f:
-        for item in isos_denoised[:6000]:
-            f.write(f"{item}\n")
+
+    df = get_data_csv(file)
+    df = a_denoising(df)
+    df = b_bleaching(df)
+    df = c_motion_correction(df)
+    df = d_normalization(df)
 
 
+    time = np.array(df.index.values)
+    # plot_sig(time, df['Fluo'], df['Isos'], 'Raw Signal')
+    # plot_sig(time, df['Fluo_denoised'], df['Isos_denoised'], 'Denoised Signal')
+    # plot_sig(time, df['Fluo_detrend'], df['Isos_detrend'], 'Detrended Signal')
+    # plot_sig_fluo(time, df['Fluo_motcorrected'], 'Motion Corrected Signal')
+    plot_sig_fluo(time, df['Fluo_dff'], 'dF/F')
+    # plot_sig_fluo(time, df['Fluo_zscore'], 'Z-Score')
+
+    # create datafile as .csv
+    new_file = file#.replace('.csv', '_dff')
+    title = f'{new_file}_dff'
+    df['Fluo_dff'].to_csv(f'{title}.csv')
+
+
+    
+
+    
+#%%
+
+for i, animal in enumerate(all_animals):
+    animal.to_csv(f'{i}.csv')
 

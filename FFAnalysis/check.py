@@ -25,6 +25,25 @@ def get_files(path):
 
     return files
 
+def event_list(df, channel_name, value_threshold=0.9):
+    # returns a list with the onset (and offset) timepoints, where certain channel is 'high' 
+    
+    # iterate through rows and save on- and offsets
+    high_times, curr_high_time = [], []
+    value_low = True
+
+    for idx, value in df[channel_name].items():
+        if value_low and value >= value_threshold:
+            curr_high_time.append(idx)
+            value_low = False
+        elif not value_low and value <= value_threshold:
+            curr_high_time.append(idx)
+            high_times.append(curr_high_time)
+            curr_high_time = []
+            value_low = True
+
+    return high_times
+
 def get_rec_type(file):
     # returns the rec_type as a string
 
@@ -33,6 +52,7 @@ def get_rec_type(file):
              'LockIn'    : path + 'LockInAOUT01/AIN01'}
 
     with h5py.File(file, 'r') as f:
+
         for rec_type, hdf5_path in paths.items():
 
             try:
@@ -83,44 +103,72 @@ def do_NormFilter(file):
     title = f'{new_file}_normFilt_{name}({np.mean(output)}-{max(output)}V)'
     data.to_csv(f'{title}.csv', index=False)
 
-def do_LockIn(file):
+def do_LockIn_IO(file):
 
     with h5py.File(file, 'r') as f:
         path = 'DataAcquisition/NC500/Signals/Series0001/'
 
+        # collect raw data from h5 file
         time_sec    = np.array(f[path + 'LockInAOUT01/Time'])
         isos        = np.array(f[path + 'LockInAOUT01/AIN01'])
         fluo        = np.array(f[path + 'LockInAOUT02/AIN01'])
         output_isos = np.array(f[path + 'AnalogOut/AOUT01'])
         output_fluo = np.array(f[path + 'AnalogOut/AOUT02'])
+        digi_io     = np.array(f[path + 'DigitalIO/DIO01'])
+        digi_time   = np.array(f[path + 'DigitalIO/Time'])
 
-        output_isos_min, output_isos_mean, output_isos_max = round(min(output_isos), 1), round(np.mean(output_isos), 1), round(max(output_isos), 1)
-        output_fluo_min, output_fluo_mean, output_fluo_max = round(min(output_fluo), 1), round(np.mean(output_fluo), 1), round(max(output_fluo), 1)
-        duration = max(time_sec)
-        sampling_rate = round(len(isos) / duration, 2)
+    # get signal parameters
+    time_sec = np.round(time_sec, 2)
+    duration = max(time_sec)
+    sampling_rate = int(len(isos) / duration)
+    output_isos_min, output_isos_mean, output_isos_max = round(min(output_isos), 1), round(np.mean(output_isos), 1), round(max(output_isos), 1)
+    output_fluo_min, output_fluo_mean, output_fluo_max = round(min(output_fluo), 1), round(np.mean(output_fluo), 1), round(max(output_fluo), 1)
+    
+    signal = pd.DataFrame({'Isos': isos, 'Fluo': fluo}, index=time_sec)   
+    io = pd.DataFrame({'IO-1': digi_io}, index=digi_time)
 
-        print(  f'LockIn\n'
-                f'Output_Isos: {[output_isos_min, output_isos_mean, output_isos_max]}V, {len(output_isos)}points\n'
-                f'Output_Fluo: {[output_fluo_min, output_fluo_mean, output_fluo_max]}V, {len(output_fluo)}points\n'
-                f'Datapoints: {len(time_sec)} (Time), {len(isos)} (Isos), {len(fluo)} (Fluo)\n'
-                f'Duration: {duration}s\n'
-                f'Sampling_rate: {sampling_rate}Hz\n')
-        
-    data = pd.DataFrame({'Time': time_sec, 'Isos': isos, 'Fluo': fluo})
+    # fuse Fluo, Isos and IO-1 datapoints (somehow signal starts at 0.1 and not 0) and delete rows with nans
+    df = pd.concat([signal, io], axis=1)
+    df.index.names = ['Time']
+    df = df[['Fluo', 'Isos', 'IO-1']]
+    df = df.dropna(subset=['Fluo', 'Isos'])
+
+    # get TTL events from a digital channel
+    events = event_list(df, 'IO-1')
+
+    # output to check
+    print(  f'LockIn\n'
+            f'Output_Isos: {[output_isos_min, output_isos_mean, output_isos_max]}V, {len(output_isos)} dp\n'
+            f'Output_Fluo: {[output_fluo_min, output_fluo_mean, output_fluo_max]}V, {len(output_fluo)} dp\n'
+            f'Datapoints: {len(time_sec)} (Time), {len(isos)} (Isos), {len(fluo)} (Fluo), {len(digi_io)} (IO)\n'
+            f'Duration: {duration}s, SamplingRate: {sampling_rate}Hz\n'
+            f'Digital_IO: {len(events)}x {[ev[0] for ev in events]}\n')
+    
+    return df, events
+
+def align(df, events, time_passed):
+
+    # we have different amounts of time passed before the first event onset. Therefore subtract the same amount before first event
+    skip_time = round(events[0][0] - time_passed, 2)
+    df.index = df.index - skip_time
+    df = df.loc[0:]
+    df.index = df.index.round(2)
+
+    return df
+
+
+
+
+files = get_files(path)
+for file in files:
+
+    print(f'\n{file}')
+
+    df, events = do_LockIn_IO(file)
+    df = align(df, events, time_passed=60)
+    
+
+    # create data as .csv
     new_file = file.replace('.doric', '')
-    title = f'{new_file}_LockIn_Isos({output_isos_mean}-{output_isos_max}V).Fluo({output_fluo_mean}-{output_fluo_max}V)'
-    data.to_csv(f'{title}.csv', index=False)
-
-def main():
-    files = get_files(path)
-    for file in files:
-
-        print(f'\n{file}')
-        rec_type = get_rec_type(file)
-
-        if rec_type == 'NormFilter':
-            do_NormFilter(file)
-        elif rec_type == 'LockIn':
-            do_LockIn(file)
-
-main()
+    title = f'{new_file}_LockIn_IO_10Hz'
+    df.to_csv(f'{title}.csv')
