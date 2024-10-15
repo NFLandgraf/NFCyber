@@ -234,7 +234,7 @@ for file in files:
     time = np.array(df.index.values)
     # plot_sig(time, df['Fluo'], df['Isos'], 'Raw Signal')
     # plot_sig(time, df['Fluo_denoised'], df['Isos_denoised'], 'Denoised Signal')
-    # plot_sig(time, df['Fluo_detrend'], df['Isos_detrend'], 'Detrended Signal')
+    plot_sig(time, df['Fluo_detrend'], df['Isos_detrend'], 'Detrended Signal')
     # plot_sig_fluo(time, df['Fluo_motcorrected'], 'Motion Corrected Signal')
     plot_sig_fluo(time, df['Fluo_dff'], 'dF/F')
     # plot_sig_fluo(time, df['Fluo_zscore'], 'Z-Score')

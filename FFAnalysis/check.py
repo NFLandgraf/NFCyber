@@ -146,9 +146,51 @@ def do_LockIn_IO(file):
     
     return df, events
 
+def do_LockIn(file):
+
+    with h5py.File(file, 'r') as f:
+        path = 'DataAcquisition/NC500/Signals/Series0001/'
+
+        # collect raw data from h5 file
+        time_sec    = np.array(f[path + 'LockInAOUT01/Time'])
+        isos        = np.array(f[path + 'LockInAOUT01/AIN01'])
+        fluo        = np.array(f[path + 'LockInAOUT02/AIN01'])
+        output_isos = np.array(f[path + 'AnalogOut/AOUT01'])
+        output_fluo = np.array(f[path + 'AnalogOut/AOUT02'])
+        
+
+    # get signal parameters
+    time_sec = np.round(time_sec, 2)
+    duration = max(time_sec)
+    sampling_rate = int(len(isos) / duration)
+    output_isos_min, output_isos_mean, output_isos_max = round(min(output_isos), 1), round(np.mean(output_isos), 1), round(max(output_isos), 1)
+    output_fluo_min, output_fluo_mean, output_fluo_max = round(min(output_fluo), 1), round(np.mean(output_fluo), 1), round(max(output_fluo), 1)
+    
+    df = pd.DataFrame({'Isos': isos, 'Fluo': fluo}, index=time_sec)   
+
+    # fuse Fluo, Isos and IO-1 datapoints (somehow signal starts at 0.1 and not 0) and delete rows with nans
+    df.index.names = ['Time']
+    df = df[['Fluo', 'Isos']]
+    df = df.dropna(subset=['Fluo', 'Isos'])
+
+
+
+    # output to check
+    print(  f'LockIn\n'
+            f'Output_Isos: {[output_isos_min, output_isos_mean, output_isos_max]}V, {len(output_isos)} dp\n'
+            f'Output_Fluo: {[output_fluo_min, output_fluo_mean, output_fluo_max]}V, {len(output_fluo)} dp\n'
+            f'Datapoints: {len(time_sec)} (Time), {len(isos)} (Isos), {len(fluo)} (Fluo)\n'
+            f'Duration: {duration}s, SamplingRate: {sampling_rate}Hz\n'
+            )
+    
+    return df
+
+
+
 def align(df, events, time_passed):
 
     # we have different amounts of time passed before the first event onset. Therefore subtract the same amount before first event
+    # time_passed is the number of seconds that are found before the first event (do not take more than available)
     skip_time = round(events[0][0] - time_passed, 2)
     df.index = df.index - skip_time
     df = df.loc[0:]
@@ -157,6 +199,29 @@ def align(df, events, time_passed):
     return df
 
 
+def do(file):
+    with h5py.File(file, 'r') as f:
+        path = 'DataAcquisition/NC500/Signals/Series0001/'
+
+        
+        digi_io     = np.array(f[path + 'DigitalIO/DIO01'])
+        digi_time   = np.array(f[path + 'DigitalIO/Time'])
+
+    
+    df = pd.DataFrame({'IO-1': digi_io}, index=digi_time)
+
+    # fuse Fluo, Isos and IO-1 datapoints (somehow signal starts at 0.1 and not 0) and delete rows with nans
+    
+    
+
+    # get TTL events from a digital channel
+    events = event_list(df, 'IO-1')
+
+    # output to check
+    print(  
+            f'Digital_IO: {len(events)}x {[ev[0] for ev in events]}\n')
+    
+    return df, events
 
 
 files = get_files(path)
@@ -164,8 +229,9 @@ for file in files:
 
     print(f'\n{file}')
 
-    df, events = do_LockIn_IO(file)
-    df = align(df, events, time_passed=60)
+    #df, events = do_LockIn_IO(file)
+    df = do_LockIn(file)
+    #df = align(df, events, time_passed=15)
     
 
     # create data as .csv
