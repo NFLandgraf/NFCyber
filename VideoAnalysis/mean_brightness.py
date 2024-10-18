@@ -42,6 +42,14 @@ def analyze_video_brightness(video_path):
     return brightness_values
 
 # Example usage:
-video_path = 'C:\\Users\\landgrafn\\Desktop\\2024-09-18-18-35-37_379_LC_rate64.mp4'
+video_path = 'C:\\Users\\landgrafn\\Desktop\\2024-09-18-18-35-37_379_LC.mp4'
 brightness_values = analyze_video_brightness(video_path)
 print("Mean brightness values for each frame:", brightness_values)
+
+
+#%%
+import numpy as np
+a = np.linspace(0, 200, 3009)
+
+np.savetxt('yee.csv', a, delimiter=',')
+print(a)
