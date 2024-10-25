@@ -24,15 +24,18 @@ create_video = False
 common_video_name = '.csv'
 video_file_format = '.mp4'
 
-width = 608
-height = 608
+width = 640
+height = 600
 fps = 30
+nframes = 18485
+duration = 616.1666666666666
 px_per_cm = 11.55
 
 
 
-center_N = 141, 465
-center_O = 476, 130
+center_N = 157, 457
+center_O = 488, 127
+
 
 # radius of the cup is around 4.3cm 
 radii_invest_cm = [7.3]
@@ -58,8 +61,9 @@ def out_to_txt(file, time_spent, alterations, total_distance, radius_invest):
     with open (output_file, 'a') as f:
         f.write(f'\n\nfile_name: {file}\n'
                 f'Radius_invest: {round(radius_invest/px_per_cm, 2)} cm\n'
-                f'Time spent in [area_inv_N, area_inv_O, area_large_N, area_large_O]:\n'
-                f'{time_spent}\n'
+                f'center_N = {center_N}\n'
+                f'center_O = {center_O}\n'
+                f'Time spent in [area_inv_N, area_inv_O, area_large_N, area_large_O]: {time_spent}\n'
                 f'Alterations between area_inv: {alterations}\n'
                 f'Distance travelled: {round(total_distance/px_per_cm, 2)} cm\n')
 
@@ -94,7 +98,7 @@ def define_bodyparts():
                  'neck', 'mid_back', 'mouse_center', 'mid_backend', 'mid_backend2', 'mid_backend3', 'tail_base', 
                  'left_shoulder', 'left_midside', 'left_hip', 'right_shoulder', 'right_midside', 'right_hip']
     
-    bps_head = ['nose', 'left_ear', 'right_ear', 'left_ear_tip', 'right_ear_tip', 'left_eye', 'right_eye', 'head_midpoint']
+    bps_head = ['nose', 'left_eye', 'right_eye', 'head_midpoint']
 
     return bps_all, bps_large, bps_head
 
@@ -122,8 +126,8 @@ def cleaning_raw_df(csv_file, bps_all):
         df = df.drop(labels=f'{bodypart}_likelihood', axis="columns")
 
     # !!!!!!!DELETE FIRST FRAMES OF CSV FILE!!!!!! (mouse was placed into arena)
-    df = df.iloc[600:]
-    df.reset_index(drop=True, inplace=True)
+    # df = df.iloc[600:]
+    # df.reset_index(drop=True, inplace=True)
     
     return df
 
@@ -247,7 +251,7 @@ def do_video(csv_file, all_positions, areas, areas_int):
     nframes = int(vid.get(cv2.CAP_PROP_FRAME_COUNT))
     fps = int(vid.get(cv2.CAP_PROP_FPS))
     if nframes != len(all_positions):
-        print(f'{nframes} of video different than {len(all_positions)}')
+        print(f'Number of video frames ({nframes}) are different than all_positions ({len(all_positions)}). Maybe due to cutting')
     
     # create new video
     output_video_file = input_video_file.with_name(input_video_file.stem + '_AnalyAreas' + video_file_format)
@@ -312,6 +316,11 @@ def main():
             if create_video:
                 do_video(csv_file, all_positions, areas, areas_int)
 
+    return all_positions
 
-main()
+all_positions = main()
 
+
+
+#%%
+print(all_positions)

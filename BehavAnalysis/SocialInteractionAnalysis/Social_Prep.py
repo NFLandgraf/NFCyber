@@ -38,12 +38,13 @@ width, height = get_xmax_ymax(files[0])
 
 # USER INPUT
 
-center_N = 141, 465
-center_O = 476, 130
+center_N = 180, 457
+center_O = 488, 127
 
-radius_invest = 7.3 * 11.55
+px_per_cm = 11.55
+radius_invest = 7.3 * px_per_cm
 
-radius_cage = 4.3 * 11.55
+radius_cage = 4.3 * px_per_cm
 offset_invest = radius_invest/3
 
 
@@ -86,7 +87,7 @@ def get_areas():
     cage_O = Point(center_O).buffer(radius_cage)
 
     areas = [area_inv_N, area_inv_O, cage_N, cage_O]
-    areas = [area_large_N, area_large_O, area_inv_N, area_inv_O, ]
+    #areas = [area_large_N, area_large_O, area_inv_N, area_inv_O, ]
 
     
     return areas
@@ -155,5 +156,5 @@ file = files[0]
 print_info(file)
 areas = get_areas()
 write_and_draw(file, areas)
-do_video(files[0], areas)
+# do_video(files[0], areas)
 
