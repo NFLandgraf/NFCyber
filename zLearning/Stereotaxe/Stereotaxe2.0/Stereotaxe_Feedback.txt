@@ -1,4 +1,4 @@
-Raw aim coordinates: [-5.4, -0.9, -4.0]
+Raw aim coordinates: [-5.9, -0.9, -4.25]
 Measured lambda: [-4.2, 0.0, 1.1]
 Normal lambda: [-4.2, 0, 0]
 Measured ML_L: [0, -0.5, 0.0]
@@ -6,4 +6,7 @@ Measured ML_R: [0, 0.5, 0.0]
 
 AP TILT
 Skull AP tilt alpha: 15.18 degree (Bregma < Lambda)
-Corrected aim: [-6.26, -0.9, -2.45]
+Corrected aim: [-6.81, -0.9, -2.56]
+
+ML TILT:
+No compensation necessary bc DV(ML_L) = DV (ML_R).
