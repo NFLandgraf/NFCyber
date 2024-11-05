@@ -1,5 +1,5 @@
 #%%
-# IMPORT
+# IMPORTe
 
 import cv2
 import ffmpeg
