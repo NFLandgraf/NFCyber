@@ -3,7 +3,7 @@ import os
 from PIL import Image
 
 
-path = 'C:\\Users\\landgrafn\\Desktop\\asa\\'
+path = 'E:\\m90\\2024-10-31-16-52-47_CA1-m90_OF_IDPS\\'
 
 
 for root, dirs, files in os.walk(path, topdown=False):
@@ -37,13 +37,12 @@ from PIL import Image
 import numpy as np
 import tifffile as tiff  # Optional if using tifffile for loading TIFFs
 
-path = 'C:\\Users\\landgrafn\\Desktop\\asa\\'
+path = 'E:\\m90\\2024-10-31-16-52-47_CA1-m90_OF_IDPS\\'
 
 for root, dirs, files in os.walk(path, topdown=False):
     for name in files:
-        print(os.path.join(root, name))
-        print('\n')
         if os.path.splitext(os.path.join(root, name))[1].lower() == ".tiff":
+            print(name)
             if os.path.isfile(os.path.splitext(os.path.join(root, name))[0] + ".jpg"):
                 print("A JPEG file already exists")
             else:
@@ -66,5 +65,5 @@ for root, dirs, files in os.walk(path, topdown=False):
                     im = Image.fromarray(np_image)
 
                 print("Generating JPEG")
-                im.save('C:\\Users\\landgrafn\\Desktop\\asa\\aa.png')
+                im.save('E:\\m90\\2024-10-31-16-52-47_CA1-m90_OF_IDPS\\MAPPPo.png')
                 print('Saved as PNG:', 'C:\\Users\\landgrafn\\Desktop\\asa\\aa.png')
