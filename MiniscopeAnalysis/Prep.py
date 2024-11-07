@@ -1,12 +1,19 @@
 #%%
+# IMPORT
 import pandas as pd
 import numpy as np
 import csv
+import matplotlib.pyplot as plt
+import umap
+from sklearn.cluster import DBSCAN
+import itertools
 
-file_TTL = 'F:\\2024-10-31-16-52-47_CA1-m90_OF_GPIO.csv'
-file_DLC = 'F:\\2024-10-31-16-52-47_CA1-m90_OF_DLC.csv'
-file_traces = 'F:\\2024-10-31-16-52-47_CA1-m90_OF_traces.csv'
-file_events = 'F:\\2024-10-31-16-52-47_CA1-m90_OF_traces_events.csv'
+
+
+file_TTL = 'C:\\Users\\landgrafn\\Desktop\\m90\\2024-10-31-16-52-47_CA1-m90_OF_GPIO.csv'
+file_DLC = 'C:\\Users\\landgrafn\\Desktop\\m90\\2024-10-31-16-52-47_CA1-m90_OF_DLC.csv'
+file_traces = 'C:\\Users\\landgrafn\\Desktop\\m90\\2024-10-31-16-52-47_CA1-m90_OF_traces.csv'
+file_events = 'C:\\Users\\landgrafn\\Desktop\\m90\\2024-10-31-16-52-47_CA1-m90_OF_traces_events.csv'
 
 def get_traces(file, round_after_comma=1):
     # clean the csv file and return df
@@ -143,20 +150,131 @@ def behav(file):
     #df.to_csv('F:\\2024-10-31-16-52-47_CA1-m90_OF_DLC_clean.csv')
     return df[['head', 'postbody']]
 
+def activity_heatmap(df, mark_positions=None):
+    df_t = df.T
 
-traces = get_traces(file_traces)
-events = get_traces_events(file_events)
-TTLs = TTL_list(file_TTL)
+    plt.imshow(df.T, aspect='auto', cmap='seismic', vmin=-5, vmax=5)
+    plt.colorbar(label='z-score')
+    tick_positions = range(0, len(df_t.columns), 500)
+    plt.xticks(ticks=tick_positions, labels=df_t.columns[tick_positions], rotation=90)
+
+    if mark_positions:
+        for mark in mark_positions:
+            plt.axhline(y=mark, color='black', linestyle='--', linewidth=1.5)
+
+    plt.xlabel('Time [s]')
+    plt.ylabel('Cells')
+    plt.title('CA1_OF_activity heatmap')
+    plt.show()
+
+
+
+df_traces = get_traces(file_traces)
+activity_heatmap(df_traces)
+df_events = get_traces_events(file_events)
+df_TTLs = TTL_list(file_TTL)
 
 # as an index for behavior, you have the frame number and the INSPX master time
-behavior = behav(file_DLC)
-behavior['Time [TTL]'] = TTLs[:-1]
-behavior.set_index([behavior.index, 'Time [TTL]'], inplace=True)
+df_behavior = behav(file_DLC)
+df_behavior['Time [TTL]'] = df_TTLs[:-1]
+df_behavior.set_index([df_behavior.index, 'Time [TTL]'], inplace=True)
 
 
 #%%
+# DimRed + Clustering
 
+def dimred_UMAP(df, n_neighbors=3, min_dist=0.1, n_components=3):
 
+    # transposes df and reduces cell dimensions via UMAP
+    df = df.T
+    reducer = umap.UMAP(n_neighbors=n_neighbors, min_dist=min_dist, n_components=n_components)
+    embedding = reducer.fit_transform(df)
+
+    return embedding
+
+def cluster_DBSCAN(dim_red_data, eps=0.6, min_samples=9):
+
+    # cluster via DBSCAN the dimred results
+    dbscan_model = DBSCAN(eps=eps, min_samples=min_samples)
+    clusters = dbscan_model.fit(dim_red_data)
+    clusters_nb = np.unique(clusters.labels_)
+    #print(f"unique labels: {clusters_nb}")
+
+    # create color map that includes gray for noise points
+    unique_labels = np.unique(clusters.labels_)
+    num_clusters = len(unique_labels) - (1 if -1 in unique_labels else 0)
+    colors = plt.cm.tab10(np.linspace(0, 1, num_clusters)) if len(np.unique(clusters.labels_)) <= 10 else plt.cm.tab20(np.linspace(0, 1, num_clusters))
+    colors = np.vstack((colors, np.array([0.5, 0.5, 0.5, 1])))
+    label_colors = np.array([colors[label] if label != -1 else colors[-1] for label in clusters.labels_])
+
+    # plot 1x 3D and 3x 2D plots
+    fig, axs = plt.subplots(2, 2, figsize=(12, 10))
+    ax = fig.add_subplot(221, projection='3d')
+    ax.scatter(dim_red_data[:, 0], dim_red_data[:, 1], dim_red_data[:, 2], c=label_colors, marker='o', s=50, alpha=0.6)
+    ax.set_xlabel('UMAP 1')
+    ax.set_ylabel('UMAP 2')
+    ax.set_zlabel('UMAP 3')
+
+    # legend for the clusters (including noise as a separate label)
+    cluster_labels = [i for i in unique_labels if i != -1]
+    cluster_colors = [colors[i] for i in unique_labels if i != -1]
+
+    # Add legend to the 3D plot
+    handles = [plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=color, markersize=10) 
+               for color in cluster_colors]
+    ax.legend(handles=handles, labels=cluster_labels, title="Clusters", loc='upper left')
+
+    axs[0, 1].scatter(dim_red_data[:, 0], dim_red_data[:, 1], c=label_colors, marker='o', s=50, alpha=0.6)
+    axs[0, 1].set_xlabel('UMAP 1')
+    axs[0, 1].set_ylabel('UMAP 2')
+    axs[1, 0].scatter(dim_red_data[:, 1], dim_red_data[:, 2], c=label_colors, marker='o', s=50, alpha=0.6)
+    axs[1, 0].set_xlabel('UMAP 2')
+    axs[1, 0].set_ylabel('UMAP 3')
+    axs[1, 1].scatter(dim_red_data[:, 0], dim_red_data[:, 2], c=label_colors, marker='o', s=50, alpha=0.6)
+    axs[1, 1].set_xlabel('UMAP 1')
+    axs[1, 1].set_ylabel('UMAP 3')
+
+    axes = [ax] + [axs[i, j] for i in range(2) for j in range(2)]
+    for ax in axes:
+        ax.grid(False)
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.set_xticklabels([])
+        ax.set_yticklabels([])
+
+    plt.tight_layout()
+    plt.show()
+
+    return clusters.labels_, clusters_nb
+
+def order_cells_UMAP(clusters, clusters_nb):
+
+    # takes the cluster created from UMAP and sort the cells according to this for visuality
+    df_UMAP_ordered = pd.DataFrame(index=df_traces.index)
+
+    # for each cluster, append the cells included in the cluster
+    # cell_clusters is a list of all cells that make up a  cluster
+    cell_order, cell_clusters = [], []
+    for cluster in clusters_nb[1:]:
+        column_list = [index for index, value in enumerate(clusters) if value==cluster]
+
+        for column in column_list:
+            cell_order.append(df_traces.columns[column])
+        
+        cell_clusters.append(column_list)
+        
+    # create new df with UMAP-ordered cells
+    df_UMAP_ordered = df_traces[cell_order]
+
+    # create list with the lengths of the clusters
+    cluster_lengths = list(itertools.accumulate([len(cluster) for cluster in cell_clusters]))
+
+    return df_UMAP_ordered, cell_clusters, cluster_lengths
+    
+embedding = dimred_UMAP(df_traces)
+clusters, clusters_nb = cluster_DBSCAN(embedding)
+df_traces_UMAP, cell_clusters, cluster_lengths = order_cells_UMAP(clusters, clusters_nb)
+activity_heatmap(df_traces_UMAP, cluster_lengths)
 
 
 
