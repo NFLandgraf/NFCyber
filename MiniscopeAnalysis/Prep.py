@@ -8,12 +8,13 @@ import umap
 from sklearn.cluster import DBSCAN
 import itertools
 
+data_prefix = 'C:\\Users\\nicol\\Desktop\\m90_data\\2024-10-31-16-52-47_CA1-m90_OF_'
 
 
-file_TTL = 'C:\\Users\\landgrafn\\Desktop\\m90\\2024-10-31-16-52-47_CA1-m90_OF_GPIO.csv'
-file_DLC = 'C:\\Users\\landgrafn\\Desktop\\m90\\2024-10-31-16-52-47_CA1-m90_OF_DLC.csv'
-file_traces = 'C:\\Users\\landgrafn\\Desktop\\m90\\2024-10-31-16-52-47_CA1-m90_OF_traces.csv'
-file_events = 'C:\\Users\\landgrafn\\Desktop\\m90\\2024-10-31-16-52-47_CA1-m90_OF_traces_events.csv'
+file_TTL =      data_prefix + 'GPIO.csv'
+file_DLC =      data_prefix + 'DLC.csv'
+file_traces =   data_prefix + 'traces.csv'
+file_events =   data_prefix + 'traces_events.csv'
 
 def get_traces(file, round_after_comma=1):
     # clean the csv file and return df
@@ -36,7 +37,6 @@ def get_traces(file, round_after_comma=1):
     df.columns = df.columns.astype(int)
 
     return df
-
 def dff_2_zscore(df):
     # transform df/f into zscores
     df_z = df.copy()
@@ -100,6 +100,8 @@ def get_traces_events(file):
     df = pd.DataFrame(events)
     df.columns = sorted(df.columns.str.replace(' C', '').astype(int))
 
+    df = df.round(1)
+
     return df
     
 def behav(file):
@@ -153,7 +155,7 @@ def behav(file):
 def activity_heatmap(df, mark_positions=None):
     df_t = df.T
 
-    plt.imshow(df.T, aspect='auto', cmap='seismic', vmin=-5, vmax=5)
+    plt.imshow(df_t, aspect='auto', cmap='seismic', vmin=-5, vmax=5)
     plt.colorbar(label='z-score')
     tick_positions = range(0, len(df_t.columns), 500)
     plt.xticks(ticks=tick_positions, labels=df_t.columns[tick_positions], rotation=90)
@@ -169,6 +171,8 @@ def activity_heatmap(df, mark_positions=None):
 
 
 
+
+
 df_traces = get_traces(file_traces)
 activity_heatmap(df_traces)
 df_events = get_traces_events(file_events)
@@ -180,8 +184,44 @@ df_behavior['Time [TTL]'] = df_TTLs[:-1]
 df_behavior.set_index([df_behavior.index, 'Time [TTL]'], inplace=True)
 
 
+
 #%%
-# DimRed + Clustering
+
+def event_heatmap(df_events, df_traces, barsize=3):
+    # takes the events and turns them into a heatmap
+
+    # copies df_traces but all values are 0
+    df = df_traces.astype('int64')
+    for col in df.columns:
+        df[col].values[:] = 0
+
+    # for every event timepoint, put 1 in the respective row (+/- barsize)
+    for col in df_events.columns:
+        events = df_events[col].values
+        events = events[~np.isnan(events)]
+        for ev in events:
+            df.loc[ev-barsize : ev+barsize, col] = 1
+
+    # plot the heatmap
+    plt.figure(figsize=(15, 5))
+    plt.imshow(df.T, aspect='auto', cmap='Reds')
+    plt.xlabel('Timepoints')
+    plt.ylabel('Cells')
+    plt.title('Event Heatmap')
+    plt.colorbar(label='Event Presence')
+    plt.show()
+
+    return df
+
+
+
+df_events_heatmap= event_heatmap(df_events, df_traces)
+#print(df_traces)
+
+
+
+#%%
+# DimRed
 
 def dimred_UMAP(df, n_neighbors=3, min_dist=0.1, n_components=3):
 
@@ -191,6 +231,10 @@ def dimred_UMAP(df, n_neighbors=3, min_dist=0.1, n_components=3):
     embedding = reducer.fit_transform(df)
 
     return embedding
+embedding = dimred_UMAP(df_traces)
+
+#%%
+# Clustering
 
 def cluster_DBSCAN(dim_red_data, eps=0.6, min_samples=9):
 
@@ -246,7 +290,6 @@ def cluster_DBSCAN(dim_red_data, eps=0.6, min_samples=9):
     plt.show()
 
     return clusters.labels_, clusters_nb
-
 def order_cells_UMAP(clusters, clusters_nb):
 
     # takes the cluster created from UMAP and sort the cells according to this for visuality
@@ -271,10 +314,10 @@ def order_cells_UMAP(clusters, clusters_nb):
 
     return df_UMAP_ordered, cell_clusters, cluster_lengths
     
-embedding = dimred_UMAP(df_traces)
 clusters, clusters_nb = cluster_DBSCAN(embedding)
 df_traces_UMAP, cell_clusters, cluster_lengths = order_cells_UMAP(clusters, clusters_nb)
 activity_heatmap(df_traces_UMAP, cluster_lengths)
 
 
 
+#%%
