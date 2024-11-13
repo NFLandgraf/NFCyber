@@ -27,7 +27,7 @@ def get_xmax_ymax(file):
     
     return width, height
 
-path = 'C:\\Users\\landgrafn\\NFCyber\\YLine\\data\\'
+path = 'C:\\Users\\landgrafn\\Desktop\\Ye\\'
 video_file_format = '.mp4'
 
 files = get_files(path)
@@ -60,27 +60,27 @@ def adapt(x, y):
 
 #%%
 # USER INPUT
-dx = 0      # if you want to shift the whole thing horizontally 
-dy = 0      # if you want to shift the whole thing vertically
+dx = -42      # if you want to shift the whole thing horizontally 
+dy = 18      # if you want to shift the whole thing vertically
 dz = 1      # if you want to change the size of the whole thing
 # use width and height as the maximum of the x- and y-axis
 
 # corners
-left_corner = adapt(313, 248)
-middle_corner = adapt(352, 179)
-right_corner = adapt(392, 248)
+left_corner = adapt(468, 228)
+middle_corner = adapt(510, 150)
+right_corner = adapt(546, 225)
 
 # left arm
-left_arm_end_lefter = adapt(0, 70)
-left_arm_end_righter = adapt(45, 0)
+left_arm_end_lefter = adapt(175, 60)
+left_arm_end_righter = adapt(225, -15)
 
 # right arm
-right_arm_end_righter = adapt(680, 70)
-right_arm_end_lefter = adapt(660, 0)
+right_arm_end_righter = adapt(838, 58)
+right_arm_end_lefter = adapt(790, 0)
 
 # middle_arm
-middle_arm_end_lefter = adapt(313, 600)
-middle_arm_end_righter = adapt(392, 600)
+middle_arm_end_lefter = adapt(467, 570)
+middle_arm_end_righter = adapt(550, 570)
 
 
 

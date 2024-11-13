@@ -1,5 +1,5 @@
 #%%
-# IMPORT
+# IMPORT and create DATAFRAMES
 import pandas as pd
 import numpy as np
 import csv
@@ -8,11 +8,11 @@ import umap
 from sklearn.cluster import DBSCAN
 import itertools
 
-data_prefix = 'C:\\Users\\nicol\\Desktop\\m90_data\\2024-10-31-16-52-47_CA1-m90_OF_'
+data_prefix = 'C:\\Users\\landgrafn\\Desktop\\m90_data\\2024-10-31-16-52-47_CA1-m90_OF_'
+video_dimensions = [664, 608]
 
-
-file_TTL =      data_prefix + 'GPIO.csv'
-file_DLC =      data_prefix + 'DLC.csv'
+file_TTL    =   data_prefix + 'GPIO.csv'
+file_DLC    =   data_prefix + 'DLC.csv'
 file_traces =   data_prefix + 'traces.csv'
 file_events =   data_prefix + 'traces_events.csv'
 
@@ -36,6 +36,9 @@ def get_traces(file, round_after_comma=1):
     df.columns = df.columns.str.replace(' C', '')
     df.columns = df.columns.astype(int)
 
+    # normalize it via zscore
+    df = dff_2_zscore(df)
+
     return df
 def dff_2_zscore(df):
     # transform df/f into zscores
@@ -48,8 +51,42 @@ def dff_2_zscore(df):
     df_z.index.names = ['Time/zscore']
 
     return df_z
+def get_traces_events(file, df_traces, barsize=3):
+    # takes the csv with the time of events/action potentials for each cell and returns df
 
-def TTL_list(file, channel_name = ' GPIO-1', value_threshold=500, constant=True, print_csv=True):
+    df_list = pd.read_csv(file, low_memory=False)
+
+    # group by ' Cell Name' and collect the 'Time (s)' as lists before adding to dict
+    events = df_list.groupby(' Cell Name')['Time (s)'].apply(list).to_dict()
+
+    # get the maximum events that happen in a cell
+    max_events = max(len(event_list) for event_list in events.values())
+
+    # to have the same length, add nans to the event list of each cell 
+    for key, event_list in events.items():
+        events[key] = event_list + [np.nan] * (max_events - len(event_list))
+
+    # make a df out of the dict and clean up the cell names
+    df_list = pd.DataFrame(events)
+    df_list.columns = sorted(df_list.columns.str.replace(' C', '').astype(int))
+    df_list = df_list.round(1)
+
+
+    # additionally, create a timeseries df with 0 and 1 for the events
+    # copies df_traces but all values are 0
+    df_timeseries = df_traces.astype('int64')
+    for col in df_timeseries.columns:
+        df_timeseries[col].values[:] = 0
+
+    # for every event timepoint, put 1 in the respective row (+/- barsize)
+    for col in df_list.columns:
+        events = df_list[col].values
+        events = events[~np.isnan(events)]
+        for ev in events:
+            df_timeseries.loc[ev-barsize : ev+barsize, col] = 1
+
+    return df_list, df_timeseries
+def get_TTLs(file, channel_name = ' GPIO-1', value_threshold=500, constant=True, print_csv=False):
     # returns list of TTL input times
 
     # expects nan values to be just a string: ' nan', convert these strings into proper nans
@@ -74,37 +111,13 @@ def TTL_list(file, channel_name = ' GPIO-1', value_threshold=500, constant=True,
     high_times = list(zip(onsets, offsets)) if not constant else list(onsets)
     #print(f'{len(high_times)} total events')
 
-    # if print_csv:
-    #     with open(output, 'w') as f:
-    #         wr = csv.writer(f, quoting=csv.QUOTE_ALL)
-    #         wr.writerow(high_times)
+    if print_csv:
+        with open(output, 'w') as f:
+            wr = csv.writer(f, quoting=csv.QUOTE_ALL)
+            wr.writerow(high_times)
 
     return high_times
-
-def get_traces_events(file):
-    # takes the csv with the time of events/action potentials for each cell and returns df
-
-    df = pd.read_csv(file, low_memory=False)
-   
-    # group by ' Cell Name' and collect the 'Time (s)' as lists before adding to dict
-    events = df.groupby(' Cell Name')['Time (s)'].apply(list).to_dict()
-
-    # get the maximum events that happen in a cell
-    max_events = max(len(event_list) for event_list in events.values())
-    
-    # to have the same length, add nans to the event list of each cell 
-    for key, event_list in events.items():
-        events[key] = event_list + [np.nan] * (max_events - len(event_list))
-        
-    # make a df out of the dict and clean up the cell names
-    df = pd.DataFrame(events)
-    df.columns = sorted(df.columns.str.replace(' C', '').astype(int))
-
-    df = df.round(1)
-
-    return df
-    
-def behav(file):
+def get_behav(file, df_TTLs, y_max):
     # cleans the DLC file and returns the df
     # idea: instead of picking some 'trustworthy' points to mean e.g. head, check the relations between 'trustworthy' points, so when one is missing, it can gues more or less where it is
 
@@ -145,83 +158,29 @@ def behav(file):
 
     # combine the x and y column into a single tuple column
     for bp in bps_all + ['head', 'postbody']:
-        df[bp] = (list(zip(round(df[f'{bp}_x'], 1), round(df[f'{bp}_y'], 1))))
+        df[bp] = (list(zip(round(df[f'{bp}_x'], 1), round(y_max-df[f'{bp}_y'], 1))))
         df = df.drop(labels=f'{bp}_x', axis="columns")
         df = df.drop(labels=f'{bp}_y', axis="columns")   
 
     #df.to_csv('F:\\2024-10-31-16-52-47_CA1-m90_OF_DLC_clean.csv')
-    return df[['head', 'postbody']]
+    df = df[['head', 'postbody']]
 
-def activity_heatmap(df, mark_positions=None):
-    df_t = df.T
-
-    plt.imshow(df_t, aspect='auto', cmap='seismic', vmin=-5, vmax=5)
-    plt.colorbar(label='z-score')
-    tick_positions = range(0, len(df_t.columns), 500)
-    plt.xticks(ticks=tick_positions, labels=df_t.columns[tick_positions], rotation=90)
-
-    if mark_positions:
-        for mark in mark_positions:
-            plt.axhline(y=mark, color='black', linestyle='--', linewidth=1.5)
-
-    plt.xlabel('Time [s]')
-    plt.ylabel('Cells')
-    plt.title('CA1_OF_activity heatmap')
-    plt.show()
-
-
-
-
-
-df_traces = get_traces(file_traces)
-activity_heatmap(df_traces)
-df_events = get_traces_events(file_events)
-df_TTLs = TTL_list(file_TTL)
-
-# as an index for behavior, you have the frame number and the INSPX master time
-df_behavior = behav(file_DLC)
-df_behavior['Time [TTL]'] = df_TTLs[:-1]
-df_behavior.set_index([df_behavior.index, 'Time [TTL]'], inplace=True)
-
-
-
-#%%
-
-def event_heatmap(df_events, df_traces, barsize=3):
-    # takes the events and turns them into a heatmap
-
-    # copies df_traces but all values are 0
-    df = df_traces.astype('int64')
-    for col in df.columns:
-        df[col].values[:] = 0
-
-    # for every event timepoint, put 1 in the respective row (+/- barsize)
-    for col in df_events.columns:
-        events = df_events[col].values
-        events = events[~np.isnan(events)]
-        for ev in events:
-            df.loc[ev-barsize : ev+barsize, col] = 1
-
-    # plot the heatmap
-    plt.figure(figsize=(15, 5))
-    plt.imshow(df.T, aspect='auto', cmap='Reds')
-    plt.xlabel('Timepoints')
-    plt.ylabel('Cells')
-    plt.title('Event Heatmap')
-    plt.colorbar(label='Event Presence')
-    plt.show()
+    # as an index for behavior, you have the frame number and the INSPX master time
+    df['Time [TTL]'] = df_TTLs[:-1]
+    df['Time [TTL]'] = df['Time [TTL]'].round(1)
+    df.set_index([df.index, 'Time [TTL]'], inplace=True)
 
     return df
 
-
-
-df_events_heatmap= event_heatmap(df_events, df_traces)
-#print(df_traces)
+df_traces   =   get_traces(file_traces)
+df_events_list, df_events_timeseries   =   get_traces_events(file_events, df_traces)
+df_TTLs     =   get_TTLs(file_TTL)
+df_behavior =   get_behav(file_DLC, df_TTLs, video_dimensions[1])
 
 
 
 #%%
-# DimRed
+# Dimensionaly Reduction
 
 def dimred_UMAP(df, n_neighbors=3, min_dist=0.1, n_components=3):
 
@@ -313,11 +272,106 @@ def order_cells_UMAP(clusters, clusters_nb):
     cluster_lengths = list(itertools.accumulate([len(cluster) for cluster in cell_clusters]))
 
     return df_UMAP_ordered, cell_clusters, cluster_lengths
-    
+def activity_heatmap(df, mark_positions=None):
+    df_t = df.T
+
+    plt.imshow(df_t, aspect='auto', cmap='seismic', vmin=-5, vmax=5)
+    plt.colorbar(label='z-score')
+
+    tick_positions = range(0, len(df_t.columns), 500)
+    plt.xticks(ticks=tick_positions, labels=df_t.columns[tick_positions], rotation=90)
+
+    if mark_positions:
+        for mark in mark_positions:
+            plt.axhline(y=mark, color='black', linestyle='--', linewidth=1.5)
+
+    plt.xlabel('Time [s]')
+    plt.ylabel('Cells')
+    plt.title('Activity Heatmap')
+    plt.show()
+def events_heatmap(df, mark_positions=None):
+    df_t = df.T
+
+    plt.imshow(df_t, aspect='auto', cmap='Reds')
+    plt.colorbar(label='Event Presence')
+
+    tick_positions = range(0, len(df_t.columns), 500)
+    plt.xticks(ticks=tick_positions, labels=df_t.columns[tick_positions], rotation=90)
+
+    if mark_positions:
+        for mark in mark_positions:
+            plt.axhline(y=mark, color='black', linestyle='--', linewidth=1.5)
+
+
+    plt.xlabel('Time [s]')
+    plt.ylabel('Cells')
+    plt.title('Event Heatmap')
+    plt.show()
+
+# cluster the dimensionality reduced df_traces
 clusters, clusters_nb = cluster_DBSCAN(embedding)
 df_traces_UMAP, cell_clusters, cluster_lengths = order_cells_UMAP(clusters, clusters_nb)
 activity_heatmap(df_traces_UMAP, cluster_lengths)
 
+# sort the df_events according to the clustered df_traces
+df_events_heatmap = df_events_timeseries[df_traces_UMAP.columns]
+events_heatmap(df_events_heatmap, cluster_lengths)
+
+
 
 
 #%%
+
+# take one cluster and print out the video frames, where the activity of cells in that cluster is high
+print(df_behavior)
+
+
+#%%
+# print out jpg for every row in df_behav
+
+def behavior_to_jpgs(df, width=50):
+    folder = 'C:\\Users\\landgrafn\\Desktop\\m90_data\\DLC\\'
+
+    for idx, row in df.iterrows():
+       
+        head_x, head_y = row['head']
+        body_x, body_y = row['postbody']
+
+        # Compute the direction vector from Point 1 to Point 2
+        dx = body_x - head_x
+        dy = body_y - head_y
+        vector_length = np.sqrt(dx**2 + dy**2)
+        
+        # Normalize the direction vector
+        dx /= vector_length
+        dy /= vector_length
+        ortho_dx = -dy
+        ortho_dy = dx
+        half_width = width / 2
+        
+        corner1 = (body_x + half_width * ortho_dx, body_y + half_width * ortho_dy)
+        corner2 = (body_x - half_width * ortho_dx, body_y - half_width * ortho_dy)
+
+        plt.figure(figsize=(6, 6))
+        plt.fill([corner1[0], corner2[0], head_x], [corner1[1], corner2[1], head_y], color='gray')
+        plt.scatter(head_x, head_y, color='black', s=100)
+        plt.text(10, 580, f'{idx[0]}, {idx[1]}s', color='red')
+
+        plt.xlim(0, 664)
+        plt.ylim(0, 608)
+        plt.xticks([])
+        plt.yticks([])
+
+        filename = f'{idx[0]}.jpg'
+        plt.savefig(folder+filename, format='jpg')
+
+        plt.close()
+
+behavior_to_jpgs(df_behavior)
+
+
+#%%
+
+
+
+
