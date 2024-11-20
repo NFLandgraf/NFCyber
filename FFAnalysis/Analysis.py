@@ -20,7 +20,7 @@ plt.rcParams['xtick.labelsize']= 10
 plt.rcParams['legend.fontsize']=12
 plt.rcParams['legend.markerscale']=2
 
-path = 'C:\\Users\\landgrafn\\Desktop\\'
+path = 'C:\\Users\\landgrafn\\Desktop\\FFF\\'
 rec_type = 'LockIn'
 digital_io = True
 
@@ -232,16 +232,18 @@ for file in files:
 
 
     time = np.array(df.index.values)
-    # plot_sig(time, df['Fluo'], df['Isos'], 'Raw Signal')
-    # plot_sig(time, df['Fluo_denoised'], df['Isos_denoised'], 'Denoised Signal')
-    #plot_sig(time, df['Fluo_detrend'], df['Isos_detrend'], 'Detrended Signal')
-    # plot_sig_fluo(time, df['Fluo_motcorrected'], 'Motion Corrected Signal')
+    plot_sig(time, df['Fluo'], df['Isos'], 'Raw Signal')
+    plot_sig(time, df['Fluo_denoised'], df['Isos_denoised'], 'Denoised Signal')
+    plot_sig(time, df['Fluo_detrend'], df['Isos_detrend'], 'Detrended Signal')
+    plot_sig_fluo(time, df['Fluo_motcorrected'], 'Motion Corrected Signal')
     plot_sig_fluo(time, df['Fluo_dff'], 'dF/F')
-    # plot_sig_fluo(time, df['Fluo_zscore'], 'Z-Score')
+    plot_sig_fluo(time, df['Fluo_zscore'], 'Z-Score')
 
     # create datafile as .csv
     new_file = file#.replace('.csv', '_dff')
     title = f'{new_file}_dff'
+
+    df = df[::10]
     df['Fluo_dff'].to_csv(f'{title}.csv')
 
 

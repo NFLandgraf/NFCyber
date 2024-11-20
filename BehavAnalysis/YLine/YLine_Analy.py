@@ -16,33 +16,33 @@ from pathlib import Path
 
 # USER INPUT
 # folder with the csv files and for each csv file, copy the corresponding video (best case with DLC annotations) into that folder
-path = 'C:\\Users\\landgrafn\\NFCyber\\YLine\\data\\'
+path = 'C:\\Users\\landgrafn\\Desktop\\Now\\'
 common_name_csv = '.csv'
 create_video = True
 common_video_name = '.csv'
 video_file_format = '.mp4'
 
-width = 692
-height = 600
+width = 662
+height = 570
 
 #left arm
-left_corner = (305, 250)
-middle_corner = (344, 179)
-left_arm_end_lefter = (0, 70)
-left_arm_end_righter = (37, 0)
+left_corner = (295, 227)
+middle_corner = (332, 162)
+left_arm_end_lefter = (2, 60)
+left_arm_end_righter = (52, 0)
 
 #middle arm
-right_corner = (384, 248)
-middle_arm_end_righter = (384, 600)
-middle_arm_end_lefter = (305, 600)
+right_corner = (368, 225)
+middle_arm_end_righter = (382, 570)
+middle_arm_end_lefter = (290, 570)
 
 #right arm
-right_arm_end_righter = (692, 70)
-right_arm_end_lefter = (652, 0)
+right_arm_end_righter = (662, 60)
+right_arm_end_lefter = (612, 0)
 
 fps = 30
-nframes = 9091
-duration = 303.03333333333336
+nframes = 10910
+duration = 363.6666666666667
 
 
 

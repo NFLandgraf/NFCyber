@@ -195,7 +195,7 @@ embedding = dimred_UMAP(df_traces)
 #%%
 # Clustering
 
-def cluster_DBSCAN(dim_red_data, eps=0.6, min_samples=9):
+def cluster_DBSCAN(dim_red_data, eps=0.8, min_samples=9):
 
     # cluster via DBSCAN the dimred results
     dbscan_model = DBSCAN(eps=eps, min_samples=min_samples)
@@ -259,11 +259,15 @@ def order_cells_UMAP(clusters, clusters_nb):
     cell_order, cell_clusters = [], []
     for cluster in clusters_nb[1:]:
         column_list = [index for index, value in enumerate(clusters) if value==cluster]
-
         for column in column_list:
             cell_order.append(df_traces.columns[column])
-        
         cell_clusters.append(column_list)
+
+    # add trash
+    column_list = [index for index, value in enumerate(clusters) if value==clusters_nb[0]]
+    for column in column_list:
+        cell_order.append(df_traces.columns[column])
+    cell_clusters.append(column_list)
         
     # create new df with UMAP-ordered cells
     df_UMAP_ordered = df_traces[cell_order]
@@ -275,7 +279,7 @@ def order_cells_UMAP(clusters, clusters_nb):
 def activity_heatmap(df, mark_positions=None):
     df_t = df.T
 
-    plt.imshow(df_t, aspect='auto', cmap='seismic', vmin=-5, vmax=5)
+    plt.imshow(df_t, aspect='auto', cmap='seismic', vmin=-3, vmax=3)
     plt.colorbar(label='z-score')
 
     tick_positions = range(0, len(df_t.columns), 500)
@@ -283,7 +287,7 @@ def activity_heatmap(df, mark_positions=None):
 
     if mark_positions:
         for mark in mark_positions:
-            plt.axhline(y=mark, color='black', linestyle='--', linewidth=1.5)
+            plt.axhline(y=mark, color='black', linestyle='--', linewidth=0.5)
 
     plt.xlabel('Time [s]')
     plt.ylabel('Cells')
@@ -317,6 +321,7 @@ activity_heatmap(df_traces_UMAP, cluster_lengths)
 df_events_heatmap = df_events_timeseries[df_traces_UMAP.columns]
 events_heatmap(df_events_heatmap, cluster_lengths)
 
+#activity_heatmap(df_traces)
 
 
 
