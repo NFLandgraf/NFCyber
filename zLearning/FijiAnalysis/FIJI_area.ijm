@@ -1,9 +1,10 @@
 // data must be in folder called 'data'
 
 
-curPath = "C:\\Users\\landgrafn\\Desktop\\PVN_hits\\";
+curPath = "C:\\Users\\landgrafn\\Desktop\\PFC\\";
 // C1-NET, C2-Iba1, C3-Ab, C4-DAPI
-channel = "C1-";
+//channel = "C1-";
+channel = "c:1/4 - "
 channel_name = "NET"
 
 // create folders and define paths
@@ -28,11 +29,11 @@ for(i = 0;i<file_list.length;i++){
 		// Split and choose correct image
 		open(dataPath + file_list[i]);
 		selectImage(file_list[i]);
-		run("Split Channels");
-		selectImage(channel + file_list[i]);
+		run("Stack Splitter", "number=4");
+		selectImage(channel + file_list[i] + " #1");
 		
 		// Brightness/Contrast
-		setMinAndMax(6, 600);
+		setMinAndMax(100, 600);
 		run("Apply LUT");
 		
 		// Threshold
@@ -49,7 +50,7 @@ for(i = 0;i<file_list.length;i++){
 		selectWindow("Results");
 		saveAs("Results", resultPath + "results_area\\" + file_list[i] + "_area.csv");
 		
-		selectImage(channel + file_list[i]);
+		selectImage(channel + file_list[i] + " #1");
 		saveAs("Tiff", resultPath + "results_pics\\" + file_list[i] + "_pic.tif");
 		
 		// save file in csv to know the order

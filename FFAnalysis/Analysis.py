@@ -1,28 +1,17 @@
 
 #%%
-#import doric as dr
+
 import h5py
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from scipy import signal, optimize, stats
 from pathlib import Path
+import os
 
 
-#set default plot properties
-plt.rcParams['figure.figsize'] = [14, 12] # Make default figure size larger.
-plt.rcParams['axes.xmargin'] = 0          # Make default margin on x axis zero.
-plt.rcParams['axes.labelsize'] = 12     #Set default axes label size 
-plt.rcParams['axes.titlesize']=15
-plt.rcParams['axes.titleweight']='heavy'
-plt.rcParams['ytick.labelsize']= 10
-plt.rcParams['xtick.labelsize']= 10
-plt.rcParams['legend.fontsize']=12
-plt.rcParams['legend.markerscale']=2
-
-path = 'C:\\Users\\landgrafn\\Desktop\\'
-rec_type = 'LockIn'
-digital_io = True
+path = 'C:\\Users\\landgrafn\\Desktop\\2024-11-20_FF-Weilin-3m_FS\\'
+file_useless_string = ['2024-11-20_FF-Weilin_FS_', '_LockIn']
 
 
 def get_files(path, common_name):
@@ -36,12 +25,22 @@ def get_files(path, common_name):
     print('\n')
 
     return files
-
 files = get_files(path, 'csv')
 
 
 
 def plot_sig(time_sec, fluo, isos, title):
+
+    #set default plot properties
+    plt.rcParams['figure.figsize'] = [14, 12] # Make default figure size larger.
+    plt.rcParams['axes.xmargin'] = 0          # Make default margin on x axis zero.
+    plt.rcParams['axes.labelsize'] = 12     #Set default axes label size 
+    plt.rcParams['axes.titlesize']=15
+    plt.rcParams['axes.titleweight']='heavy'
+    plt.rcParams['ytick.labelsize']= 10
+    plt.rcParams['xtick.labelsize']= 10
+    plt.rcParams['legend.fontsize']=12
+    plt.rcParams['legend.markerscale']=2
 
     # plots raw Fluo and Isos on different y-axis
     fig, ax1 = plt.subplots()
@@ -63,6 +62,17 @@ def plot_sig(time_sec, fluo, isos, title):
     plt.show()
 
 def plot_sig_fluo(time, fluo, title):
+
+    #set default plot properties
+    plt.rcParams['figure.figsize'] = [14, 12] # Make default figure size larger.
+    plt.rcParams['axes.xmargin'] = 0          # Make default margin on x axis zero.
+    plt.rcParams['axes.labelsize'] = 12     #Set default axes label size 
+    plt.rcParams['axes.titlesize']=15
+    plt.rcParams['axes.titleweight']='heavy'
+    plt.rcParams['ytick.labelsize']= 10
+    plt.rcParams['xtick.labelsize']= 10
+    plt.rcParams['legend.fontsize']=12
+    plt.rcParams['legend.markerscale']=2
 
     plt.plot(time, fluo, 'g', label='Fluo') # fluo on new right y-axis
 
@@ -217,40 +227,83 @@ def d_normalization(df):
 
     return df
 
+def main(files):
 
-all_animals = []
-for file in files:
+    df_base = pd.DataFrame()
+    for file in files:
 
-    print(f'\n{file}')
+        # managing file names
+        print(f'\nProcessing file: {file}')
+        file_name = os.path.basename(file)
+        file_name_short = os.path.splitext(file_name)[0]
+        for word in file_useless_string:
+            file_name_short = file_name_short.replace(word, '')
+            
+
+        # process data
+        df = get_data_csv(file)
+        df = a_denoising(df)
+        df = b_bleaching(df)
+        df = c_motion_correction(df)
+        df = d_normalization(df)
+
+        # plot results
+        time = np.array(df.index.values)
+        # plot_sig(time, df['Fluo'], df['Isos'], 'Raw Signal')
+        # plot_sig(time, df['Fluo_denoised'], df['Isos_denoised'], 'Denoised Signal')
+        # plot_sig(time, df['Fluo_detrend'], df['Isos_detrend'], 'Detrended Signal')
+        # plot_sig_fluo(time, df['Fluo_motcorrected'], 'Motion Corrected Signal')
+        plot_sig_fluo(time, df['Fluo_dff'], 'dF/F')
+        # plot_sig_fluo(time, df['Fluo_zscore'], 'Z-Score')
+
+        
+        # add all files to df_base, each file is one column
+        #df = df[::10]
+        df = df['Fluo_dff']
+        df = df.rename(f'{file_name_short}')
+
+        df_base[file_name_short] = df
+        print(f'{file_name_short} added as new column to df_base')
     
+    #df_base.to_csv(path + 'dff_allfiles.csv')
 
-    df = get_data_csv(file)
-    df = a_denoising(df)
-    df = b_bleaching(df)
-    df = c_motion_correction(df)
-    df = d_normalization(df)
+    return df_base
 
-
-    time = np.array(df.index.values)
-    # plot_sig(time, df['Fluo'], df['Isos'], 'Raw Signal')
-    # plot_sig(time, df['Fluo_denoised'], df['Isos_denoised'], 'Denoised Signal')
-    #plot_sig(time, df['Fluo_detrend'], df['Isos_detrend'], 'Detrended Signal')
-    # plot_sig_fluo(time, df['Fluo_motcorrected'], 'Motion Corrected Signal')
-    plot_sig_fluo(time, df['Fluo_dff'], 'dF/F')
-    # plot_sig_fluo(time, df['Fluo_zscore'], 'Z-Score')
-
-    # create datafile as .csv
-    new_file = file#.replace('.csv', '_dff')
-    title = f'{new_file}_dff'
-    df['Fluo_dff'].to_csv(f'{title}.csv')
+df_base = main(files)
 
 
-
-    
-
-    
 #%%
+# Peri event stuff
 
-for i, animal in enumerate(all_animals):
-    animal.to_csv(f'{i}.csv')
+def perievent(df, events, pre_interval=5, post_interval=10):
+    df_perievent_means = pd.DataFrame()
+
+    # go through each column in df_base
+    for column in df_base:
+
+        df = df_base[column]
+        df_perievent = pd.DataFrame()
+
+        for i, event in enumerate(events):
+            df_event = df.copy()
+            
+            # reindex so the event is 0
+            df_event.index = df_event.index - event
+            df_event.index = df_event.index.round(2)
+
+            # collect everything from -x to +y and add to big df
+            df_event = df_event.loc[- pre_interval : post_interval]
+            df_perievent[f'{event}'] = df_event
+
+        # add the row means to the main df
+        df_perievent['mean'] = df_perievent.mean(axis=1)
+        df_perievent_means[f'{column}'] = df_perievent['mean']
+
+    df_perievent_means.to_csv(path + "Perievent_means.csv")
+
+    return df_perievent_means
+
+
+events = [30, 60, 90, 120, 150]
+df_perievent_means = perievent(df_base, events, pre_interval=5, post_interval=10)
 
