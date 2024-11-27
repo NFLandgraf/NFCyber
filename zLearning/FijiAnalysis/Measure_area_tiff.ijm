@@ -1,10 +1,11 @@
+// takes data folder and calculates area from tiff pictures
 // data must be in folder called 'data'
 
 
 curPath = "C:\\Users\\landgrafn\\Desktop\\data_orth\\";
 // C1-NET, C2-Iba1, C3-Ab, C4-DAPI
 //channel = "C1-";
-channel = "c:1/3 - "
+channel = "c:1/4 - "
 channel_name = "NET"
 
 // create folders and define paths
@@ -29,34 +30,20 @@ for(i = 0;i<file_list.length;i++){
 		// Split and choose correct image
 		open(dataPath + file_list[i]);
 		selectImage(file_list[i]);
-		run("Stack Splitter", "number=3");
-		selectImage(channel + file_list[i] + " #1");
-		
-		// Brightness/Contrast
-		//setMinAndMax(100, 600);
-		//run("Apply LUT");
 		
 		// Threshold
-		//setAutoThreshold("Default dark no-reset");
-		//setThreshold(25000, 65535, "raw");
-		//setOption("BlackBackground", true);
-		//run("Convert to Mask");
+		setAutoThreshold("Default dark no-reset");
+		setThreshold(25000, 65535, "raw");
+		setOption("BlackBackground", true);
+		run("Convert to Mask");
 		
 		// Measure
-		//run("Set Measurements...", "area mean min area_fraction redirect=None decimal=3");
-		//run("Measure");
-		
-		// save Results and Pic
-		//selectWindow("Results");
-		//saveAs("Results", resultPath + "results_area\\" + file_list[i] + "_area.csv");
-		
-		//selectImage(channel + file_list[i] + " #1");
-		saveAs("Tiff", resultPath + "results_pics\\" + file_list[i] + "_pic.tif");
+		run("Set Measurements...", "area mean min area_fraction redirect=None decimal=3");
+		run("Measure");
 		
 		// save file in csv to know the order
-		//result_area = getResult("%Area");
-		//print(f, file_list[i] + "," + result_area);
-		
+		result_area = getResult("%Area");
+	    print(f, file_list[i] + "," + result_area);
 		
 		// close all windows
 		close("*");

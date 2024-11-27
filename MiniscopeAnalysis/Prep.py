@@ -7,6 +7,10 @@ import matplotlib.pyplot as plt
 import umap
 from sklearn.cluster import DBSCAN
 import itertools
+import joypy
+import seaborn as sns
+
+
 
 data_prefix = 'C:\\Users\\landgrafn\\Desktop\\m90_data\\2024-10-31-16-52-47_CA1-m90_OF_'
 video_dimensions = [664, 608]
@@ -177,12 +181,12 @@ df_events_list, df_events_timeseries   =   get_traces_events(file_events, df_tra
 df_TTLs     =   get_TTLs(file_TTL)
 df_behavior =   get_behav(file_DLC, df_TTLs, video_dimensions[1])
 
-
+df_traces = df_traces.iloc[:6000, :]
 
 #%%
 # Dimensionaly Reduction
 
-def dimred_UMAP(df, n_neighbors=3, min_dist=0.1, n_components=3):
+def dimred_UMAP(df, n_neighbors=3, min_dist=0.1, n_components=4):
 
     # transposes df and reduces cell dimensions via UMAP
     df = df.T
@@ -318,17 +322,13 @@ df_traces_UMAP, cell_clusters, cluster_lengths = order_cells_UMAP(clusters, clus
 activity_heatmap(df_traces_UMAP, cluster_lengths)
 
 # sort the df_events according to the clustered df_traces
-df_events_heatmap = df_events_timeseries[df_traces_UMAP.columns]
-events_heatmap(df_events_heatmap, cluster_lengths)
+#df_events_heatmap = df_events_timeseries[df_traces_UMAP.columns]
+#events_heatmap(df_events_heatmap, cluster_lengths)
 
 #activity_heatmap(df_traces)
 
 
 
-#%%
-
-# take one cluster and print out the video frames, where the activity of cells in that cluster is high
-print(df_behavior)
 
 
 #%%
@@ -375,8 +375,25 @@ def behavior_to_jpgs(df, width=50):
 behavior_to_jpgs(df_behavior)
 
 
+
+
 #%%
 
+def joyplot(df, y_scale=30, y_offset_rate=0.2):
 
+    # create joyplot with many traces on top of each other
+    plt.figure(figsize=(10, 15))
+    colors = sns.color_palette("tab20", n_colors=df.shape[1])
 
+    y_offset = 0
+    for i, col in enumerate(df.columns):
+        plt.plot(df.index, df[col]/y_scale + y_offset, color=colors[i], linewidth=1)
+        y_offset += y_offset_rate
 
+    plt.ylim(-0.15, 11.2)
+    plt.xlim(0, 600)
+    plt.xlabel('Time [s]')
+    plt.title('Thy1-GCaMP6s OpenField')
+    plt.show()
+
+joyplot(df_traces_UMAP.iloc[:6000, 45:100])

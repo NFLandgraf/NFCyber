@@ -7,7 +7,7 @@ import h5py
 import numpy as np
 import pandas as pd
 import os
-path = 'C:\\Users\\landgrafn\\Desktop\\2024-11-20_FF-Weilin-3m_FS\\'
+path = 'C:\\Users\\landgrafn\\Desktop\\FF\\'
 common_name = '.doric'
 rec_type = None
 

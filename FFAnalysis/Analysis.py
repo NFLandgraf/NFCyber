@@ -10,7 +10,7 @@ from pathlib import Path
 import os
 
 
-path = 'C:\\Users\\landgrafn\\Desktop\\2024-11-20_FF-Weilin-3m_FS\\'
+path = 'C:\\Users\\landgrafn\\Desktop\\FF\\'
 file_useless_string = ['2024-11-20_FF-Weilin_FS_', '_LockIn']
 
 
@@ -253,7 +253,7 @@ def main(files):
         # plot_sig(time, df['Fluo_denoised'], df['Isos_denoised'], 'Denoised Signal')
         # plot_sig(time, df['Fluo_detrend'], df['Isos_detrend'], 'Detrended Signal')
         # plot_sig_fluo(time, df['Fluo_motcorrected'], 'Motion Corrected Signal')
-        plot_sig_fluo(time, df['Fluo_dff'], 'dF/F')
+        #plot_sig_fluo(time, df['Fluo_dff'], 'dF/F')
         # plot_sig_fluo(time, df['Fluo_zscore'], 'Z-Score')
 
         
@@ -265,7 +265,7 @@ def main(files):
         df_base[file_name_short] = df
         print(f'{file_name_short} added as new column to df_base')
     
-    #df_base.to_csv(path + 'dff_allfiles.csv')
+    df_base.to_csv(path + 'dff_allfiles.csv')
 
     return df_base
 
@@ -273,7 +273,7 @@ df_base = main(files)
 
 
 #%%
-# Peri event stuff
+# Mean and align everything to events
 
 def perievent(df, events, pre_interval=5, post_interval=10):
     df_perievent_means = pd.DataFrame()
@@ -307,3 +307,50 @@ def perievent(df, events, pre_interval=5, post_interval=10):
 events = [30, 60, 90, 120, 150]
 df_perievent_means = perievent(df_base, events, pre_interval=5, post_interval=10)
 
+
+
+#%%
+# Calculate baseline means and stds
+
+def baseline_mean(df, pre):
+    baseline_means, baseline_stds = {}, {}
+
+    for col in df.columns:
+        datapoints_baseline = df_perievent_means.loc[pre:0.00, col]
+
+        # calculate baseline means
+        baseline_mean = datapoints_baseline.mean()
+        baseline_means[col] = baseline_mean
+
+        # calculate baseline stds
+        baseline_std = datapoints_baseline.std()
+        baseline_stds[col] = baseline_std
+
+        print(f'{col}: {baseline_mean}, {baseline_std}')
+
+    print(baseline_means)
+    print(baseline_stds)
+    return baseline_means, baseline_stds
+
+baseline_means, baseline_stds = baseline_mean(df_perievent_means, -5.00)
+
+
+#%%
+# calculate, when traces reach a certain threshold
+
+
+
+def threshold_reach(df, thresholds):
+    # calculate, when a signal reaches a threshold
+
+    first_responses = {}
+    for col, threshold in zip(df.columns, thresholds):
+
+        first_index = df[col][df[col] > threshold].index.min()
+        first_responses[col] = first_index
+    
+    print(first_responses)
+    return first_responses
+
+thresholds = [0.2029, -0.3028, 0.7057, 0.2695, 0.3749, -0.0499, 0.1954, -0.0044, 0.0429, -0.0701]
+first_responses = threshold_reach(df_perievent_means, thresholds)
