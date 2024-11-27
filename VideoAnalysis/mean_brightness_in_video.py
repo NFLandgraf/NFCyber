@@ -1,10 +1,12 @@
 
-
+#%%
 '''Goes through all frames of an mp4 video and checks the mean brightness per frame'''
 
 
 import cv2
 import numpy as np
+import matplotlib.pyplot as plt
+
 
 def analyze_video_brightness(video_path):
     # Open the video file
@@ -42,14 +44,17 @@ def analyze_video_brightness(video_path):
     return brightness_values
 
 # Example usage:
-video_path = 'C:\\Users\\landgrafn\\Desktop\\2024-09-18-18-35-37_379_LC.mp4'
+video_path = 'C:\\Users\\landgrafn\\Desktop\\2024-09-18-18-35-37_LC_m379_FC_motcorr.mp4'
 brightness_values = analyze_video_brightness(video_path)
 print("Mean brightness values for each frame:", brightness_values)
 
 
 #%%
-import numpy as np
-a = np.linspace(0, 200, 3009)
 
-np.savetxt('yee.csv', a, delimiter=',')
-print(a)
+vals = np.array(brightness_values[:1200])
+z = (vals - np.mean(vals)) / np.std(vals).tolist()
+print(z)
+
+np.savetxt('foo.csv', z, delimiter=',')
+plt.plot(z)
+plt.show()

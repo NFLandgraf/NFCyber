@@ -182,6 +182,7 @@ df_TTLs     =   get_TTLs(file_TTL)
 df_behavior =   get_behav(file_DLC, df_TTLs, video_dimensions[1])
 
 df_traces = df_traces.iloc[:6000, :]
+df_behavior = df_behavior.iloc[:6000, :]
 
 #%%
 # Dimensionaly Reduction
@@ -397,3 +398,68 @@ def joyplot(df, y_scale=30, y_offset_rate=0.2):
     plt.show()
 
 joyplot(df_traces_UMAP.iloc[:6000, 45:100])
+
+
+
+
+
+#%%
+
+
+#print(df_behavior)
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+
+def calculate_speed_vector(old_df, x):
+    df = old_df.copy()
+    speed_vectors = []
+    
+    for i in range(len(df) - x):  # Iterate until we can compute a valid speed vector
+        # Get the current point and the point x rows later (assuming 'head' is a tuple (x, y))
+        current_point = df['head'].iloc[i]
+        next_point = df['head'].iloc[i + x]
+        
+        # Check if any of the points is (NaN, NaN)
+        if pd.isna(current_point[0]) or pd.isna(current_point[1]) or pd.isna(next_point[0]) or pd.isna(next_point[1]):
+            speed_vectors.append(np.nan)
+        else:
+            # Calculate the differences in x and y coordinates
+            dx = next_point[0] - current_point[0]
+            dy = next_point[1] - current_point[1]
+            
+            # Calculate the speed vector (magnitude of change)
+            magnitude = np.sqrt(dx**2 + dy**2)
+            speed_vectors.append(magnitude)
+    
+    # The remaining rows should have NaN as there are no valid next points
+    speed_vectors += [np.nan] * x  # Add NaN for rows without a valid next point
+
+    # Store the calculated speed vectors in a new column
+    df['speed'] = speed_vectors
+    return df
+
+
+x = 1
+df = calculate_speed_vector(df_behavior, x)
+
+speedo = df['speed'].astype(float)
+speedo.index = [x[1] for x in speedo.index]
+
+#print(speedo)
+
+#%%
+
+x = 4.9
+for i, row in enumerate(speedo.index):
+    
+    if i % 50 == 0:
+        rowsum = speedo[row : row+x].sum()
+        speedo[row : row+x] = rowsum
+
+#print(speedo)
+plt.figure(figsize=(10, 2))
+plt.bar(speedo.index, speedo, color=(0,0,0))
+plt.xlim(0,600)
+plt.show()
