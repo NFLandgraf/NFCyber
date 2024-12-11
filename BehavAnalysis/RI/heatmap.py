@@ -15,9 +15,6 @@ def get_files(path, common_name):
     files = [file for file in Path(path).iterdir() if file.is_file() and common_name in file.name]
     return files
 
-files = get_files(path, 'csv')
-
-
 def cleaning_raw_df(csv_file):
     # Clean the raw dataframe
     df = pd.read_csv(csv_file, sep=';', low_memory=False)
@@ -41,7 +38,6 @@ def cleaning_raw_df(csv_file):
 
     return df
 
-
 def update_array(arr, x):
     arr = arr.copy()  # Make a copy of the array to avoid modifying the original array
     n = len(arr)
@@ -59,7 +55,6 @@ def update_array(arr, x):
             
     return arr
 
-
 def plot(df, true_behav, ax, i):
 
     if i == 6:
@@ -69,30 +64,45 @@ def plot(df, true_behav, ax, i):
         ax.imshow(true_behav, cmap=cmap, aspect='auto', interpolation='nearest')
         ax.tick_params(left=False, right=False, labelleft=False, labelbottom=False, bottom=False)
 
+def heatmap(files):
+    n_files = len(files)
+    n_cols = 1
+    n_rows = (n_files + n_cols - 1) // n_cols
 
-n_files = len(files)
-n_cols = 1
-n_rows = (n_files + n_cols - 1) // n_cols
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(12, 3))
+    axes = axes.flatten()
 
-fig, axes = plt.subplots(n_rows, n_cols, figsize=(12, 3))
-axes = axes.flatten()
+    cmap = ListedColormap(['white', 'red', 'orange', 'green'])  # Specify colors for [0, 1, 2, 3]
+    for i, file in enumerate(files[:7]):
+        df = cleaning_raw_df(file)
+        true_behav = df.values.reshape(1, -1)
+        true_behav = np.array([update_array(true_behav[0], 10)])
+        ax = axes[i] 
+        plot(df, true_behav, ax, i)
 
-cmap = ListedColormap(['white', 'red', 'orange', 'green'])  # Specify colors for [0, 1, 2, 3]
-for i, file in enumerate(files[:7]):
+        if i == 6:
+            xticks_pos = np.arange(0, len(df), 300)
+            xticks_labels = df.index[xticks_pos]
+            xticks_labels = (xticks_labels / 60).astype('int')
+
+            ax.set_xticks(xticks_pos)
+            ax.set_xticklabels(xticks_labels)
+            ax.set_xlabel('Time [min]')
+
+    plt.show()
+
+
+
+files = get_files(path, 'csv')
+for file in files:
     df = cleaning_raw_df(file)
-    true_behav = df.values.reshape(1, -1)
-    true_behav = np.array([update_array(true_behav[0], 10)])
-    ax = axes[i] 
-    plot(df, true_behav, ax, i)
+    print(df)
+    count = (df == 3).sum()
 
-    if i == 6:
-        xticks_pos = np.arange(0, len(df), 300)
-        xticks_labels = df.index[xticks_pos]
-        xticks_labels = (xticks_labels / 60).astype('int')
+    print(file)
+    print(count)
 
-        ax.set_xticks(xticks_pos)
-        ax.set_xticklabels(xticks_labels)
-        ax.set_xlabel('Time [min]')
 
-#plt.tight_layout()
-plt.show()
+
+
+

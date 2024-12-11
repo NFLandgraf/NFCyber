@@ -251,7 +251,9 @@ def cluster_DBSCAN(dim_red_data, eps=0.8, min_samples=9):
         ax.set_yticklabels([])
 
     plt.tight_layout()
-    plt.show()
+    #plt.show()
+    plt.savefig('UMAP2.pdf', dpi=300)
+    plt.close()
 
     return clusters.labels_, clusters_nb
 def order_cells_UMAP(clusters, clusters_nb):
@@ -297,7 +299,9 @@ def activity_heatmap(df, mark_positions=None):
     plt.xlabel('Time [s]')
     plt.ylabel('Cells')
     plt.title('Activity Heatmap')
-    plt.show()
+    #plt.show()
+    plt.savefig('heatmap.pdf', dpi=300)
+    plt.close()
 def events_heatmap(df, mark_positions=None):
     df_t = df.T
 
@@ -380,24 +384,29 @@ behavior_to_jpgs(df_behavior)
 
 #%%
 
-def joyplot(df, y_scale=30, y_offset_rate=0.2):
+def joyplot(df, y_scale=5, y_offset_rate=1.6):
 
     # create joyplot with many traces on top of each other
-    plt.figure(figsize=(10, 15))
-    colors = sns.color_palette("tab20", n_colors=df.shape[1])
+    plt.figure(figsize=(10, 5))
+    colors = sns.color_palette("tab10", n_colors=df.shape[1])
 
     y_offset = 0
     for i, col in enumerate(df.columns):
         plt.plot(df.index, df[col]/y_scale + y_offset, color=colors[i], linewidth=1)
         y_offset += y_offset_rate
 
-    plt.ylim(-0.15, 11.2)
+    plt.ylim(-0.3, 7.5)
     plt.xlim(0, 600)
     plt.xlabel('Time [s]')
     plt.title('Thy1-GCaMP6s OpenField')
-    plt.show()
+    plt.savefig('Exemplcolor.pdf', dpi=300)
+    plt.close()
+    #plt.show()
 
-joyplot(df_traces_UMAP.iloc[:6000, 45:100])
+df = df_traces.rolling(window=5).mean()
+#print(df_traces)
+print(df.columns)
+joyplot(df.loc[:, [19, 28, 178, 209]])
 
 
 
@@ -406,11 +415,6 @@ joyplot(df_traces_UMAP.iloc[:6000, 45:100])
 #%%
 
 
-#print(df_behavior)
-
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
 
 def calculate_speed_vector(old_df, x):
     df = old_df.copy()
@@ -440,11 +444,13 @@ def calculate_speed_vector(old_df, x):
     df['speed'] = speed_vectors
     return df
 
-
+#print(df_behavior)
 x = 1
 df = calculate_speed_vector(df_behavior, x)
 
+
 speedo = df['speed'].astype(float)
+print(speedo[100:200])
 speedo.index = [x[1] for x in speedo.index]
 
 #print(speedo)
@@ -463,3 +469,5 @@ plt.figure(figsize=(10, 2))
 plt.bar(speedo.index, speedo, color=(0,0,0))
 plt.xlim(0,600)
 plt.show()
+# plt.savefig('speed.pdf', dpi=300)
+# plt.close()

@@ -3,7 +3,7 @@ import os
 from PIL import Image
 
 
-path = 'E:\\m90\\2024-10-31-16-52-47_CA1-m90_OF_IDPS\\'
+path = 'D:\\LC_m0007'
 
 
 for root, dirs, files in os.walk(path, topdown=False):
@@ -37,7 +37,7 @@ from PIL import Image
 import numpy as np
 import tifffile as tiff  # Optional if using tifffile for loading TIFFs
 
-path = 'E:\\m90\\2024-10-31-16-52-47_CA1-m90_OF_IDPS\\'
+path = 'D:\\LC_m0007\\'
 
 for root, dirs, files in os.walk(path, topdown=False):
     for name in files:
@@ -65,5 +65,5 @@ for root, dirs, files in os.walk(path, topdown=False):
                     im = Image.fromarray(np_image)
 
                 print("Generating JPEG")
-                im.save('E:\\m90\\2024-10-31-16-52-47_CA1-m90_OF_IDPS\\MAPPPo.png')
+                im.save(path + 'ssss.png')
                 print('Saved as PNG:', 'C:\\Users\\landgrafn\\Desktop\\asa\\aa.png')

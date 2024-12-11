@@ -16,7 +16,7 @@ from pathlib import Path
 
 # USER INPUT
 # folder with the csv files and for each csv file, copy the corresponding video (best case with DLC annotations) into that folder
-path = 'C:\\Users\\landgrafn\\Desktop\\Now\\'
+path = 'C:\\Users\\landgrafn\\Desktop\\weilin\\'
 common_name_csv = '.csv'
 create_video = True
 common_video_name = '.csv'

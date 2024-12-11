@@ -10,8 +10,9 @@ from pathlib import Path
 import os
 
 
-path = 'C:\\Users\\landgrafn\\Desktop\\FF\\'
-file_useless_string = ['2024-11-20_FF-Weilin_FS_', '_LockIn']
+
+path = 'C:\\Users\\landgrafn\\Desktop\\test\\'
+file_useless_string = ['2024-12-09_FF-Weilin-3m_Nomifensine_', '_LockIn']
 
 
 def get_files(path, common_name):
@@ -27,7 +28,31 @@ def get_files(path, common_name):
     return files
 files = get_files(path, 'csv')
 
+def plot_sig_isosonly(time_sec, isos, title, file_name_short):
 
+    #set default plot properties
+    plt.rcParams['figure.figsize'] = [14, 12] # Make default figure size larger.
+    plt.rcParams['axes.xmargin'] = 0          # Make default margin on x axis zero.
+    plt.rcParams['axes.labelsize'] = 12     #Set default axes label size 
+    plt.rcParams['axes.titlesize']=15
+    plt.rcParams['axes.titleweight']='heavy'
+    plt.rcParams['ytick.labelsize']= 10
+    plt.rcParams['xtick.labelsize']= 10
+    plt.rcParams['legend.fontsize']=12
+    plt.rcParams['legend.markerscale']=2
+
+
+
+    #ax1.set_ylim(1.25, 1.65)
+    #ax2.set_ylim(1.35, 1.75)
+    #ax1.set_xlim(100, 200)
+    plt.plot(time_sec, isos)
+
+    for vline in [30,60,90,120,150]:
+        plt.axvline(vline, c='r')
+    plt.savefig(f'{file_name_short}.jpg')
+    plt.close()
+    #plt.show()
 
 def plot_sig(time_sec, fluo, isos, title):
 
@@ -138,19 +163,15 @@ def get_data_csv(file):
 
     return df
 
-def a_denoising(df):
-
-    time = np.array(df.index.values)
-    sampling_rate = len(time) / np.max(time)
+def a_filter_butterworth(arr_time, arr_signal):
 
     # low-pass cutoff freq depends on indicator (2-10Hz for GCaMP6f)
-    # use zero-phase filter that changes amplitude but not phase of freq components/ no signal distortion'''
+    # use zero-phase filter that changes amplitude but not phase of freq components/ no signal distortion
+    sampling_rate = len(arr_signal) / np.max(arr_time)
     b, a = signal.butter(2, 10, btype='low', fs=sampling_rate)
+    arr_signal_filtered = signal.filtfilt(b, a, arr_signal)   
 
-    df['Fluo_denoised'] = signal.filtfilt(b, a, df['Fluo'])   
-    df['Isos_denoised'] = signal.filtfilt(b, a, df['Isos'])
-
-    return df
+    return arr_signal_filtered
 
 def b_bleaching(df):
 
@@ -227,18 +248,72 @@ def d_normalization(df):
 
     return df
 
+
+def a_filter_average(filter_window, signal):
+
+	# filtering signal by averaging over moving window (linear filter)
+	b = np.divide(np.ones((filter_window,)), filter_window)
+	a = 1
+	filtered_signal = signal.filtfilt(b, a, signal)
+
+	return filtered_signal
+
+
+
+def guppy_deltaFF(signal, control):
+
+	# function to compute df/f using fitted control channel and filtered signal channel
+	res = np.subtract(signal, control)
+	normData = np.divide(res, control)
+	normData = normData*100
+
+	return normData
+
+def guppy_controlFit(control, signal):
+    
+	# function to fit control channel to signal channel
+	p = np.polyfit(control, signal, 1)
+	arr = (p[0]*control)+p[1]
+
+	return arr
+
+def guppy_main_execute_controlFit_dff(control, signal, filter_window):
+
+	# function to filter control and signal channel, also execute above two function : controlFit and deltaFF
+	control_smooth = filterSignal(filter_window, control) 	# ss.filtfilt(b, a, control)
+	signal_smooth = filterSignal(filter_window, signal)    	# ss.filtfilt(b, a, signal)
+	control_fit = controlFit(control_smooth, signal_smooth)
+	norm_data = deltaFF(signal_smooth, control_fit)
+	
+	return norm_data, control_fit
+
+
+def preprocess(file):
+    df = get_data_csv(file)
+
+    df['Fluo_filtered'] = a_filter_butterworth(df.index, arr_signal)
+    df = a_filter_butterworth(df)
+    a_filter_average(filter_window, signal)
+
+
+
+
+
+
+
+
 def main(files):
 
     df_base = pd.DataFrame()
     for file in files:
 
         # managing file names
-        print(f'\nProcessing file: {file}')
+        #print(f'\nProcessing file: {file}')
         file_name = os.path.basename(file)
         file_name_short = os.path.splitext(file_name)[0]
         for word in file_useless_string:
             file_name_short = file_name_short.replace(word, '')
-            
+
 
         # process data
         df = get_data_csv(file)
@@ -253,18 +328,21 @@ def main(files):
         # plot_sig(time, df['Fluo_denoised'], df['Isos_denoised'], 'Denoised Signal')
         # plot_sig(time, df['Fluo_detrend'], df['Isos_detrend'], 'Detrended Signal')
         # plot_sig_fluo(time, df['Fluo_motcorrected'], 'Motion Corrected Signal')
-        #plot_sig_fluo(time, df['Fluo_dff'], 'dF/F')
+        # plot_sig_fluo(time, df['Fluo_dff'], 'dF/F')
         # plot_sig_fluo(time, df['Fluo_zscore'], 'Z-Score')
+        # plot_sig_isosonly(time, df['Isos_detrend'], 'Detrended Signal', file_name_short)
 
-        
+
         # add all files to df_base, each file is one column
-        #df = df[::10]
+        df = df[::10]
         df = df['Fluo_dff']
         df = df.rename(f'{file_name_short}')
 
         df_base[file_name_short] = df
         print(f'{file_name_short} added as new column to df_base')
-    
+
+
+
     df_base.to_csv(path + 'dff_allfiles.csv')
 
     return df_base
@@ -272,32 +350,41 @@ def main(files):
 df_base = main(files)
 
 
+
+
 #%%
 # Mean and align everything to events
+# You give events as input (e.g. FS) and for each animal, it means the signal around each event, therefore means the animal response to the event
 
-def perievent(df, events, pre_interval=5, post_interval=10):
+def perievent(df, events, pre_interval=5, post_interval=15):
     df_perievent_means = pd.DataFrame()
 
     # go through each column in df_base
     for column in df_base:
 
         df = df_base[column]
-        df_perievent = pd.DataFrame()
+        df_all_events = pd.DataFrame()
 
-        for i, event in enumerate(events):
+        for event in events:
             df_event = df.copy()
-            
+
             # reindex so the event is 0
             df_event.index = df_event.index - event
             df_event.index = df_event.index.round(2)
 
-            # collect everything from -x to +y and add to big df
-            df_event = df_event.loc[- pre_interval : post_interval]
-            df_perievent[f'{event}'] = df_event
+            # crop the recording to the time around the event
+            df_event = df_event.loc[-pre_interval : post_interval]
+
+            # get the mean of the 2s baseline before the event
+            baseline_mean = df_event.loc[-pre_interval : 0].mean()
+
+            # normalize everything to the baseline_mean
+            df_event = df_event - baseline_mean
+            df_all_events[f'{event}'] = df_event
 
         # add the row means to the main df
-        df_perievent['mean'] = df_perievent.mean(axis=1)
-        df_perievent_means[f'{column}'] = df_perievent['mean']
+        df_all_events['mean'] = df_all_events.mean(axis=1)
+        df_perievent_means[f'{column}'] = df_all_events['mean']
 
     df_perievent_means.to_csv(path + "Perievent_means.csv")
 
@@ -305,7 +392,7 @@ def perievent(df, events, pre_interval=5, post_interval=10):
 
 
 events = [30, 60, 90, 120, 150]
-df_perievent_means = perievent(df_base, events, pre_interval=5, post_interval=10)
+df_perievent_means = perievent(df_base, events)
 
 
 
