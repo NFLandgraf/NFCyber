@@ -244,7 +244,7 @@ def do_LockIn_twoIO(file):
             f'Digital_IO2: {len(events_IO2)}x {[ev[0] for ev in events_IO2]}\n'
             f'Digital_IO3: {len(events_IO3)}x {[ev[0] for ev in events_IO3]}\n')
     
-    return df, events_IO2, events_IO3, sig_sampling_rate
+    return df, events_IO2, events_IO3
 
 def align_to_events(df, events, time_passed_pre=30, time_passed_post=30):
 
@@ -280,7 +280,7 @@ for file in files:
     print(f'\n{file}')
 
     # if 2 IOs
-    df, events_IO2, events_IO3, sig_sampling_rate = do_LockIn_twoIO(file)
+    df, events_IO2, events_IO3 = do_LockIn_twoIO(file)
     df = align_to_events(df, events_IO3)    
 
     # if 1 IOs
@@ -290,21 +290,6 @@ for file in files:
     # if 0 IOs
     # df = do_LockIn(file)
     # df = crop_recording_no_events(df)
-
-
-
-    # GuPPy
-    df.loc[0, 'sampling_rate'] = sig_sampling_rate
-    del df['IO2']
-    del df['IO3']
-    del df['Fluo']
-    df.index.names = ['timestamps']
-    df.rename(columns={'Isos': 'data'}, inplace=True)
-
-    print(df)
-
-
-
 
     # create data as .csv
     new_file = file.replace('.doric', '')

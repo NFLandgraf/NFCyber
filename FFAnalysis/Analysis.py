@@ -10,11 +10,19 @@ from pathlib import Path
 import os
 
 
+path = 'C:\\Users\\landgrafn\\Desktop\\BaselineCheck\\'
+file_useless_string = ['2024-11-20_FF-Weilin_FS_', '_LockIn']
 
-path = 'C:\\Users\\landgrafn\\Desktop\\test\\'
-file_useless_string = ['2024-12-09_FF-Weilin-3m_Nomifensine_', '_LockIn']
 
+def manage_filename(file):
 
+    # managing file names
+    file_name = os.path.basename(file)
+    file_name_short = os.path.splitext(file_name)[0]
+    for word in file_useless_string:
+        file_name_short = file_name_short.replace(word, '')
+    
+    return file_name_short
 def get_files(path, common_name):
 
     # get files
@@ -53,7 +61,6 @@ def plot_sig_isosonly(time_sec, isos, title, file_name_short):
     plt.savefig(f'{file_name_short}.jpg')
     plt.close()
     #plt.show()
-
 def plot_sig(time_sec, fluo, isos, title):
 
     #set default plot properties
@@ -85,7 +92,6 @@ def plot_sig(time_sec, fluo, isos, title):
     labels = [l.get_label() for l in lines]  #get legend labels
     legend = ax1.legend(lines, labels, loc='upper right')
     plt.show()
-
 def plot_sig_fluo(time, fluo, title):
 
     #set default plot properties
@@ -111,71 +117,24 @@ def plot_sig_fluo(time, fluo, title):
     plt.legend(loc='upper right')
     plt.show()
 
-def get_data(file):
+# def a_filter_butterworth(arr_time, arr_signal):
 
-    with h5py.File(file, 'r') as f:
-        path = 'DataAcquisition/NC500/Signals/Series0001/'
+#     # low-pass cutoff freq depends on indicator (2-10Hz for GCaMP6f)
+#     # use zero-phase filter that changes amplitude but not phase of freq components/ no signal distortion
+#     sampling_rate = len(arr_signal) / np.max(arr_time)
+#     b, a = signal.butter(2, 10, btype='low', fs=sampling_rate)
+#     arr_signal_filtered = signal.filtfilt(b, a, arr_signal)   
 
-        if rec_type == 'NormFilter':
-            time_sec    = np.array(f[path + 'AnalogIN/Time'])
-            sig         = np.array(f[path + 'AnalogIN/AIN01'])
-            output      = np.array(f[path + 'AnalogOUT/AOUT01'])
+#     return arr_signal_filtered
+# def a_filter_average(filter_window, signal):
 
-            duration = max(time_sec)
-            sampling_rate = round(len(sig) / duration, 2)
+# 	# filtering signal by averaging over moving window (linear filter)
+# 	b = np.divide(np.ones((filter_window,)), filter_window)
+# 	a = 1
+# 	filtered_signal = signal.filtfilt(b, a, signal)
 
-            print(f'NormFilter\n'
-                  f'Output: {[round(min(output), 1), round(np.mean(output), 1), round(max(output), 1)]}V\n'
-                  f'Datapoints: {len(time_sec)} (Time), {len(sig)} (Signal)\n'
-                  f'Duration: {duration}s, Sampling_rate: {sampling_rate}Hz\n')
-
-            return time_sec, sig, output, sampling_rate
-        
-        
-        
-        elif rec_type == 'LockIn':
-
-            time_sec    = np.array(f[path + 'LockInAOUT01/Time'])
-            isos        = np.array(f[path + 'LockInAOUT01/AIN01'])
-            fluo        = np.array(f[path + 'LockInAOUT02/AIN01'])
-            output_isos = np.array(f[path + 'AnalogOut/AOUT01'])
-            output_fluo = np.array(f[path + 'AnalogOut/AOUT02'])
-            digital_io  = np.array(f[path + 'DigitalIO/DIO01'])
-            digital_time= np.array(f[path + 'DigitalIO/Time'])
-
-
-            duration = max(time_sec)
-            sampling_rate = round(len(isos) / duration, 2)
-
-            print(f'LockIn\n'
-                  f'Output_Isos: {[round(min(output_isos), 1), round(np.mean(output_isos), 1), round(max(output_isos), 1)]}V\n'
-                  f'Output_Fluo: {[round(min(output_fluo), 1), round(np.mean(output_fluo), 1), round(max(output_fluo), 1)]}V\n'
-                  f'Datapoints: {len(time_sec)} (Time), {len(isos)} (Isos), {len(fluo)} (Fluo), {len(digital_io)} (IO)\n'
-                  f'Duration: {duration}s, Sampling_rate: {sampling_rate}Hz\n')
-
-            return time_sec, fluo, isos, output_fluo, output_isos, sampling_rate, digital_io, digital_time
-        
-def get_data_csv(file):
-
-    df = pd.read_csv(file)
-    df.index = df['Time']
-    del df['Time']
-
-    return df
-
-def a_filter_butterworth(arr_time, arr_signal):
-
-    # low-pass cutoff freq depends on indicator (2-10Hz for GCaMP6f)
-    # use zero-phase filter that changes amplitude but not phase of freq components/ no signal distortion
-    sampling_rate = len(arr_signal) / np.max(arr_time)
-    b, a = signal.butter(2, 10, btype='low', fs=sampling_rate)
-    arr_signal_filtered = signal.filtfilt(b, a, arr_signal)   
-
-    return arr_signal_filtered
-
-def b_bleaching(df):
-
-    time = np.array(df.index.values)
+# 	return filtered_signal
+def b_bleaching(arr_time, arr_signal):
 
     # fits a double-exponential function to trace to correct for all possible bleaching reasons
     def double_exponential(t, const, amp_fast, amp_slow, tau_slow, tau_multiplier):
@@ -200,19 +159,14 @@ def b_bleaching(df):
 
         return trace_expfit
     
-    fluo_expofit = get_parameters(time, df['Fluo_denoised'])
-    isos_expofit = get_parameters(time, df['Isos_denoised'])
-
     # If bleaching results from a reduction of autofluorescence, signal amplitude should not be affected
     # --> subtract function from trace (signal is V)
     # If bleaching comes from bleaching of the fluorophore, the amplitude suffers as well 
     # --> division is needed (signal is df/f)
-    df['Fluo_detrend'] = df['Fluo_denoised'] - fluo_expofit
-    df['Fluo_expofit'] = fluo_expofit
-    df['Isos_detrend'] = df['Isos_denoised'] - isos_expofit
+    signal_expofit = get_parameters(arr_time, arr_signal)
+    signal_detrend = arr_signal / signal_expofit
     
-    return df
-
+    return signal_detrend
 def c_motion_correction(df):
     '''Although quite similar, movement artefacts will be different between signal and control channel.
     -> necessary to scale movement signals from control channels to match artefacts in signal channel
@@ -238,125 +192,114 @@ def c_motion_correction(df):
     df['Fluo_motcorrected'] = df['Fluo_detrend'] - estimated_motion   # subtract to get corrected
 
     return df
+# def d_normalization(df):
 
-def d_normalization(df):
+#     signal = df['Fluo_motcorrected']
 
-    signal = df['Fluo_motcorrected']
+#     df['Fluo_dff'] = 100 * signal / df['Fluo_expofit']
+#     df['Fluo_zscore'] = (signal - np.mean(signal)) / np.std(signal)
 
-    df['Fluo_dff'] = 100 * signal / df['Fluo_expofit']
-    df['Fluo_zscore'] = (signal - np.mean(signal)) / np.std(signal)
+#     return df
+
+def get_data_csv(file):
+
+    df = pd.read_csv(file)
+    df.index = df['Time']
+    del df['Time']
 
     return df
+def a_filter_butter(arr_time, arr_signal):
 
+    # low-pass cutoff freq depends on indicator (2-10Hz for GCaMP6f)
+    # use zero-phase filter that changes amplitude but not phase of freq components/ no signal distortion
+    sampling_rate = len(arr_signal) / np.max(arr_time)
+    b, a = signal.butter(2, 10, btype='low', fs=sampling_rate)
+    arr_signal_filtered = signal.filtfilt(b, a, arr_signal)   
 
-def a_filter_average(filter_window, signal):
+    return arr_signal_filtered
+def b_guppy_controlFit(signal, control):
+    
+    # linear function to fit control channel to signal channel
+    p = np.polyfit(control, signal, 1)
+    Isos_fitted = (p[0]*control)+p[1]
 
-	# filtering signal by averaging over moving window (linear filter)
-	b = np.divide(np.ones((filter_window,)), filter_window)
-	a = 1
-	filtered_signal = signal.filtfilt(b, a, signal)
+    return Isos_fitted
+def c_guppy_dff(signal, control):
 
-	return filtered_signal
-
-
-
-def guppy_deltaFF(signal, control):
-
-	# function to compute df/f using fitted control channel and filtered signal channel
-	res = np.subtract(signal, control)
-	normData = np.divide(res, control)
+	# function to compute df/f using Isos_fit and Fluo_filtered
+    # Subtraction necessary to get rid of movement/blood/autofluorescence artefacts
+    # Division necessary to normalize the Fluo signal to its own signal signal strength (Isos_fitted)
+	subtraction_result = np.subtract(signal, control)   # Fluo - Isos
+	normData = np.divide(subtraction_result, control)   # (Fluo - Isos) / Isos      what if Isos close to zero
 	normData = normData*100
 
 	return normData
+def guppy_preprocess(df):
 
-def guppy_controlFit(control, signal):
-    
-	# function to fit control channel to signal channel
-	p = np.polyfit(control, signal, 1)
-	arr = (p[0]*control)+p[1]
+    # filters signals
+    df['Isos_smooth'] = a_filter_butter(df.index, df['Isos'])
+    df['Fluo_smooth'] = a_filter_butter(df.index, df['Fluo'])
 
-	return arr
+    # creates Isos signal that is fitted to Fluo signal
+    df['Isos_fitted'] = b_guppy_controlFit(df['Fluo_smooth'], df['Isos_smooth'])
 
-def guppy_main_execute_controlFit_dff(control, signal, filter_window):
+    # calculates df/f for whole recording
+    df['Fluo_dff'] = c_guppy_dff(df['Fluo_smooth'], df['Isos_fitted'])
+    df['Fluo_dff_detrend'] = signal.detrend(df['Fluo_dff'], type='linear')
 
-	# function to filter control and signal channel, also execute above two function : controlFit and deltaFF
-	control_smooth = filterSignal(filter_window, control) 	# ss.filtfilt(b, a, control)
-	signal_smooth = filterSignal(filter_window, signal)    	# ss.filtfilt(b, a, signal)
-	control_fit = controlFit(control_smooth, signal_smooth)
-	norm_data = deltaFF(signal_smooth, control_fit)
-	
-	return norm_data, control_fit
-
-
-def preprocess(file):
-    df = get_data_csv(file)
-
-    df['Fluo_filtered'] = a_filter_butterworth(df.index, arr_signal)
-    df = a_filter_butterworth(df)
-    a_filter_average(filter_window, signal)
-
-
-
-
-
-
-
+    return df
 
 def main(files):
 
     df_base = pd.DataFrame()
     for file in files:
 
-        # managing file names
-        #print(f'\nProcessing file: {file}')
-        file_name = os.path.basename(file)
-        file_name_short = os.path.splitext(file_name)[0]
-        for word in file_useless_string:
-            file_name_short = file_name_short.replace(word, '')
+        file_name_short = manage_filename(file)
 
 
-        # process data
+        # preprocess data
         df = get_data_csv(file)
-        df = a_denoising(df)
-        df = b_bleaching(df)
-        df = c_motion_correction(df)
-        df = d_normalization(df)
+        df = guppy_preprocess(df)
+
 
         # plot results
         time = np.array(df.index.values)
-        # plot_sig(time, df['Fluo'], df['Isos'], 'Raw Signal')
-        # plot_sig(time, df['Fluo_denoised'], df['Isos_denoised'], 'Denoised Signal')
-        # plot_sig(time, df['Fluo_detrend'], df['Isos_detrend'], 'Detrended Signal')
-        # plot_sig_fluo(time, df['Fluo_motcorrected'], 'Motion Corrected Signal')
-        # plot_sig_fluo(time, df['Fluo_dff'], 'dF/F')
+        #plot_sig(time, df['Fluo'], df['Isos'], 'Raw Signal')
+        #plot_sig(time, df['Fluo_smooth'], df['Isos_smooth'], 'Denoised Signal')
+        #plot_sig(time, df['Isos_smooth'], df['Isos_fitted'], 'Fitted Signal')
+        plot_sig_fluo(time, df['Fluo_dff'], 'dF/F')
         # plot_sig_fluo(time, df['Fluo_zscore'], 'Z-Score')
         # plot_sig_isosonly(time, df['Isos_detrend'], 'Detrended Signal', file_name_short)
+        # plt.plot(time, df['Fluo_smooth'], label = 'Fluo_smooth', c='g')
+        # plt.plot(time, df['Isos_smooth'], label = 'Isos_smooth', c='m')
+        # plt.plot(time, df['Isos_fitted'], label = 'Isos_fitted', c='r')
+        # plt.show()
 
 
         # add all files to df_base, each file is one column
         df = df[::10]
-        df = df['Fluo_dff']
-        df = df.rename(f'{file_name_short}')
-
-        df_base[file_name_short] = df
+        #df_base[file_name_short] = df['Fluo_dff']
+        df_base[file_name_short] = df['Fluo_dff']
         print(f'{file_name_short} added as new column to df_base')
-
 
 
     df_base.to_csv(path + 'dff_allfiles.csv')
 
     return df_base
 
+
+
 df_base = main(files)
 
-
+#%%
+print(df_base)
 
 
 #%%
 # Mean and align everything to events
 # You give events as input (e.g. FS) and for each animal, it means the signal around each event, therefore means the animal response to the event
 
-def perievent(df, events, pre_interval=5, post_interval=15):
+def perievent(df, events, window_pre=5, window_post=20, baseline_pre=2):
     df_perievent_means = pd.DataFrame()
 
     # go through each column in df_base
@@ -365,22 +308,22 @@ def perievent(df, events, pre_interval=5, post_interval=15):
         df = df_base[column]
         df_all_events = pd.DataFrame()
 
-        for event in events:
+        for ev in events:
             df_event = df.copy()
 
             # reindex so the event is 0
-            df_event.index = df_event.index - event
+            df_event.index = df_event.index - ev
             df_event.index = df_event.index.round(2)
 
             # crop the recording to the time around the event
-            df_event = df_event.loc[-pre_interval : post_interval]
+            df_event = df_event.loc[-window_pre : window_post]
 
-            # get the mean of the 2s baseline before the event
-            baseline_mean = df_event.loc[-pre_interval : 0].mean()
+            # get the mean of the Xs baseline before the event
+            baseline_mean = df_event.loc[-baseline_pre : 0].mean()
 
             # normalize everything to the baseline_mean
             df_event = df_event - baseline_mean
-            df_all_events[f'{event}'] = df_event
+            df_all_events[f'{ev}'] = df_event
 
         # add the row means to the main df
         df_all_events['mean'] = df_all_events.mean(axis=1)
