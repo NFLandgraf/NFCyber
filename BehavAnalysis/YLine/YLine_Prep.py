@@ -27,7 +27,7 @@ def get_xmax_ymax(file):
     
     return width, height
 
-path = 'C:\\Users\\landgrafn\\Desktop\\weilin\\'
+path = 'C:\\Users\\landgrafn\\Desktop\\WEI\\'
 video_file_format = '.mp4'
 
 files = get_files(path)
@@ -60,8 +60,8 @@ def adapt(x, y):
 
 #%%
 # USER INPUT
-dx = 15      # if you want to shift the whole thing horizontally 
-dy = 42     # if you want to shift the whole thing vertically
+dx = -10      # if you want to shift the whole thing horizontally 
+dy = 0     # if you want to shift the whole thing vertically
 dz = 1      # if you want to change the size of the whole thing
 # use width and height as the maximum of the x- and y-axis
 

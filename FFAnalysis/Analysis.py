@@ -117,23 +117,23 @@ def plot_sig_fluo(time, fluo, title):
     plt.legend(loc='upper right')
     plt.show()
 
-# def a_filter_butterworth(arr_time, arr_signal):
+def a_filter_butterworth(arr_time, arr_signal):
 
-#     # low-pass cutoff freq depends on indicator (2-10Hz for GCaMP6f)
-#     # use zero-phase filter that changes amplitude but not phase of freq components/ no signal distortion
-#     sampling_rate = len(arr_signal) / np.max(arr_time)
-#     b, a = signal.butter(2, 10, btype='low', fs=sampling_rate)
-#     arr_signal_filtered = signal.filtfilt(b, a, arr_signal)   
+    # low-pass cutoff freq depends on indicator (2-10Hz for GCaMP6f)
+    # use zero-phase filter that changes amplitude but not phase of freq components/ no signal distortion
+    sampling_rate = len(arr_signal) / np.max(arr_time)
+    b, a = signal.butter(2, 10, btype='low', fs=sampling_rate)
+    arr_signal_filtered = signal.filtfilt(b, a, arr_signal)   
 
-#     return arr_signal_filtered
-# def a_filter_average(filter_window, signal):
+    return arr_signal_filtered
+def a_filter_average(filter_window, signal):
 
-# 	# filtering signal by averaging over moving window (linear filter)
-# 	b = np.divide(np.ones((filter_window,)), filter_window)
-# 	a = 1
-# 	filtered_signal = signal.filtfilt(b, a, signal)
+	# filtering signal by averaging over moving window (linear filter)
+	b = np.divide(np.ones((filter_window,)), filter_window)
+	a = 1
+	filtered_signal = signal.filtfilt(b, a, signal)
 
-# 	return filtered_signal
+	return filtered_signal
 def b_bleaching(arr_time, arr_signal):
 
     # fits a double-exponential function to trace to correct for all possible bleaching reasons
@@ -166,8 +166,8 @@ def b_bleaching(arr_time, arr_signal):
     signal_expofit = get_parameters(arr_time, arr_signal)
     signal_detrend = arr_signal / signal_expofit
     
-    return signal_detrend
-def c_motion_correction(df):
+    return signal_detrend, signal_expofit
+def c_fitted_Isos(arr_signal, arr_control):
     '''Although quite similar, movement artefacts will be different between signal and control channel.
     -> necessary to scale movement signals from control channels to match artefacts in signal channel
     linear regression predicts the signal channel from control channel,
@@ -185,21 +185,34 @@ def c_motion_correction(df):
         plt.title('Signal correlation')
         plt.show()
 
-    slope, intercept, r_value, p_value, std_err = stats.linregress(x=df['Fluo_detrend'], y=df['Isos_detrend'])
+    slope, intercept, r_value, p_value, std_err = stats.linregress(x=arr_signal, y=arr_control)
     # plot_sig_correlation(fluo, isos, intercept, slope, r_value)
 
-    estimated_motion = intercept + slope * df['Isos_detrend']   # calculate estimated motion acc to isos
-    df['Fluo_motcorrected'] = df['Fluo_detrend'] - estimated_motion   # subtract to get corrected
+    Isos_fitted = intercept + slope * arr_control   # fit Isos to Fluo
+
+    return Isos_fitted
+def d_normalization(arr_signal, arr_control, arr_expofit):
+
+    Fluo_dff = 100 * ((arr_signal - arr_control) / arr_expofit)
+
+    return Fluo_dff
+def old_preprocess(df):
+
+    # filters
+    df['Isos_smooth'] = a_filter_butterworth(df.index, df['Isos'])
+    df['Fluo_smooth'] = a_filter_butterworth(df.index, df['Fluo'])
+
+    # bleaching correction
+    df['Isos_detrend'], df['Isos_expofit'] = b_bleaching(df.index, df['Isos_smooth'])
+    df['Fluo_detrend'], df['Fluo_expofit'] = b_bleaching(df.index, df['Fluo_smooth'])
+
+    # fitting Isos to Fluo
+    df['Isos_fitted'] = c_fitted_Isos(df['Fluo_detrend'], df['Isos_detrend'])
+
+    # normalization
+    df['Fluo_dff'] = d_normalization(df['Fluo_detrend'], df['Isos_fitted'], df['Fluo_expofit'])
 
     return df
-# def d_normalization(df):
-
-#     signal = df['Fluo_motcorrected']
-
-#     df['Fluo_dff'] = 100 * signal / df['Fluo_expofit']
-#     df['Fluo_zscore'] = (signal - np.mean(signal)) / np.std(signal)
-
-#     return df
 
 def get_data_csv(file):
 
@@ -208,7 +221,7 @@ def get_data_csv(file):
     del df['Time']
 
     return df
-def a_filter_butter(arr_time, arr_signal):
+def a_guppy_filter_butter(arr_time, arr_signal):
 
     # low-pass cutoff freq depends on indicator (2-10Hz for GCaMP6f)
     # use zero-phase filter that changes amplitude but not phase of freq components/ no signal distortion
@@ -228,7 +241,7 @@ def c_guppy_dff(signal, control):
 
 	# function to compute df/f using Isos_fit and Fluo_filtered
     # Subtraction necessary to get rid of movement/blood/autofluorescence artefacts
-    # Division necessary to normalize the Fluo signal to its own signal signal strength (Isos_fitted)
+    # Division necessary to normalize the Fluo signal to its own signal strength (Isos_fitted)
 	subtraction_result = np.subtract(signal, control)   # Fluo - Isos
 	normData = np.divide(subtraction_result, control)   # (Fluo - Isos) / Isos      what if Isos close to zero
 	normData = normData*100
@@ -237,15 +250,15 @@ def c_guppy_dff(signal, control):
 def guppy_preprocess(df):
 
     # filters signals
-    df['Isos_smooth'] = a_filter_butter(df.index, df['Isos'])
-    df['Fluo_smooth'] = a_filter_butter(df.index, df['Fluo'])
+    df['Isos_smooth'] = a_guppy_filter_butter(df.index, df['Isos'])
+    df['Fluo_smooth'] = a_guppy_filter_butter(df.index, df['Fluo'])
 
     # creates Isos signal that is fitted to Fluo signal
     df['Isos_fitted'] = b_guppy_controlFit(df['Fluo_smooth'], df['Isos_smooth'])
 
     # calculates df/f for whole recording
     df['Fluo_dff'] = c_guppy_dff(df['Fluo_smooth'], df['Isos_fitted'])
-    df['Fluo_dff_detrend'] = signal.detrend(df['Fluo_dff'], type='linear')
+    #df['Fluo_dff_detrend'] = signal.detrend(df['Fluo_dff'], type='linear')
 
     return df
 
@@ -259,26 +272,28 @@ def main(files):
 
         # preprocess data
         df = get_data_csv(file)
-        df = guppy_preprocess(df)
+        #df = guppy_preprocess(df)
+        df = old_preprocess(df)
 
-
+        print(df)
         # plot results
         time = np.array(df.index.values)
-        #plot_sig(time, df['Fluo'], df['Isos'], 'Raw Signal')
+        plot_sig(time, df['Fluo'], df['Isos'], 'Raw Signal')
+        plot_sig(time, df['Fluo_detrend'], df['Isos_detrend'], 'Detrend')
         #plot_sig(time, df['Fluo_smooth'], df['Isos_smooth'], 'Denoised Signal')
         #plot_sig(time, df['Isos_smooth'], df['Isos_fitted'], 'Fitted Signal')
         plot_sig_fluo(time, df['Fluo_dff'], 'dF/F')
-        # plot_sig_fluo(time, df['Fluo_zscore'], 'Z-Score')
-        # plot_sig_isosonly(time, df['Isos_detrend'], 'Detrended Signal', file_name_short)
-        # plt.plot(time, df['Fluo_smooth'], label = 'Fluo_smooth', c='g')
-        # plt.plot(time, df['Isos_smooth'], label = 'Isos_smooth', c='m')
-        # plt.plot(time, df['Isos_fitted'], label = 'Isos_fitted', c='r')
-        # plt.show()
+        #plot_sig_fluo(time, df['Fluo_zscore'], 'Z-Score')
+        #plot_sig_isosonly(time, df['Isos_detrend'], 'Detrended Signal', file_name_short)
+        plt.plot(time, df['Fluo_detrend'], label = 'Fluo_detrend', c='g')
+        plt.plot(time, df['Isos_detrend'], label = 'Isos_detrend', c='m')
+        plt.plot(time, df['Isos_fitted'], label = 'Isos_fitted', c='r')
+        plt.legend()
+        plt.show()
 
 
         # add all files to df_base, each file is one column
         df = df[::10]
-        #df_base[file_name_short] = df['Fluo_dff']
         df_base[file_name_short] = df['Fluo_dff']
         print(f'{file_name_short} added as new column to df_base')
 
@@ -290,9 +305,6 @@ def main(files):
 
 
 df_base = main(files)
-
-#%%
-print(df_base)
 
 
 #%%
@@ -384,3 +396,24 @@ def threshold_reach(df, thresholds):
 
 thresholds = [0.2029, -0.3028, 0.7057, 0.2695, 0.3749, -0.0499, 0.1954, -0.0044, 0.0429, -0.0701]
 first_responses = threshold_reach(df_perievent_means, thresholds)
+
+
+
+
+
+
+
+
+
+
+
+
+
+#%%
+# old code:
+slope, intercept, r_value, p_value, std_err = stats.linregress(x=df['Fluo_detrend'], y=df['Isos_detrend'])
+estimated_motion = intercept + slope * df['Isos_detrend']   # calculate estimated motion acc to isos
+
+# new code:
+p = np.polyfit(control, signal, 1)
+Isos_fitted = (p[0]*control)+p[1]

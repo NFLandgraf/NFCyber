@@ -16,34 +16,33 @@ from pathlib import Path
 
 # USER INPUT
 # folder with the csv files and for each csv file, copy the corresponding video (best case with DLC annotations) into that folder
-path = 'C:\\Users\\landgrafn\\Desktop\\weilin\\'
+path = 'C:\\Users\\landgrafn\\Desktop\\WEI\\'
 common_name_csv = '.csv'
 create_video = True
 common_video_name = '.csv'
 video_file_format = '.mp4'
 
-width = 662
-height = 570
+width = 626
+height = 550
 
 #left arm
-left_corner = (295, 227)
-middle_corner = (332, 162)
-left_arm_end_lefter = (2, 60)
-left_arm_end_righter = (52, 0)
+left_corner = (283, 227)
+middle_corner = (320, 162)
+left_arm_end_lefter = (0, 60)
+left_arm_end_righter = (43, 0)
 
 #middle arm
-right_corner = (368, 225)
-middle_arm_end_righter = (382, 570)
-middle_arm_end_lefter = (290, 570)
+right_corner = (356, 225)
+middle_arm_end_righter = (360, 550)
+middle_arm_end_lefter = (278, 550)
 
 #right arm
-right_arm_end_righter = (662, 60)
-right_arm_end_lefter = (612, 0)
+right_arm_end_righter = (626, 75)
+right_arm_end_lefter = (585, 10)
 
 fps = 30
-nframes = 10910
-duration = 363.6666666666667
-
+nframes = 9091
+duration = 303.03333333333336
 
 
 # FUNCTIONS
