@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import os
 # path = 'C:\\Users\\landgrafn\\Desktop\\2024-12-09_FF-Weilin-3m_Nomifensine\\Baseline\\'
-path = 'C:\\Users\\landgrafn\\Desktop\\BaselineCheck\\'
+path = 'C:\\Users\\nicol\\Desktop\\FS\\'
 
 common_name = '.doric'
 rec_type = None
