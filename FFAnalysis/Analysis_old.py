@@ -10,7 +10,7 @@ from pathlib import Path
 import os
 
 
-path = 'C:\\Users\\nicol\\Desktop\\FS\\'
+path = 'C:\\Users\\landgrafn\\Desktop\\FF\\'
 file_useless_string = ['2024-11-20_FF-Weilin_FS_', '_LockIn']
 
 
@@ -314,7 +314,22 @@ for column in df_perievent_means:
 plt.show()
 
 
+#%%
+# Std
+baselines = [[10.00, 30.00], [40.00, 60.00], [70.00, 90.00], [100.00, 120.00], [130.00, 150.00]]
 
+df = pd.DataFrame()
+for column in df_base:
+    print(column)
+
+    arr = []
+    for bl in baselines:
+        arr.extend(df_base.loc[bl[0]:bl[1], column].tolist())
+    arr = np.array(arr)
+    
+    df[column] = arr
+
+df.to_csv('std.csv')
 
 
 
