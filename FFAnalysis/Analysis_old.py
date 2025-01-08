@@ -13,7 +13,6 @@ import os
 path = 'C:\\Users\\landgrafn\\Desktop\\FF\\'
 file_useless_string = ['2024-11-20_FF-Weilin_FS_', '_LockIn']
 
-
 def get_files(path, common_name):
 
     # get files
@@ -24,9 +23,6 @@ def get_files(path, common_name):
         #print(file)
 
     return files
-files = get_files(path, '2024')
-
-
 
 def plot_sig(time_sec, fluo, isos, title):
 
@@ -254,12 +250,12 @@ def main(files):
     df_base.to_csv(path + 'dff_allfiles.csv')
     return df_base
 
+files = get_files(path, '2024')
 df_base = main(files)
 
-
+#%%
 
 # Mean and align everything to events
-
 def perievent(df, events, pre_interval=5, post_interval=10, pre_interval_baseline=2):
     df_perievent_means = pd.DataFrame()
 
@@ -293,25 +289,45 @@ def perievent(df, events, pre_interval=5, post_interval=10, pre_interval_baselin
 
     return df_perievent_means
 
+def plot_perievent(df_perievent_means):
+    # plot individual traces
+    for column in df_perievent_means:
+        if 'A53T' in column:
+            plt.plot(df_perievent_means[column], c='r')
+        elif 'mKate' in column:
+            plt.plot(df_perievent_means[column], c='g')
+        elif 'GFP' in column:
+            plt.plot(df_perievent_means[column], c='gray')
+    plt.vlines(0, -1, 5, linestyles='dotted', colors='k')
+    plt.title('Dopamine Release upon FS')
+    plt.show()
+
+    # plot mean traces
+    colo = ['r', 'g', 'gray']
+    for i, group in enumerate(['A53T', 'mKate', 'GFP']):
+        filtered_columns = [col for col in df_perievent_means.columns if group in col]
+        df_perievent_means[f'{group}_mean'] = df_perievent_means[filtered_columns].mean(axis=1)
+        df_perievent_means[f'{group}_std'] = df_perievent_means[filtered_columns].std(axis=1)
+
+        plt.plot(df_perievent_means[f'{group}_mean'], c=colo[i], label=group)
+        plt.fill_between(
+            df_perievent_means.index, 
+            df_perievent_means[f'{group}_mean'] - df_perievent_means[f'{group}_std'], 
+            df_perievent_means[f'{group}_mean'] + df_perievent_means[f'{group}_std'],
+            color=colo[i],
+            alpha=0.3)
+    plt.vlines(0, -1, 5, linestyles='dotted', colors='k')
+    plt.legend()
+    plt.title('Dopamine Release upon FS')
+    plt.show()
 
 events = [30, 60, 90, 120, 150]
 df_perievent_means = perievent(df_base, events, pre_interval=5, post_interval=10)
+plot_perievent(df_perievent_means)
 
 
 
 
-
-for column in df_perievent_means:
-    print(column)
-
-    if 'A53T' in column:
-        plt.plot(df_perievent_means[column], c='r')
-    elif 'mKate' in column:
-        plt.plot(df_perievent_means[column], c='g')
-    elif 'GFP' in column:
-        plt.plot(df_perievent_means[column], c='gray')
-
-plt.show()
 
 
 #%%
