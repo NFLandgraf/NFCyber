@@ -7,8 +7,7 @@ from tqdm import tqdm
 import os
 import numpy as np
 
-path = 'C:\\Users\\landgrafn\\NFCyber\\VideoAnalysis\\data\\'
-#path = 'C:\\Users\\landgrafn\\Desktop\\Paule\\3m\\'
+path = 'C:\\Users\\landgrafn\\Desktop\\test\\'
 common_name = ''
 file_format = '.mp4'
 
@@ -56,6 +55,23 @@ alpha = 1.25   # brightness: 1.0-original, <1.0-darker, >1.0-brighter
 beta = -50    # contrast: 0-unchanged, <0-lower contrast, >0-higher contrast
 
 
+def bin_frame(frame, binning_factor):
+    # bin the frame horizontally and vertically by the binning_factor
+    # each binning operation sums up pixel values in non-overlapping regions
+
+    height, width = frame.shape[:2]
+    new_height = height // binning_factor
+    new_width = width // binning_factor
+
+    # Resize the frame by summing over binning_factor x binning_factor regions
+    binned_frame = frame[:new_height * binning_factor, :new_width * binning_factor]
+    binned_frame = binned_frame.reshape(new_height, binning_factor, new_width, binning_factor, -1)
+    binned_frame = binned_frame.sum(axis=(1, 3))  # Sum over binning regions
+
+    # Normalize pixel values for an 8-bit image
+    binned_frame = (binned_frame / (binning_factor**2)).astype(frame.dtype)
+
+    return binned_frame
 
 
 def adjust_video(input_file, output_file, new_width, new_height, fps, nframes):
@@ -73,6 +89,8 @@ def adjust_video(input_file, output_file, new_width, new_height, fps, nframes):
 
             # CROP
             #frame = frame[y1:y2, x1:x2]
+
+            frame = bin_frame(frame, binning_factor=2)
 
             # BRIGHTNESS & CONTRAST
             #frame = cv2.convertScaleAbs(frame, alpha=alpha, beta=beta)
@@ -110,10 +128,10 @@ def main():
         nframes = int(vid.get(cv2.CAP_PROP_FRAME_COUNT))
         fps = int(vid.get(cv2.CAP_PROP_FPS))
 
-        new_width, new_height = x2-x1, y2-y1                        # USE THIS WHEN     CROP     & NOT REDUCE QUALITY
+        #new_width, new_height = x2-x1, y2-y1                        # USE THIS WHEN     CROP     & NOT REDUCE QUALITY
         #new_width, new_height = int((x2-x1)*2/3), int((y2-y1)*2/3)  # USE THIS WHEN     CROP     &     REDUCE QUALITY
         #new_width, new_height = int(width/2), int(height/2)         # USE THIS WHEN NOT CROP     &     REDUCE QUALITY
-        #new_width, new_height = width, height                       # USE THIS WHEN NOT CROP     & NOT REDUCE QUALITY
+        new_width, new_height = width, height                       # USE THIS WHEN NOT CROP     & NOT REDUCE QUALITY
 
         adjust_video(input_file, output_file, new_width, new_height, fps, nframes)
 
@@ -132,8 +150,8 @@ def trim_video():
     output_file = input_file.replace(file_format, '') + '_trim' + file_format
 
     # trim video according to frames
-    output = ffmpeg.output(ffmpeg.input(input_file).trim(start_frame=0, end_frame=1000), output_file)
+    output = ffmpeg.output(ffmpeg.input(input_file).trim(start_frame=0, end_frame=10), output_file)
     ffmpeg.run(output)
 
-#trim_video()
+trim_video()
 
