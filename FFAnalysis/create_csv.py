@@ -1,5 +1,6 @@
 #%%
-# Take the doric files and create a csv file with the completely raw signal and IOs
+# take the doric files and create a csv file with the completely raw signal and all IOs (choose number of IOs)
+# if necessary, align everything to certain event(IO)
 
 import h5py
 import numpy as np
