@@ -1,5 +1,6 @@
 
 #%%
+# takes csv files and creates df/f etc 
 
 import h5py
 import numpy as np
@@ -36,6 +37,7 @@ def get_files(path, common_name):
     return files
 files = get_files(path, 'csv')
 
+# plotting
 def plot_sig_isosonly(time_sec, isos, title, file_name_short):
 
     #set default plot properties
@@ -272,7 +274,6 @@ def main(files):
 
         # preprocess data
         df = get_data_csv(file)
-        #df = guppy_preprocess(df)
         df = old_preprocess(df)
 
         print(df)
