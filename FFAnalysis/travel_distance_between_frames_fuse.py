@@ -7,8 +7,8 @@ from matplotlib import pyplot as plt
 import os
 
      
-path = 'C:\\Users\\nicol\\Desktop\\FC_speed\\'
-output_path = 'C:\\Users\\nicol\\Desktop\\FC_speed\\results\\'
+path = 'C:\\Users\\landgrafn\\Desktop\\ffff\\'
+output_path = 'C:\\Users\\landgrafn\\Desktop\\ffff\\'
 common_name = '.csv'
 common_name_ff = 'LockIn'
 

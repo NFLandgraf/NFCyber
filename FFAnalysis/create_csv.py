@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import os
 # path = 'C:\\Users\\landgrafn\\Desktop\\2024-12-09_FF-Weilin-3m_Nomifensine\\Baseline\\'
-path = 'C:\\Users\\nicol\\Desktop\\FS\\'
+path = 'C:\\Users\\landgrafn\\Desktop\\ffff\\'
 
 common_name = '.doric'
 rec_type = None
@@ -213,7 +213,7 @@ def do_LockIn_twoIO(file):
 
         digi_io2    = np.array(f[path + 'DigitalIO/DIO02']).astype(int)
         digi_io3    = np.array(f[path + 'DigitalIO/DIO03']).astype(int)
-        digi_time   = np.array(f[path + 'DigitalIO/Time'])        
+        digi_time   = np.array(f[path + 'DigitalIO/Time'])
 
     # get signal parameters
     sig_time = np.round(sig_time, 2)
@@ -224,6 +224,21 @@ def do_LockIn_twoIO(file):
     
     signal = pd.DataFrame({'Isos': sig_isos, 'Fluo': sig_fluo}, index=sig_time)   
     io = pd.DataFrame({'IO2': digi_io2, 'IO3': digi_io3}, index=digi_time)
+    io = io[0::10]      # take every 10th frame -> one datapoint every ms
+    io.index = io.index.round(3)
+
+    def extend_high_signal(df, column, extra_rows):
+        # for one IO channel, extend the ocurrence of 1 to also see the high state when downsampling to 100Hz
+        # Extend the 1s for x additional rows after a transition
+        
+        transitions = (df[column].shift(1) == 1) & (df[column] == 0)  # where does it change from 1 to 0
+        for i in range(len(df)):
+            if transitions.iloc[i]:  # If there was a transition from 1 to 0
+                for j in range(0, extra_rows + 1):  # Add `1` for x extra rows
+                    if i + j < len(df):  # Ensure we stay within bounds
+                        df.iloc[i + j, df.columns.get_loc(column)] = 1
+        return df
+    io = extend_high_signal(io, 'IO2', 6)
 
     # fuse Fluo, Isos and IO datapoints (somehow signal starts at 0.1 and not 0) and delete rows with nans
     df = pd.concat([signal, io], axis=1)
