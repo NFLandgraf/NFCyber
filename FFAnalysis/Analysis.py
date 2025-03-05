@@ -277,21 +277,21 @@ def main(files):
         df = get_data_csv(file)
         df = old_preprocess(df)
 
-        print(df)
+        #print(df)
         # plot results
-        time = np.array(df.index.values)
-        plot_sig(time, df['Fluo'], df['Isos'], 'Raw Signal')
-        plot_sig(time, df['Fluo_detrend'], df['Isos_detrend'], 'Detrend')
+        #time = np.array(df.index.values)
+        #plot_sig(time, df['Fluo'], df['Isos'], 'Raw Signal')
+        #plot_sig(time, df['Fluo_detrend'], df['Isos_detrend'], 'Detrend')
         #plot_sig(time, df['Fluo_smooth'], df['Isos_smooth'], 'Denoised Signal')
         #plot_sig(time, df['Isos_smooth'], df['Isos_fitted'], 'Fitted Signal')
-        plot_sig_fluo(time, df['Fluo_dff'], 'dF/F')
+        #plot_sig_fluo(time, df['Fluo_dff'], 'dF/F')
         #plot_sig_fluo(time, df['Fluo_zscore'], 'Z-Score')
         #plot_sig_isosonly(time, df['Isos_detrend'], 'Detrended Signal', file_name_short)
-        plt.plot(time, df['Fluo_detrend'], label = 'Fluo_detrend', c='g')
-        plt.plot(time, df['Isos_detrend'], label = 'Isos_detrend', c='m')
-        plt.plot(time, df['Isos_fitted'], label = 'Isos_fitted', c='r')
-        plt.legend()
-        plt.show()
+        #plt.plot(time, df['Fluo_detrend'], label = 'Fluo_detrend', c='g')
+        #plt.plot(time, df['Isos_detrend'], label = 'Isos_detrend', c='m')
+        #plt.plot(time, df['Isos_fitted'], label = 'Isos_fitted', c='r')
+        #plt.legend()
+        #plt.show()
 
 
         # add all files to df_base, each file is one column
