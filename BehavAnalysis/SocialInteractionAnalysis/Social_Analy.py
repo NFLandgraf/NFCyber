@@ -18,7 +18,7 @@ from pathlib import Path
 
 # USER INPUT
 # folder with the csv files and for each csv file, copy the corresponding video (best case with DLC annotations) into that folder
-path = 'C:\\Users\\landgrafn\\NFCyber\\BehavAnalysis\\SocialInteractionAnalysis\\data'
+path = 'D:\\Behavior\\2025-02-26_hTauxAPP2(6m)-3m_Social'
 common_name_csv = '.csv'
 create_video = False
 common_video_name = '.csv'
@@ -33,8 +33,14 @@ px_per_cm = 11.55
 
 
 
-center_N = 157, 457
-center_O = 488, 127
+center_N = 135, 130
+center_O = 470, 460
+
+px_per_cm = 13.5
+radius_invest = 7.3 * px_per_cm
+
+radius_cage = 4.3 * px_per_cm
+offset_invest = radius_invest/3
 
 
 # radius of the cup is around 4.3cm 
@@ -69,18 +75,18 @@ def out_to_txt(file, time_spent, alterations, total_distance, radius_invest):
 
 def define_areas(radius_invest, offset_invest):
     # define large areas that split the whole arena
-    area_large_N = Polygon([(0, 0), (width, height), (0, height)])
-    area_large_O = Polygon([(0, 0), (width, height), (width, 0)])
+    area_large_N = Polygon([(0, 0), (width, height), (width, 0)])
+    area_large_O = Polygon([(0, 0), (width, height), (0, height)])
 
     # define the areas of investigation
     circle_N = Point(center_N).buffer(radius_invest)
-    x_N, y_N = center_N[0]+offset_invest, center_N[1]-offset_invest
-    corner_N = Polygon([(x_N, y_N), (x_N, height), (0, height), (0, y_N)])
+    x_N, y_N = center_N[0]+offset_invest, center_N[1]+offset_invest
+    corner_N = Polygon([(x_N, y_N), (x_N, 0), (0, 0), (0, y_N)])
     area_inv_N = circle_N.union(corner_N)
 
     circle_O = Point(center_O).buffer(radius_invest)
-    x_O, y_O = center_O[0]-offset_invest, center_O[1]+offset_invest
-    corner_O = Polygon([(x_O, y_O), (x_O, 0), (width, 0), (width, y_O)])
+    x_O, y_O = center_O[0]-offset_invest, center_O[1]-offset_invest
+    corner_O = Polygon([(x_O, y_O), (x_O, height), (width, height), (width, y_O)])
     area_inv_O = circle_O.union(corner_O)
 
     areas = [area_inv_N, area_inv_O, area_large_N, area_large_O]
@@ -321,6 +327,3 @@ def main():
 all_positions = main()
 
 
-
-#%%
-print(all_positions)

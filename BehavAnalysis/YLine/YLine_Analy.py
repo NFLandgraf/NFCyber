@@ -16,33 +16,33 @@ from pathlib import Path
 
 # USER INPUT
 # folder with the csv files and for each csv file, copy the corresponding video (best case with DLC annotations) into that folder
-path = 'C:\\Users\\landgrafn\\Desktop\\WEI\\'
+path = 'C:\\Users\\landgrafn\\Desktop\\Group2\\'
 common_name_csv = '.csv'
 create_video = True
 common_video_name = '.csv'
 video_file_format = '.mp4'
 
-width = 626
-height = 550
+width = 690
+height = 574
 
 #left arm
-left_corner = (283, 227)
-middle_corner = (320, 162)
-left_arm_end_lefter = (0, 60)
-left_arm_end_righter = (43, 0)
+left_corner = (308, 250)
+middle_corner = (345, 180)
+left_arm_end_lefter = (0, 80)
+left_arm_end_righter = (40, 0)
 
 #middle arm
-right_corner = (356, 225)
-middle_arm_end_righter = (360, 550)
-middle_arm_end_lefter = (278, 550)
+right_corner = (385, 250)
+middle_arm_end_righter = (390, 574)
+middle_arm_end_lefter = (300, 574)
 
 #right arm
-right_arm_end_righter = (626, 75)
-right_arm_end_lefter = (585, 10)
+right_arm_end_righter = (690, 70)
+right_arm_end_lefter = (640, 0)
 
 fps = 30
-nframes = 9091
-duration = 303.03333333333336
+nframes = 10909
+duration = 363.6333333333333
 
 
 # FUNCTIONS
@@ -260,7 +260,7 @@ def do_stuff(file):
     if bp_not_in_any_area > 0:
         alert = f'!!! {bp_not_in_any_area} frames where bps not in any area'
     elif frames_with_no_annot > 1*fps:
-        alert.append(f' + {frames_with_no_annot} frames without annotations')
+        alert = alert + f' + {frames_with_no_annot} frames without annotations'
 
     out_to_txt(file, pos_changes, alterations, total_entries, alt_index, alert)
     

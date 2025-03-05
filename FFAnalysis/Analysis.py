@@ -11,7 +11,7 @@ from pathlib import Path
 import os
 
 
-path = 'C:\\Users\\landgrafn\\Desktop\\BaselineCheck\\'
+path = 'C:\\Users\\landgrafn\\Desktop\\FF\\'
 file_useless_string = ['2024-11-20_FF-Weilin_FS_', '_LockIn']
 
 
@@ -37,6 +37,7 @@ def get_files(path, common_name):
     return files
 files = get_files(path, 'csv')
 
+#%%
 # plotting
 def plot_sig_isosonly(time_sec, isos, title, file_name_short):
 
@@ -418,3 +419,61 @@ estimated_motion = intercept + slope * df['Isos_detrend']   # calculate estimate
 # new code:
 p = np.polyfit(control, signal, 1)
 Isos_fitted = (p[0]*control)+p[1]
+
+
+
+
+
+
+#%%
+# just for the movement vector
+
+def get_data_csv(file):
+
+    df = pd.read_csv(file)
+    df.index = df['Time']
+    del df['Time']
+
+    return df
+
+
+def perievent(file, df, events, window_pre=5, window_post=20):
+
+    df_all_events = pd.DataFrame()
+
+    for ev in events:
+        df_event = df.copy()
+
+        # reindex so the event is 0
+        df_event.index = df_event.index - ev
+        df_event.index = df_event.index.round(2)
+
+        # crop the recording to the time around the event
+        df_event = df_event.loc[-window_pre : window_post]
+        df_all_events[ev] = df_event
+
+
+
+    # add the row means to the main df
+    df_all_events['mean'] = df_all_events.mean(axis=1)
+        
+
+    df_all_events['mean'].to_csv(path + file + "Perievent_means.csv")
+
+    return df_all_events
+
+
+events = [30, 60, 90, 120, 150]
+
+
+for file in files:
+    df = get_data_csv(file)
+    file_short = manage_filename(file)
+    
+
+    df = df['Distances']
+
+    df_perievent = perievent(file_short, df, events)
+
+
+    print(df)

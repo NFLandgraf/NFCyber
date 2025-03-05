@@ -28,7 +28,7 @@ def get_xmax_ymax(file):
     
     return width, height
 
-path = 'C:\\Users\\landgrafn\\NFCyber\\BehavAnalysis\\SocialInteractionAnalysis\\data'
+path = 'D:\\Behavior\\2025-02-26_hTauxAPP2(6m)-3m_Social'
 video_file_format = '.mp4'
 
 files = get_files(path)
@@ -38,10 +38,10 @@ width, height = get_xmax_ymax(files[0])
 
 # USER INPUT
 
-center_N = 180, 457
-center_O = 488, 127
+center_N = 135, 130
+center_O = 470, 460
 
-px_per_cm = 11.55
+px_per_cm = 13.5
 radius_invest = 7.3 * px_per_cm
 
 radius_cage = 4.3 * px_per_cm
@@ -68,18 +68,18 @@ def print_info(file):
 def get_areas():
 
     # define large areas that split the whole arena
-    area_large_N = Polygon([(0, 0), (width, height), (0, height)])
-    area_large_O = Polygon([(0, 0), (width, height), (width, 0)])
+    area_large_N = Polygon([(0, 0), (width, height), (width, 0)])
+    area_large_O = Polygon([(0, 0), (width, height), (0, height)])
 
     # define the areas of investigation
     circle_N = Point(center_N).buffer(radius_invest)
-    x_N, y_N = center_N[0]+offset_invest, center_N[1]-offset_invest
-    corner_N = Polygon([(x_N, y_N), (x_N, height), (0, height), (0, y_N)])
+    x_N, y_N = center_N[0]+offset_invest, center_N[1]+offset_invest
+    corner_N = Polygon([(x_N, y_N), (x_N, 0), (0, 0), (0, y_N)])
     area_inv_N = circle_N.union(corner_N)
 
     circle_O = Point(center_O).buffer(radius_invest)
-    x_O, y_O = center_O[0]-offset_invest, center_O[1]+offset_invest
-    corner_O = Polygon([(x_O, y_O), (x_O, 0), (width, 0), (width, y_O)])
+    x_O, y_O = center_O[0]-offset_invest, center_O[1]-offset_invest
+    corner_O = Polygon([(x_O, y_O), (x_O, height), (width, height), (width, y_O)])
     area_inv_O = circle_O.union(corner_O)
 
     # define the areas that cover the cage to align
