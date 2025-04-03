@@ -9,19 +9,15 @@ import numpy as np
 from pathlib import Path
 
 
-path = 'C:\\Users\\landgrafn\\Desktop\\Group2\\'
+path = 'C:\\Users\\landgrafn\\Desktop\\Y maze Katerina\\'
 
 def get_files(path):
     # get all file names in directory into list
     files = [file for file in Path(path).iterdir() if file.is_file() and '.mp4' in file.name]
-    
     print(f'{len(files)} videos found:')
     for file in files: 
         print(file)
-    
     return files
-files = get_files(path)
-
 def get_xmax_ymax(file):
     # get video properties
     vid = cv2.VideoCapture(str(file))
@@ -29,10 +25,6 @@ def get_xmax_ymax(file):
     height = int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
     
     return width, height
-width, height = get_xmax_ymax(files[0])
-
-
-#%%
 def adapt(x, y):
     # add dx/dy and multiplay with dz
     adapt_x = (x + dx) * dz
@@ -55,31 +47,6 @@ def adapt(x, y):
         adapt_y = height
 
     return (adapt_x, adapt_y)
-
-# USER INPUT
-dx = 0      # if you want to shift the whole thing horizontally 
-dy = 0     # if you want to shift the whole thing vertically
-dz = 1      # if you want to change the size of the whole thing
-# use width and height as the maximum of the x- and y-axis
-
-# corners
-left_corner = adapt(308, 250)
-middle_corner = adapt(345, 180)
-right_corner = adapt(385, 250)
-
-# left arm
-left_arm_end_lefter = adapt(0, 80)
-left_arm_end_righter = adapt(40, 0)
-
-# right arm
-right_arm_end_righter = adapt(width, 70)
-right_arm_end_lefter = adapt(640, 0)
-
-# middle_arm
-middle_arm_end_lefter = adapt(300, height)
-middle_arm_end_righter = adapt(390, height)
-
-
 def check_areas(files):
 
     def print_info(file):
@@ -150,6 +117,36 @@ def check_areas(files):
     write_and_draw(file, areas)
 
     return coords_no_mask
+
+files = get_files(path)
+width, height = get_xmax_ymax(files[0])
+
+
+#%%
+
+# USER INPUT
+dx = 0      # if you want to shift the whole thing horizontally 
+dy = 0     # if you want to shift the whole thing vertically
+dz = 1      # if you want to change the size of the whole thing
+# use width and height as the maximum of the x- and y-axis
+
+# corners
+left_corner = adapt(308, 250)
+middle_corner = adapt(345, 180)
+right_corner = adapt(385, 250)
+
+# left arm
+left_arm_end_lefter = adapt(0, 80)
+left_arm_end_righter = adapt(40, 0)
+
+# right arm
+right_arm_end_righter = adapt(width, 70)
+right_arm_end_lefter = adapt(640, 0)
+
+# middle_arm
+middle_arm_end_lefter = adapt(300, height)
+middle_arm_end_righter = adapt(390, height)
+
 
 coords_no_mask = check_areas(files)
 
