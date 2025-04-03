@@ -6,35 +6,10 @@ import numpy as np
 from pathlib import Path
 from matplotlib import image
 import os
+from shapely.geometry import Polygon
 
-# Function to get video files
-def get_files(path):
-    files = [file for file in Path(path).iterdir() if file.is_file() and '.mp4' in file.name]
-    return files
 
-# Adapt function as in your code
-def adapt(x, y, dx, dy, dz, width, height):
-    adapt_x = (x + dx) * dz
-    adapt_y = (y + dy) * dz
 
-    if adapt_x < 0:
-        adapt_x = 0
-    elif adapt_x > width:
-        adapt_x = width
-
-    if adapt_y < 0:
-        adapt_y = 0
-    elif adapt_y > height:
-        adapt_y = height
-
-    return adapt_x, adapt_y
-
-# Get video properties
-def get_xmax_ymax(file):
-    vid = cv2.VideoCapture(str(file))
-    width = int(vid.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height = int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    return width, height
 
 # Processing function to adjust and mask videos
 def mask_video(files, dx, dy, dz):
@@ -72,6 +47,10 @@ def mask_video(files, dx, dy, dz):
 def open_gui():
     root = tk.Tk()
     root.title("Video Masking Tool")
+
+    def get_files(path):
+        files = [file for file in Path(path).iterdir() if file.is_file() and '.mp4' in file.name]
+        return files
 
     entry_width = 5
     
@@ -199,29 +178,51 @@ def open_gui():
     middle_arm_end_righter_entry_y.grid(row=9, column=2, padx=10, pady=5)
     middle_arm_end_righter_entry_y.insert(0, "1")
 
-    def get_coordinates():
-        dx = dx_entry.get()
-        dy = dy_entry.get()
-        dz = dz_entry.get()
+    
+    def get_coordinates(file):
 
-        corner_left =               (float(corner_left_entry_x.get()), float(corner_left_entry_y.get()))
-        corner_right =              (float(corner_right_entry_x.get()), float(corner_right_entry_y.get()))
-        corner_middle =             (float(corner_middle_entry_x.get()), float(corner_middle_entry_y.get()))
+        def get_xmax_ymax(file):
+            vid = cv2.VideoCapture(str(file))
+            width = int(vid.get(cv2.CAP_PROP_FRAME_WIDTH))
+            height = int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            return width, height
+        def adapt(x, y):
+            adapt_x = (x + dx) * dz
+            adapt_y = (y + dy) * dz
+
+            if adapt_x < 0:
+                adapt_x = 0
+            elif adapt_x > video_xmax:
+                adapt_x = video_xmax
+
+            if adapt_y < 0:
+                adapt_y = 0
+            elif adapt_y > video_ymax:
+                adapt_y = video_ymax
+
+            return (adapt_x, adapt_y)
         
-        left_arm_end_lefter =       (float(left_arm_end_lefter_entry_x.get()), float(left_arm_end_lefter_entry_y.get()))
-        left_arm_end_righter =      (float(left_arm_end_righter_entry_x.get()), float(left_arm_end_righter_entry_y.get()))
+        video_xmax, video_ymax = get_xmax_ymax(file)
+
+        dx = float(dx_entry.get())
+        dy = float(dy_entry.get())
+        dz = float(dz_entry.get())
+
+        corner_left =               adapt(float(corner_left_entry_x.get()), float(corner_left_entry_y.get()))
+        corner_right =              adapt(float(corner_right_entry_x.get()), float(corner_right_entry_y.get()))
+        corner_middle =             adapt(float(corner_middle_entry_x.get()), float(corner_middle_entry_y.get()))
         
-        right_arm_end_righter =     (float(right_arm_end_righter_entry_x.get()), float(right_arm_end_righter_entry_y.get()))
-        right_arm_end_lefter =      (float(right_arm_end_lefter_entry_x.get()), float(right_arm_end_lefter_entry_y.get()))
+        left_arm_end_lefter =       adapt(float(left_arm_end_lefter_entry_x.get()), float(left_arm_end_lefter_entry_y.get()))
+        left_arm_end_righter =      adapt(float(left_arm_end_righter_entry_x.get()), float(left_arm_end_righter_entry_y.get()))
         
-        middle_arm_end_lefter =     (float(middle_arm_end_lefter_entry_x.get()), float(middle_arm_end_lefter_entry_y.get()))
-        middle_arm_end_righter =    (float(middle_arm_end_righter_entry_x.get()), float(middle_arm_end_righter_entry_y.get()))
+        right_arm_end_righter =     adapt(float(right_arm_end_righter_entry_x.get()), float(right_arm_end_righter_entry_y.get()))
+        right_arm_end_lefter =      adapt(float(right_arm_end_lefter_entry_x.get()), float(right_arm_end_lefter_entry_y.get()))
+        
+        middle_arm_end_lefter =     adapt(float(middle_arm_end_lefter_entry_x.get()), float(middle_arm_end_lefter_entry_y.get()))
+        middle_arm_end_righter =    adapt(float(middle_arm_end_righter_entry_x.get()), float(middle_arm_end_righter_entry_y.get()))
         
         # Return all coordinates as a dictionary or tuple
         return {
-            "dx": dx,
-            "dy": dy,
-            "dz": dz,
             "corner_left": corner_left,
             "corner_right": corner_right,
             "corner_middle": corner_middle,
@@ -233,10 +234,73 @@ def open_gui():
             "middle_arm_end_righter": middle_arm_end_righter
         }
 
-    # Start processing
+    def check_mask():
+
+        path = path_entry.get()
+        if not path:
+            messagebox.showerror("Error", "Please select a folder.")
+            return
+        
+        files = get_files(path)
+        if not files:
+            messagebox.showerror("Error", "No MP4 files found in the selected folder.")
+            return
+        
+
+        coords = get_coordinates(files[0])
+        
+        def get_areas():
+            # define all necessary areas
+            left_arm = Polygon([coords["corner_left"], coords["corner_middle"], coords["left_arm_end_righter"], coords["left_arm_end_lefter"]])
+            right_arm = Polygon([coords["corner_right"], coords["corner_middle"], coords["right_arm_end_lefter"], coords["right_arm_end_righter"]])
+            middle_arm = Polygon([coords["corner_left"], coords["corner_right"], coords["middle_arm_end_righter"], coords["middle_arm_end_lefter"]])
+            center = Polygon([coords["corner_middle"], coords["corner_left"], coords["corner_right"]])
+            areas = [center, left_arm, middle_arm, right_arm]
+
+            whole_area = Polygon([coords["corner_middle"], coords["right_arm_end_lefter"], coords["right_arm_end_righter"], 
+                                coords["corner_right"], coords["middle_arm_end_righter"], coords["middle_arm_end_lefter"], 
+                                coords["corner_left"], coords["left_arm_end_lefter"], coords["left_arm_end_righter"]])
+            whole_area = np.array(list(whole_area.exterior.coords), dtype=np.int32).reshape((-1, 1, 2))
+
+            return areas, whole_area
+
+        areas, whole_area = get_areas()
+
+
+
+        def write_and_draw(file, areas):
+
+            # write the first frame
+            cap = cv2.VideoCapture(str(file))
+            first_frame = 'YLine_fframe.png'
+
+            ret, frame = cap.read()
+            cv2.imwrite(first_frame, frame)
+
+            frame = image.imread(first_frame)
+
+            for arm in areas:
+                    x, y = arm.exterior.xy
+                    plt.plot(x, y, alpha=0)
+                    plt.fill_between(x, y, alpha=0.5)
+
+            plt.imshow(frame)
+
+
+
+
+
+
+
+
+
+
+
+
+
     def start_processing():
         path = path_entry.get()
-        coordinates = get_coordinates()
+        coords = get_coordinates()
         print(coordinates)
         
         if not path:
@@ -252,8 +316,16 @@ def open_gui():
         # Run the masking process
         mask_video(files, dx, dy, dz)
 
-    process_button = ttk.Button(root, text="Start Processing", command=start_processing)
-    process_button.grid(row=5, column=4, padx=10, pady=20)
+    
+
+    # Do Buttons
+    check_button = ttk.Button(root, text="Check Mask", command=check_mask)
+    check_button.grid(row=5, column=4, padx=10, pady=20)
+
+    process_button = ttk.Button(root, text="Elon Mask", command=start_processing)
+    process_button.grid(row=6, column=4, padx=10, pady=20)
+
+
     
     root.mainloop()
 
