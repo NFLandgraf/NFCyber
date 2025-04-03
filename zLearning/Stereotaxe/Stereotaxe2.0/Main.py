@@ -10,7 +10,7 @@ import numpy as np
 from user_input import *
 
 
-dir_path = os.getcwd()
+dir_path = "C:/Users/landgrafn/NFCyber/zLearning/Stereotaxe/Stereotaxe2.0"
 regular_lambda = [-4.2, 0, 0]
 decnumb = 2
 
@@ -418,6 +418,7 @@ while abs(ap_slices_list[ap_i] - abs(user_aim[1])) > abs(ap_slices_list[ap_i+1] 
     ap_i += 1
 
 # load the frame, straight png and tilted png
+print(f"{dir_path}\\ap\\")
 ap_frame = Image.open(f"{dir_path}\\ap\\frame.PNG").resize((ap_size[0],ap_size[1]))
 ap_frame = ImageTk.PhotoImage(ap_frame)
 ap_img = Image.open(f"{dir_path}\\ap\\{ap_slices_list[ap_i]}.PNG").resize((ap_size[0] - 72,int(ap_size[1] - (70*ap_ratio))))
