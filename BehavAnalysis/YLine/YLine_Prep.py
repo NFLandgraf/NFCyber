@@ -9,7 +9,7 @@ import numpy as np
 from pathlib import Path
 
 
-path = 'C:\\Users\\landgrafn\\Desktop\\Y maze Katerina\\'
+path = 'C:\\Users\\nicol\\Desktop\\Y maze Katerina\\'
 
 def get_files(path):
     # get all file names in directory into list

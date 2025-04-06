@@ -5,178 +5,187 @@ import cv2
 import numpy as np
 from pathlib import Path
 from matplotlib import image
+from matplotlib import pyplot as plt 
 import os
 from shapely.geometry import Polygon
+import json
+from PIL import Image, ImageTk
+import io
+import threading
 
+entries_file = 'entries.json'
+def save_entries(entries):
+    with open(entries_file, 'w') as f:
+        json.dump(entries, f)
+def initialize_gui():
+    global dx_entry, dy_entry, dz_entry, CL_entry_x, CL_entry_y, CR_entry_x, CR_entry_y, CM_entry_x, CM_entry_y, LaL_entry_x, LaL_entry_y, LaR_entry_x, LaR_entry_y, RaR_entry_x, RaR_entry_y, RaL_entry_x, RaL_entry_y, MaL_entry_x, MaL_entry_y, MaR_entry_x, MaR_entry_y
 
+    def load_entries():
+        try:
+            with open(entries_file, 'r') as f:
+                entries = json.load(f)
+        except FileNotFoundError:
+            entries = {}  # Return an empty dictionary if file doesn't exist
+        return entries
 
+    entries = load_entries()
 
-# Processing function to adjust and mask videos
-def mask_video(files, dx, dy, dz):
-    def adjust_video(input_file, output_file):
-        vid = cv2.VideoCapture(str(input_file))
-        width = int(vid.get(cv2.CAP_PROP_FRAME_WIDTH))
-        height = int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        nframes = int(vid.get(cv2.CAP_PROP_FRAME_COUNT))
-        fps = int(vid.get(cv2.CAP_PROP_FPS))
-        
-        x1, y1 = adapt(308, 250, dx, dy, dz, width, height)
-        x2, y2 = adapt(385, 250, dx, dy, dz, width, height)
+    dx_entry.insert(0, str(entries.get('dx', '')))
+    dy_entry.insert(0, str(entries.get('dy', '')))
+    dz_entry.insert(0, str(entries.get('dz', '')))
 
-        # Create new video
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        video = cv2.VideoWriter(str(output_file), fourcc, fps, (x2 - x1, y2 - y1)) 
-        
-        for curr_frame in range(nframes):
-            ret, frame = vid.read()
-            if ret:
-                frame = frame[y1:y2, x1:x2]  # Crop the frame
-                video.write(frame)
-            else:
-                break
+    CL_entry_x.insert(0, str(entries.get('CL_x', '')))
+    CL_entry_y.insert(0, str(entries.get('CL_y', '')))
+    CR_entry_x.insert(0, str(entries.get('CR_x', '')))
+    CR_entry_y.insert(0, str(entries.get('CR_y', '')))
+    CM_entry_x.insert(0, str(entries.get('CM_x', '')))
+    CM_entry_y.insert(0, str(entries.get('CM_y', '')))
 
-        vid.release()
-        video.release()
+    LaL_entry_x.insert(0, str(entries.get('LaL_x', '')))
+    LaL_entry_y.insert(0, str(entries.get('LaL_y', '')))
+    LaR_entry_x.insert(0, str(entries.get('LaR_x', '')))
+    LaR_entry_y.insert(0, str(entries.get('LaR_y', '')))
 
-    for video_file in files:
-        output_video_file = video_file.with_name(video_file.stem + '_Masked.mp4')
-        adjust_video(video_file, output_video_file)
-        messagebox.showinfo("Processing Complete", f"Processed {video_file.name} successfully!")
+    RaR_entry_x.insert(0, str(entries.get('RaR_x', '')))
+    RaR_entry_y.insert(0, str(entries.get('RaR_y', '')))
+    RaL_entry_x.insert(0, str(entries.get('RaL_x', '')))
+    RaL_entry_y.insert(0, str(entries.get('RaL_y', '')))
 
-# GUI for user input
+    MaL_entry_x.insert(0, str(entries.get('MaL_x', '')))
+    MaL_entry_y.insert(0, str(entries.get('MaL_y', '')))
+    MaR_entry_x.insert(0, str(entries.get('MaR_x', '')))
+    MaR_entry_y.insert(0, str(entries.get('MaR_y', '')))
+
 def open_gui():
-    root = tk.Tk()
-    root.title("Video Masking Tool")
+    global dx_entry, dy_entry, dz_entry, CL_entry_x, CL_entry_y, CR_entry_x, CR_entry_y, CM_entry_x, CM_entry_y, LaL_entry_x, LaL_entry_y, LaR_entry_x, LaR_entry_y, RaR_entry_x, RaR_entry_y, RaL_entry_x, RaL_entry_y, MaL_entry_x, MaL_entry_y, MaR_entry_x, MaR_entry_y
 
     def get_files(path):
         files = [file for file in Path(path).iterdir() if file.is_file() and '.mp4' in file.name]
         return files
 
-    entry_width = 5
-    
-    # Path selection
     def browse_folder():
         folder_selected = filedialog.askdirectory()
         path_entry.delete(0, tk.END)
         path_entry.insert(0, folder_selected)
     
+
+    root = tk.Tk()
+    root.title("Video Masking Tool")
+
+    entry_width = 5
+    spacing_x = 2
+    spacing_y = 1
+
+    # video paths
     path_label = ttk.Label(root, text="Video Folder")
-    path_label.grid(row=0, column=0, padx=10, pady=5)
-    
+    path_label.grid(row=0, column=0, padx=spacing_x, pady=spacing_y)
     path_entry = ttk.Entry(root, width=50)
-    path_entry.grid(row=0, column=1, padx=10, pady=5)
-    
+    path_entry.grid(row=0, column=1, columnspan=3, padx=spacing_x, pady=spacing_y)
     browse_button = ttk.Button(root, text="Browse", command=browse_folder)
-    browse_button.grid(row=0, column=3, padx=10, pady=5)
+    browse_button.grid(row=0, column=4, padx=spacing_x, pady=spacing_y)
     
     # Parameter inputs for dx, dy, dz
     dx_label = ttk.Label(root, text="dx (horizontal shift)")
-    dx_label.grid(row=1, column=3, padx=10, pady=5)
-    dx_entry = ttk.Entry(root)
-    dx_entry.grid(row=1, column=4, padx=10, pady=5)
-    dx_entry.insert(0, "0")
+    dx_label.grid(row=2, column=3, padx=spacing_x, pady=spacing_y)
+    dx_entry = ttk.Entry(root, width=entry_width)
+    dx_entry.grid(row=2, column=4, padx=spacing_x, pady=spacing_y)
     
     dy_label = ttk.Label(root, text="dy (vertical shift)")
-    dy_label.grid(row=2, column=3, padx=10, pady=5)
-    dy_entry = ttk.Entry(root)
-    dy_entry.grid(row=2, column=4, padx=10, pady=5)
-    dy_entry.insert(0, "0")
+    dy_label.grid(row=3, column=3, padx=spacing_x, pady=spacing_y)
+    dy_entry = ttk.Entry(root, width=entry_width)
+    dy_entry.grid(row=3, column=4, padx=spacing_x, pady=spacing_y)
     
     dz_label = ttk.Label(root, text="dz (size scale)")
-    dz_label.grid(row=3, column=3, padx=10, pady=5)
-    dz_entry = ttk.Entry(root)
-    dz_entry.grid(row=3, column=4, padx=10, pady=5)
-    dz_entry.insert(0, "1")
+    dz_label.grid(row=4, column=3, padx=spacing_x, pady=spacing_y)
+    dz_entry = ttk.Entry(root, width=entry_width)
+    dz_entry.grid(row=4, column=4, padx=spacing_x, pady=spacing_y)
 
     # Corner Left
-    corner_left_label = ttk.Label(root, text="corner left")
-    corner_left_label.grid(row=1, column=0, padx=10, pady=5)
-    corner_left_entry_x = ttk.Entry(root, width=entry_width)
-    corner_left_entry_x.grid(row=1, column=1, padx=10, pady=5)
-    corner_left_entry_x.insert(0, "1")
-    corner_left_entry_y = ttk.Entry(root, width=entry_width)
-    corner_left_entry_y.grid(row=1, column=2, padx=10, pady=5)
-    corner_left_entry_y.insert(0, "1")
-
-    # Corner Right
-    corner_right_label = ttk.Label(root, text="corner right")
-    corner_right_label.grid(row=2, column=0, padx=10, pady=5)
-    corner_right_entry_x = ttk.Entry(root, width=entry_width)
-    corner_right_entry_x.grid(row=2, column=1, padx=10, pady=5)
-    corner_right_entry_x.insert(0, "1")
-    corner_right_entry_y = ttk.Entry(root, width=entry_width)
-    corner_right_entry_y.grid(row=2, column=2, padx=10, pady=5)
-    corner_right_entry_y.insert(0, "1")
+    CL_label = ttk.Label(root, text="left corner")
+    CL_label.grid(row=2, column=0, padx=spacing_x, pady=spacing_y)
+    CL_entry_x = ttk.Entry(root, width=entry_width)
+    CL_entry_x.grid(row=2, column=1, padx=spacing_x, pady=spacing_y)
+    CL_entry_y = ttk.Entry(root, width=entry_width)
+    CL_entry_y.grid(row=2, column=2, padx=spacing_x, pady=spacing_y)
 
     # Corner Middle
-    corner_middle_label = ttk.Label(root, text="corner middle")
-    corner_middle_label.grid(row=3, column=0, padx=10, pady=5)
-    corner_middle_entry_x = ttk.Entry(root, width=entry_width)
-    corner_middle_entry_x.grid(row=3, column=1, padx=10, pady=5)
-    corner_middle_entry_x.insert(0, "1")
-    corner_middle_entry_y = ttk.Entry(root, width=entry_width)
-    corner_middle_entry_y.grid(row=3, column=2, padx=10, pady=5)
-    corner_middle_entry_y.insert(0, "1")
+    CM_label = ttk.Label(root, text="middle corner")
+    CM_label.grid(row=3, column=0, padx=spacing_x, pady=spacing_y)
+    CM_entry_x = ttk.Entry(root, width=entry_width)
+    CM_entry_x.grid(row=3, column=1, padx=spacing_x, pady=spacing_y)
+    CM_entry_y = ttk.Entry(root, width=entry_width)
+    CM_entry_y.grid(row=3, column=2, padx=spacing_x, pady=spacing_y)
+
+    # Corner Right
+    CR_label = ttk.Label(root, text="right corner")
+    CR_label.grid(row=4, column=0, padx=spacing_x, pady=spacing_y)
+    CR_entry_x = ttk.Entry(root, width=entry_width)
+    CR_entry_x.grid(row=4, column=1, padx=spacing_x, pady=spacing_y)
+    CR_entry_y = ttk.Entry(root, width=entry_width)
+    CR_entry_y.grid(row=4, column=2, padx=spacing_x, pady=spacing_y)
 
     # Left Arm End Lefter
-    left_arm_end_lefter_label = ttk.Label(root, text="left arm end lefter")
-    left_arm_end_lefter_label.grid(row=4, column=0, padx=10, pady=5)
-    left_arm_end_lefter_entry_x = ttk.Entry(root, width=entry_width)
-    left_arm_end_lefter_entry_x.grid(row=4, column=1, padx=10, pady=5)
-    left_arm_end_lefter_entry_x.insert(0, "1")
-    left_arm_end_lefter_entry_y = ttk.Entry(root, width=entry_width)
-    left_arm_end_lefter_entry_y.grid(row=4, column=2, padx=10, pady=5)
-    left_arm_end_lefter_entry_y.insert(0, "1")
+    LaL_label = ttk.Label(root, text="left arm left")
+    LaL_label.grid(row=5, column=0, padx=spacing_x, pady=spacing_y)
+    LaL_entry_x = ttk.Entry(root, width=entry_width)
+    LaL_entry_x.grid(row=5, column=1, padx=spacing_x, pady=spacing_y)
+    LaL_entry_y = ttk.Entry(root, width=entry_width)
+    LaL_entry_y.grid(row=5, column=2, padx=spacing_x, pady=spacing_y)
 
     # Left Arm End Righter
-    left_arm_end_righter_label = ttk.Label(root, text="left arm end righter")
-    left_arm_end_righter_label.grid(row=5, column=0, padx=10, pady=5)
-    left_arm_end_righter_entry_x = ttk.Entry(root, width=entry_width)
-    left_arm_end_righter_entry_x.grid(row=5, column=1, padx=10, pady=5)
-    left_arm_end_righter_entry_x.insert(0, "1")
-    left_arm_end_righter_entry_y = ttk.Entry(root, width=entry_width)
-    left_arm_end_righter_entry_y.grid(row=5, column=2, padx=10, pady=5)
-    left_arm_end_righter_entry_y.insert(0, "1")
+    LaR_label = ttk.Label(root, text="left arm right")
+    LaR_label.grid(row=6, column=0, padx=spacing_x, pady=spacing_y)
+    LaR_entry_x = ttk.Entry(root, width=entry_width)
+    LaR_entry_x.grid(row=6, column=1, padx=spacing_x, pady=spacing_y)
+    LaR_entry_y = ttk.Entry(root, width=entry_width)
+    LaR_entry_y.grid(row=6, column=2, padx=spacing_x, pady=spacing_y)
 
     # Right Arm End Righter
-    right_arm_end_righter_label = ttk.Label(root, text="right arm end righter")
-    right_arm_end_righter_label.grid(row=6, column=0, padx=10, pady=5)
-    right_arm_end_righter_entry_x = ttk.Entry(root, width=entry_width)
-    right_arm_end_righter_entry_x.grid(row=6, column=1, padx=10, pady=5)
-    right_arm_end_righter_entry_x.insert(0, "1")
-    right_arm_end_righter_entry_y = ttk.Entry(root, width=entry_width)
-    right_arm_end_righter_entry_y.grid(row=6, column=2, padx=10, pady=5)
-    right_arm_end_righter_entry_y.insert(0, "1")
+    RaR_label = ttk.Label(root, text="right arm right")
+    RaR_label.grid(row=7, column=0, padx=spacing_x, pady=spacing_y)
+    RaR_entry_x = ttk.Entry(root, width=entry_width)
+    RaR_entry_x.grid(row=7, column=1, padx=spacing_x, pady=spacing_y)
+    RaR_entry_y = ttk.Entry(root, width=entry_width)
+    RaR_entry_y.grid(row=7, column=2, padx=spacing_x, pady=spacing_y)
 
     # Right Arm End Lefter
-    right_arm_end_lefter_label = ttk.Label(root, text="right arm end lefter")
-    right_arm_end_lefter_label.grid(row=7, column=0, padx=10, pady=5)
-    right_arm_end_lefter_entry_x = ttk.Entry(root, width=entry_width)
-    right_arm_end_lefter_entry_x.grid(row=7, column=1, padx=10, pady=5)
-    right_arm_end_lefter_entry_x.insert(0, "1")
-    right_arm_end_lefter_entry_y = ttk.Entry(root, width=entry_width)
-    right_arm_end_lefter_entry_y.grid(row=7, column=2, padx=10, pady=5)
-    right_arm_end_lefter_entry_y.insert(0, "1")
+    RaL_label = ttk.Label(root, text="right arm left")
+    RaL_label.grid(row=8, column=0, padx=spacing_x, pady=spacing_y)
+    RaL_entry_x = ttk.Entry(root, width=entry_width)
+    RaL_entry_x.grid(row=8, column=1, padx=spacing_x, pady=spacing_y)
+    RaL_entry_y = ttk.Entry(root, width=entry_width)
+    RaL_entry_y.grid(row=8, column=2, padx=spacing_x, pady=spacing_y)
 
     # Middle Arm End Lefter
-    middle_arm_end_lefter_label = ttk.Label(root, text="middle arm end lefter")
-    middle_arm_end_lefter_label.grid(row=8, column=0, padx=10, pady=5)
-    middle_arm_end_lefter_entry_x = ttk.Entry(root, width=entry_width)
-    middle_arm_end_lefter_entry_x.grid(row=8, column=1, padx=10, pady=5)
-    middle_arm_end_lefter_entry_x.insert(0, "1")
-    middle_arm_end_lefter_entry_y = ttk.Entry(root, width=entry_width)
-    middle_arm_end_lefter_entry_y.grid(row=8, column=2, padx=10, pady=5)
-    middle_arm_end_lefter_entry_y.insert(0, "1")
+    MaL_label = ttk.Label(root, text="middle arm left")
+    MaL_label.grid(row=9, column=0, padx=spacing_x, pady=spacing_y)
+    MaL_entry_x = ttk.Entry(root, width=entry_width)
+    MaL_entry_x.grid(row=9, column=1, padx=spacing_x, pady=spacing_y)
+    MaL_entry_y = ttk.Entry(root, width=entry_width)
+    MaL_entry_y.grid(row=9, column=2, padx=spacing_x, pady=spacing_y)
 
     # Middle Arm End Righter
-    middle_arm_end_righter_label = ttk.Label(root, text="middle arm end righter")
-    middle_arm_end_righter_label.grid(row=9, column=0, padx=10, pady=5)
-    middle_arm_end_righter_entry_x = ttk.Entry(root, width=entry_width)
-    middle_arm_end_righter_entry_x.grid(row=9, column=1, padx=10, pady=5)
-    middle_arm_end_righter_entry_x.insert(0, "1")
-    middle_arm_end_righter_entry_y = ttk.Entry(root, width=entry_width)
-    middle_arm_end_righter_entry_y.grid(row=9, column=2, padx=10, pady=5)
-    middle_arm_end_righter_entry_y.insert(0, "1")
+    MaR_label = ttk.Label(root, text="middle arm right")
+    MaR_label.grid(row=10, column=0, padx=spacing_x, pady=spacing_y)
+    MaR_entry_x = ttk.Entry(root, width=entry_width)
+    MaR_entry_x.grid(row=10, column=1, padx=spacing_x, pady=spacing_y)
+    MaR_entry_y = ttk.Entry(root, width=entry_width)
+    MaR_entry_y.grid(row=10, column=2, padx=10, pady=spacing_y)
+
+    # Image
+    image_frame = ttk.LabelFrame(root, text="Mask Preview")
+    image_frame.grid(row=0, column=5, rowspan=12, padx=spacing_x, pady=spacing_y)
+    image_label = ttk.Label(image_frame)
+    image_label.pack()
+
+    # Progress bar
+    progress_var = tk.DoubleVar()
+    progress_bar = ttk.Progressbar(root, variable=progress_var, maximum=100)
+    progress_bar.grid(row=15, column=0, columnspan=5, padx=spacing_x, pady=spacing_y, sticky="we")
+
+    # Create a Text widget to show the log of processed files
+    file_log = tk.Text(root, height=10, width=60, wrap="word", state=tk.DISABLED)
+    file_log.grid(row=13, column=5, rowspan=15, padx=spacing_x, pady=spacing_y)
 
     
     def get_coordinates(file):
@@ -204,37 +213,74 @@ def open_gui():
         
         video_xmax, video_ymax = get_xmax_ymax(file)
 
-        dx = float(dx_entry.get())
-        dy = float(dy_entry.get())
-        dz = float(dz_entry.get())
-
-        corner_left =               adapt(float(corner_left_entry_x.get()), float(corner_left_entry_y.get()))
-        corner_right =              adapt(float(corner_right_entry_x.get()), float(corner_right_entry_y.get()))
-        corner_middle =             adapt(float(corner_middle_entry_x.get()), float(corner_middle_entry_y.get()))
-        
-        left_arm_end_lefter =       adapt(float(left_arm_end_lefter_entry_x.get()), float(left_arm_end_lefter_entry_y.get()))
-        left_arm_end_righter =      adapt(float(left_arm_end_righter_entry_x.get()), float(left_arm_end_righter_entry_y.get()))
-        
-        right_arm_end_righter =     adapt(float(right_arm_end_righter_entry_x.get()), float(right_arm_end_righter_entry_y.get()))
-        right_arm_end_lefter =      adapt(float(right_arm_end_lefter_entry_x.get()), float(right_arm_end_lefter_entry_y.get()))
-        
-        middle_arm_end_lefter =     adapt(float(middle_arm_end_lefter_entry_x.get()), float(middle_arm_end_lefter_entry_y.get()))
-        middle_arm_end_righter =    adapt(float(middle_arm_end_righter_entry_x.get()), float(middle_arm_end_righter_entry_y.get()))
+        dx = int(dx_entry.get())
+        dy = int(dy_entry.get())
+        dz = int(dz_entry.get())
+        CL =    adapt(int(CL_entry_x.get()), int(CL_entry_y.get()))
+        CR =    adapt(int(CR_entry_x.get()), int(CR_entry_y.get()))
+        CM =    adapt(int(CM_entry_x.get()), int(CM_entry_y.get()))
+        LaL =   adapt(int(LaL_entry_x.get()), int(LaL_entry_y.get()))
+        LaR =   adapt(int(LaR_entry_x.get()), int(LaR_entry_y.get()))
+        RaR =   adapt(int(RaR_entry_x.get()), int(RaR_entry_y.get()))
+        RaL =   adapt(int(RaL_entry_x.get()), int(RaL_entry_y.get()))
+        MaL =   adapt(int(MaL_entry_x.get()), int(MaL_entry_y.get()))
+        MaR =   adapt(int(MaR_entry_x.get()), int(MaR_entry_y.get()))
         
         # Return all coordinates as a dictionary or tuple
         return {
-            "corner_left": corner_left,
-            "corner_right": corner_right,
-            "corner_middle": corner_middle,
-            "left_arm_end_lefter": left_arm_end_lefter,
-            "left_arm_end_righter": left_arm_end_righter,
-            "right_arm_end_righter": right_arm_end_righter,
-            "right_arm_end_lefter": right_arm_end_lefter,
-            "middle_arm_end_lefter": middle_arm_end_lefter,
-            "middle_arm_end_righter": middle_arm_end_righter
+            "CL": CL,
+            "CR": CR,
+            "CM": CM,
+            "LaL": LaL,
+            "LaR": LaR,
+            "RaR": RaR,
+            "RaL": RaL,
+            "MaL": MaL,
+            "MaR": MaR
         }
 
+    def get_areas(coords):
+        # define all necessary areas
+        left_arm = Polygon([coords["CL"], coords["CM"], coords["LaR"], coords["LaL"]])
+        right_arm = Polygon([coords["CR"], coords["CM"], coords["RaL"], coords["RaR"]])
+        middle_arm = Polygon([coords["CL"], coords["CR"], coords["MaR"], coords["MaL"]])
+        center = Polygon([coords["CM"], coords["CL"], coords["CR"]])
+        areas = [center, left_arm, middle_arm, right_arm]
+
+        whole_area = Polygon([coords["CM"], coords["RaL"], coords["RaR"], 
+                            coords["CR"], coords["MaR"], coords["MaL"], 
+                            coords["CL"], coords["LaL"], coords["LaR"]])
+        whole_area = np.array(list(whole_area.exterior.coords), dtype=np.int32).reshape((-1, 1, 2))
+
+        return areas, whole_area
+
+    # main functions
     def check_mask():
+
+        entries = {
+            'dx': dx_entry.get(),
+            'dy': dy_entry.get(),
+            'dz': dz_entry.get(),
+            'CL_x': CL_entry_x.get(),
+            'CL_y': CL_entry_y.get(),
+            'CR_x': CR_entry_x.get(),
+            'CR_y': CR_entry_y.get(),
+            'CM_x': CM_entry_x.get(),
+            'CM_y': CM_entry_y.get(),
+            'LaL_x': LaL_entry_x.get(),
+            'LaL_y': LaL_entry_y.get(),
+            'LaR_x': LaR_entry_x.get(),
+            'LaR_y': LaR_entry_y.get(),
+            'RaR_x': RaR_entry_x.get(),
+            'RaR_y': RaR_entry_y.get(),
+            'RaL_x': RaL_entry_x.get(),
+            'RaL_y': RaL_entry_y.get(),
+            'MaL_x': MaL_entry_x.get(),
+            'MaL_y': MaL_entry_y.get(),
+            'MaR_x': MaR_entry_x.get(),
+            'MaR_y': MaR_entry_y.get()
+        }
+        save_entries(entries)
 
         path = path_entry.get()
         if not path:
@@ -246,88 +292,142 @@ def open_gui():
             messagebox.showerror("Error", "No MP4 files found in the selected folder.")
             return
         
-
-        coords = get_coordinates(files[0])
         
-        def get_areas():
-            # define all necessary areas
-            left_arm = Polygon([coords["corner_left"], coords["corner_middle"], coords["left_arm_end_righter"], coords["left_arm_end_lefter"]])
-            right_arm = Polygon([coords["corner_right"], coords["corner_middle"], coords["right_arm_end_lefter"], coords["right_arm_end_righter"]])
-            middle_arm = Polygon([coords["corner_left"], coords["corner_right"], coords["middle_arm_end_righter"], coords["middle_arm_end_lefter"]])
-            center = Polygon([coords["corner_middle"], coords["corner_left"], coords["corner_right"]])
-            areas = [center, left_arm, middle_arm, right_arm]
-
-            whole_area = Polygon([coords["corner_middle"], coords["right_arm_end_lefter"], coords["right_arm_end_righter"], 
-                                coords["corner_right"], coords["middle_arm_end_righter"], coords["middle_arm_end_lefter"], 
-                                coords["corner_left"], coords["left_arm_end_lefter"], coords["left_arm_end_righter"]])
-            whole_area = np.array(list(whole_area.exterior.coords), dtype=np.int32).reshape((-1, 1, 2))
-
-            return areas, whole_area
-
-        areas, whole_area = get_areas()
-
-
-
+        
         def write_and_draw(file, areas):
 
-            # write the first frame
             cap = cv2.VideoCapture(str(file))
-            first_frame = 'YLine_fframe.png'
-
             ret, frame = cap.read()
-            cv2.imwrite(first_frame, frame)
+            cap.release()
 
-            frame = image.imread(first_frame)
+            if not ret:
+                messagebox.showerror("Error", "Could not read frame.")
+                return
+            
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            fig, ax = plt.subplots(figsize=(5, 4), dpi=100)
+            ax.imshow(frame_rgb)
 
             for arm in areas:
                     x, y = arm.exterior.xy
-                    plt.plot(x, y, alpha=0)
-                    plt.fill_between(x, y, alpha=0.5)
+                    ax.fill(x, y, alpha=0.4)
+                    
+            fig.tight_layout(pad=0)
 
-            plt.imshow(frame)
+            buf = io.BytesIO()
+            plt.savefig(buf, format='png')
+            buf.seek(0)
+            plt.close(fig)
+
+            # transform to tkinter-compatibel image
+            img = Image.open(buf)
+            img_tk = ImageTk.PhotoImage(img)
+
+            # display image in gui
+            image_label.config(image=img_tk)
+            image_label.image = img_tk  # keep a reference!
 
 
-
-
-
-
-
-
-
-
-
-
+        coords = get_coordinates(files[0])
+        areas, whole_area = get_areas(coords)
+        write_and_draw(files[0], areas)
 
     def start_processing():
+
         path = path_entry.get()
-        coords = get_coordinates()
-        print(coordinates)
-        
         if not path:
             messagebox.showerror("Error", "Please select a folder.")
             return
         
         files = get_files(path)
-        
         if not files:
             messagebox.showerror("Error", "No MP4 files found in the selected folder.")
             return
         
-        # Run the masking process
-        mask_video(files, dx, dy, dz)
 
-    
+        # Processing function to adjust and mask videos
+        def adjust_video(input_file, output_file, coords, whole_area):
 
+            # original stuff
+            vid = cv2.VideoCapture(str(input_file))
+            width = int(vid.get(cv2.CAP_PROP_FRAME_WIDTH))
+            height = int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            nframes = int(vid.get(cv2.CAP_PROP_FRAME_COUNT))
+            fps = int(vid.get(cv2.CAP_PROP_FPS))
+            print(f'Origin: {width}x{height}px, {nframes} frames, {fps} fps')
+
+            # future dimensions after cropping
+            x1 = coords['LaL'][0]
+            y1 = min(coords['MaL'][1], coords['MaR'][1], coords['LaR'][1], coords['RaL'][1])
+            x2 = coords['RaR'][0]
+            y2 = max(coords['MaL'][1], coords['MaR'][1], coords['LaR'][1], coords['RaL'][1])
+            new_width, new_height = x2-x1, y2-y1
+            print(f'Wanted: {new_width}x{new_height}px, {nframes} frames, {fps} fps')
+            
+
+            # create new video
+            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+            video = cv2.VideoWriter(str(output_file), fourcc, fps, (new_width, new_height)) 
+
+            for i in range(nframes):
+                ret, frame = vid.read()
+                if ret:    
+
+                    # mask frame
+                    if i == 0:
+                        white_frame = np.ones_like(frame) * 255
+                        mask = np.zeros_like(frame[:, :, 0])
+                        cv2.fillPoly(mask, [whole_area], 255)
+                    masked_frame = np.where(mask[:, :, None] == 255, frame, white_frame)
+
+                    # crop frame
+                    masked_cropped_frame = masked_frame[y1:y2, x1:x2]
+
+                    video.write(masked_cropped_frame)
+
+                    # Update progress bar
+                    progress_var.set((i + 1) / nframes * 100)
+                    root.update_idletasks()
+
+                else:
+                    break
+            
+            print(f'Edited: {np.shape(frame)[1]}x{np.shape(frame)[0]}px, {i+1} frames, {fps} fps\n\n')
+            #vid.release()
+            video.release()
+            progress_var.set(0)
+
+        coords = get_coordinates(files[0])
+        areas, whole_area = get_areas(coords)
+
+        print(coords)
+
+        for idx, video_file in enumerate(files):
+            
+            # update the files processed in the gui
+            filename = os.path.basename(video_file)
+            file_log.config(state=tk.NORMAL)  # Enable the Text widget to update it
+            file_log.insert(tk.END, f"{filename} - in process\n")  # Append the finished file
+
+            output_video_file = video_file.with_name(video_file.stem + '_Masked.mp4')
+            adjust_video(video_file, output_video_file, coords, whole_area)
+
+            # update the files processed in the gui
+            file_log.insert(tk.END, f"{filename} - finished\n")  # Append the finished file
+            file_log.config(state=tk.DISABLED)  # Disable it again to prevent manual editing
+            file_log.yview(tk.END)  # Scroll to the bottom of the text widget
+
+        messagebox.showinfo(f"Processing Complete ({idx+1} videos)")
+
+        
     # Do Buttons
     check_button = ttk.Button(root, text="Check Mask", command=check_mask)
     check_button.grid(row=5, column=4, padx=10, pady=20)
 
-    process_button = ttk.Button(root, text="Elon Mask", command=start_processing)
+    process_button = tk.Button(root, text="Mask Videos", command=lambda: threading.Thread(target=start_processing).start())
     process_button.grid(row=6, column=4, padx=10, pady=20)
 
-
-    
+    initialize_gui()
     root.mainloop()
 
-# Run the GUI
 open_gui()
