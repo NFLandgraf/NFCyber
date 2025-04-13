@@ -11,8 +11,8 @@ from pathlib import Path
 import os
 
 
-path = 'C:\\Users\\landgrafn\\Desktop\\FF\\'
-file_useless_string = ['2024-11-20_FF-Weilin_FS_', '_LockIn']
+path = 'C:\\Users\\nicol\\Desktop\\FF Nomifensine\\FS\\csv\\'
+file_useless_string = ['2024-12-09_FF-Weilin-3m_Nomifensine_', '_LockIn']
 
 
 def manage_filename(file):
@@ -277,7 +277,6 @@ def main(files):
         df = get_data_csv(file)
         df = old_preprocess(df)
 
-        #print(df)
         # plot results
         #time = np.array(df.index.values)
         #plot_sig(time, df['Fluo'], df['Isos'], 'Raw Signal')
@@ -344,6 +343,7 @@ def perievent(df, events, window_pre=5, window_post=20, baseline_pre=2):
         df_perievent_means[f'{column}'] = df_all_events['mean']
 
     df_perievent_means.to_csv(path + "Perievent_means.csv")
+    print('Done')
 
     return df_perievent_means
 
