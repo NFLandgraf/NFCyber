@@ -204,13 +204,10 @@ main_df = combine_data(file_traces, file_DLC, file_TTL, file_video)
 
 
 
-
-
-
 #%%
 # PLACE CELLS
 
-def bin_cellspikes(main_df, n_bins=3):
+def bin_cellspikes(main_df, n_bins=200):
     # we find out, how many spikes per spatial bin (n_bins=2 for 2x2) are there for each cell
 
     # creates the wanted grid
@@ -233,7 +230,7 @@ def bin_cellspikes(main_df, n_bins=3):
 
     return place_df, x_edges, y_edges
 
-def identify_place_cells(main_df, place_df, fps=10, n_shuffles=1000, significance_level=0.05):
+def identify_place_cells(main_df, place_df, fps=10, n_shuffles=1, significance_level=0.05):
     '''
     Computing spatial information via Skaggs formula:
     SI = ∑i ⋅ pi ⋅ ri/r ⋅ log2(ri/r)
@@ -307,57 +304,46 @@ def identify_place_cells(main_df, place_df, fps=10, n_shuffles=1000, significanc
         return spatial_info_shuffled
 
     def check_significance(spatial_info_real, spatial_info_shuffled):
-        # 4. Check significance by checking if cells' spatial info is above threshold (=significant)
+        
+        # compare real_si to shuffled_si
         place_cells = []
+        p_values = {}
         for cell in spatial_info_real:
-            threshold = np.percentile(spatial_info_shuffled[cell], 100-significance_level*100)
-            if spatial_info_real[cell] > threshold:
+            real_si = spatial_info_real[cell]
+            shuffled_si = spatial_info_shuffled[cell]
+
+            # True=1, False=0, np.mean takes mean of True/False (returns array of booleans if a shuffled_si is bigger than real_si)
+            p = np.mean(np.array(shuffled_si) >= real_si)
+            p_values[cell] = p
+
+            if p < significance_level:
                 place_cells.append(cell)
 
-        return place_cells
+        return place_cells, p_values
 
     occupancy = main_df.groupby('head_bin').size()
     spatial_info_real = get_spatial_info_real(place_df, occupancy)
     spatial_info_shuffled = get_spatial_info_shuffle(place_df, occupancy)
-    place_cells = check_significance(spatial_info_real, spatial_info_shuffled)
+    place_cells, p_values = check_significance(spatial_info_real, spatial_info_shuffled)
 
-    return spatial_info_real, spatial_info_shuffled, place_cells
+    return spatial_info_real, spatial_info_shuffled, place_cells, p_values
 
 place_df, x_edges, y_edges = bin_cellspikes(main_df)
-spatial_info_real, spatial_info_shuffled, place_cells = identify_place_cells(main_df, place_df)
+spatial_info_real, spatial_info_shuffled, place_cells, p_values = identify_place_cells(main_df, place_df)
 
 
 
 #%%
+# PLOT HISTOGRAM
 
-sorted_dict = dict(sorted(spatial_info_real.items(), key=lambda item: item[1], reverse=True))
-
-print(sorted_dict)
-
-
-
-
-
-
-
-
-
-
-
-
-#%%
-#print(spatial_info_real['1_spike'])
-#print(spatial_info_shuffled)
-
-cell = '1_spike'
+cell = '175_spike'
 real_value = spatial_info_real[cell]
 shuffled_values = spatial_info_shuffled[cell]
 
-
 plt.figure(figsize=(8, 4))
-plt.hist(shuffled_values, bins=30, alpha=0.7, color='gray', edgecolor='black')
-plt.axvline(real_value, color='red', linestyle='--', linewidth=2, label=f'Real SI = {real_value:.2f}')
-plt.title(f'Spatial Info Shuffle Distribution for {cell}')
+plt.hist(shuffled_values, bins=30, alpha=0.7, color='gray', edgecolor='black', label='randomly assigned spikes')
+plt.axvline(real_value, color='orange', linewidth=5, label=f'Real SI = {real_value:.2f}')
+plt.title(f'Spatial Info Shuffle Distribution for Cell_{cell}')
 plt.xlabel('Spatial Information (bits/spike)')
 plt.ylabel('Count')
 plt.legend()
@@ -366,43 +352,11 @@ plt.show()
 
 
 
-
-
-
-
-
-
-
 #%%
+# PLOT SPIKES
 
-sorted_dict = dict(sorted(spatial_info_real.items(), key=lambda item: item[1], reverse=True))
-print(sorted_dict)
-
-
-#%%
-
-to_plot = place_cells
-
-plt.figure(figsize=(8,8))
-plt.plot(main_df['head_x'], main_df['head_y'], alpha=0.5, color='grey', zorder=1)
-plt.vlines(x=x_edges[1:-1], ymin=0, ymax=600, colors='k')
-plt.hlines(y=y_edges[1:-1], xmin=30, xmax=630, colors='k')
-
-for cell_id in to_plot:
-    spike_rows = main_df[main_df[cell_id] != 0]
-    x = spike_rows['head_x'].apply(pd.Series)
-    y = spike_rows['head_y'].apply(pd.Series)
-    plt.scatter(x, y, s=55, alpha=0.8, label=cell_id, zorder=2)
-
-plt.xlim(30,630)
-plt.ylim(0,600)
-plt.legend()
-plt.show()
-
-#%%
-
-#to_plot = [30,28,8,31]
-to_plot = [1]
+to_plot = [30,28,8,31]
+to_plot = [1,175]
 
 plt.figure(figsize=(8,8))
 plt.plot(main_df['head_x'], main_df['head_y'], alpha=0.5, color='grey', zorder=1)
@@ -413,20 +367,49 @@ for cell_id in to_plot:
     spike_rows = main_df[main_df[f'{cell_id}_spike'] != 0]
     x = spike_rows['head_x']
     y = spike_rows['head_y']
-    plt.scatter(x, y, s=80, alpha=0.6, label=cell_id, zorder=2)
+    plt.scatter(x, y, s=80, alpha=0.8, label=f'{cell_id}', zorder=2)
 
 plt.xlim(30,630)
 plt.ylim(0,600)
 plt.legend()
 plt.show()
 
+#%% 
+# PLOT SPIKES HEATMAP
+from scipy.ndimage import gaussian_filter
 
+to_plot = [175]
 
-#%%
+spike_heatmap = np.zeros((len(y_edges)-1, len(x_edges)-1))
 
+# Accumulate spike counts into the heatmap
+for cell_id in to_plot:
+    spike_rows = main_df[main_df[f'{cell_id}_spike'] != 0]
+    x = spike_rows['head_x']
+    y = spike_rows['head_y']
+    
+    H, _, _ = np.histogram2d(y, x, bins=[y_edges, x_edges])  # note: y first
+    spike_heatmap += H
 
+blurred_heatmap = gaussian_filter(spike_heatmap, sigma=4)
 
+# Plot the heatmap
+plt.figure(figsize=(8, 8))
+plt.imshow(blurred_heatmap, origin='lower',extent=[x_edges[0], x_edges[-1], y_edges[0], y_edges[-1]], cmap='hot',alpha=0.8)
+#plt.colorbar(label='Spike count')
+plt.plot(main_df['head_x'], main_df['head_y'], alpha=0.3, color='grey', zorder=1)
 
+# Add grid lines
+#plt.vlines(x=x_edges[1:-1], ymin=y_edges[0], ymax=y_edges[-1], colors='k')
+#plt.hlines(y=y_edges[1:-1], xmin=x_edges[0], xmax=x_edges[-1], colors='k')
+
+plt.title(f"Spike heatmap for cells {to_plot}")
+plt.xlabel("X position")
+plt.ylabel("Y position")
+plt.xlim(x_edges[0], x_edges[-1])
+plt.ylim(y_edges[0], y_edges[-1])
+plt.gca().set_aspect('equal')
+plt.show()
 
 
 
