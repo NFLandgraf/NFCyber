@@ -55,6 +55,7 @@ def dff_2_zscore(df):
     df_z.index.names = ['Time/zscore']
 
     return df_z
+
 def get_traces_events(file, df_traces, barsize=3):
     # takes the csv with the time of events/action potentials for each cell and returns df
 
