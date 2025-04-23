@@ -7,7 +7,6 @@ from sklearn.cluster import DBSCAN
 import cv2
 from tqdm import tqdm
 from scipy.ndimage import gaussian_filter
-
 from sklearn.model_selection import train_test_split
 from torch.utils.data import TensorDataset, DataLoader
 import torch
@@ -209,7 +208,6 @@ main_df = combine_data(file_traces, file_DLC, file_TTL, file_video)
 
 #%%
 # PLACE CELLS
-
 def bin_cellspikes(main_df, n_bins=3):
     # we find out, how many spikes per spatial bin (n_bins=2 for 2x2) are there for each cell
 
@@ -233,7 +231,7 @@ def bin_cellspikes(main_df, n_bins=3):
 
     return place_df, x_edges, y_edges
 
-def identify_place_cells(main_df, place_df, fps=10, n_shuffles=10, significance_level=0.05):
+def identify_place_cells(main_df, place_df, fps=10, n_shuffles=1000, significance_level=0.01):
     '''
     Computing spatial information via Skaggs formula:
     SI = ∑i ⋅ pi ⋅ ri/r ⋅ log2(ri/r)
@@ -333,274 +331,280 @@ def identify_place_cells(main_df, place_df, fps=10, n_shuffles=10, significance_
 
 place_df, x_edges, y_edges = bin_cellspikes(main_df)
 spatial_info_real, spatial_info_shuffled, place_cells, p_values = identify_place_cells(main_df, place_df)
+print(f'{len(place_cells)} place cells')
 
 
+# PLOT
+def plot_spikes(main_df, x_edges, y_edges, cells):
 
-#%%
-# PLOT HISTOGRAM
+    # plot spikes on arena
+    plt.figure(figsize=(8,8))
+    plt.plot(main_df['head_x'], main_df['head_y'], alpha=0.5, color='grey', zorder=1)
+    plt.vlines(x=x_edges[1:-1], ymin=0, ymax=600, colors='k')
+    plt.hlines(y=y_edges[1:-1], xmin=30, xmax=630, colors='k')
 
-cell = '175_spike'
-real_value = spatial_info_real[cell]
-shuffled_values = spatial_info_shuffled[cell]
+    for cell_id in cells:
+        spike_rows = main_df[main_df[f'{cell_id}_spike'] != 0]
+        x = spike_rows['head_x']
+        y = spike_rows['head_y']
+        plt.scatter(x, y, s=80, alpha=0.8, label=f'{cell_id}', zorder=2)
 
-plt.figure(figsize=(8, 4))
-plt.hist(shuffled_values, bins=30, alpha=0.7, color='gray', edgecolor='black', label='randomly assigned spikes')
-plt.axvline(real_value, color='orange', linewidth=5, label=f'Real SI = {real_value:.2f}')
-plt.title(f'Spatial Info Shuffle Distribution for Cell_{cell}')
-plt.xlabel('Spatial Information (bits/spike)')
-plt.ylabel('Count')
-plt.legend()
-plt.tight_layout()
-plt.show()
+    plt.xlim(30,630)
+    plt.ylim(0,600)
+    plt.legend()
+    plt.show()
+def plot_spikes_heatmap(main_df, cell, bins=200, blur=4):
 
+    # creates the wanted grid
+    x_edges = np.linspace(0, 660, bins)
+    y_edges = np.linspace(0, 600, bins)
 
+    # plot spikes heatmap on arena
+    spike_heatmap = np.zeros((len(y_edges)-1, len(x_edges)-1))
 
-#%%
-# PLOT SPIKES
-
-to_plot = [30,28,8,31]
-to_plot = [1,175]
-
-plt.figure(figsize=(8,8))
-plt.plot(main_df['head_x'], main_df['head_y'], alpha=0.5, color='grey', zorder=1)
-plt.vlines(x=x_edges[1:-1], ymin=0, ymax=600, colors='k')
-plt.hlines(y=y_edges[1:-1], xmin=30, xmax=630, colors='k')
-
-for cell_id in to_plot:
-    spike_rows = main_df[main_df[f'{cell_id}_spike'] != 0]
-    x = spike_rows['head_x']
-    y = spike_rows['head_y']
-    plt.scatter(x, y, s=80, alpha=0.8, label=f'{cell_id}', zorder=2)
-
-plt.xlim(30,630)
-plt.ylim(0,600)
-plt.legend()
-plt.show()
-
-#%% 
-# PLOT SPIKES HEATMAP
-
-to_plot = [1]
-spike_heatmap = np.zeros((len(y_edges)-1, len(x_edges)-1))
-
-# accumulate spike counts into the heatmap
-for cell_id in to_plot:
-    spike_rows = main_df[main_df[f'{cell_id}_spike'] != 0]
+    # accumulate spike counts into the heatmap
+    spike_rows = main_df[main_df[f'{cell}_spike'] != 0]
     x = spike_rows['head_x']
     y = spike_rows['head_y']
     
     H, _, _ = np.histogram2d(y, x, bins=[y_edges, x_edges])
     spike_heatmap += H
 
-# blur heatmap (the higher sigma, the blur goes blurrrrr)
-blurred_heatmap = gaussian_filter(spike_heatmap, sigma=4)
+    # blur heatmap (the higher sigma, the blur goes blurrrrr)
+    blurred_heatmap = gaussian_filter(spike_heatmap, sigma=blur)
 
-plt.figure(figsize=(8, 8))
-plt.imshow(blurred_heatmap, origin='lower',extent=[x_edges[0], x_edges[-1], y_edges[0], y_edges[-1]], cmap='hot',alpha=0.8)
-#plt.colorbar(label='Spike count')
-plt.plot(main_df['head_x'], main_df['head_y'], alpha=0.3, color='grey', zorder=1)
+    plt.figure(figsize=(8, 8))
+    plt.imshow(blurred_heatmap, origin='lower',extent=[x_edges[0], x_edges[-1], y_edges[0], y_edges[-1]], cmap='hot',alpha=0.8)
+    #plt.colorbar(label='Spike count')
+    plt.plot(main_df['head_x'], main_df['head_y'], alpha=0.3, color='grey', zorder=1)
 
-plt.title(f"Spike heatmap for cells {to_plot}")
-plt.xlabel("X position")
-plt.ylabel("Y position")
-plt.xlim(x_edges[0], x_edges[-1])
-plt.ylim(y_edges[0], y_edges[-1])
-plt.gca().set_aspect('equal')
-plt.show()
+    plt.title(f"Spike heatmap for cell_{cell}")
+    plt.xlabel("X position")
+    plt.ylabel("Y position")
+    plt.xlim(x_edges[0], x_edges[-1])
+    plt.ylim(y_edges[0], y_edges[-1])
+    plt.gca().set_aspect('equal')
+    plt.show()
+def plot_histogram(cell, spatial_info_real, spatial_info_shuffled, bins=30):
 
+    # plots histogram that shows the true SI and the shuffled data
+    cell = f'{cell}_spike'
+    real_value = spatial_info_real[cell]
+    shuffled_values = spatial_info_shuffled[cell]
 
-
-#%%
-
-def prep_data(main_df, place_cells, sampling_rate=10, bin_size=1.0, min_active_cells=2):
-
-    # downsample the df to have relyable neuronal info per timepoint
-    frames_per_bin = int(bin_size * sampling_rate)
-    position_cols = ['head_x', 'head_y']
-    n_bins = len(main_df) // frames_per_bin
-
-    df_binned = []
-    for i in range(n_bins):
-        start = i * frames_per_bin
-        end = (i + 1) * frames_per_bin
-        segment = main_df.iloc[start:end]
-
-        spike_sums = segment[place_cells].sum()
-        position_avg = segment[position_cols].mean()
-
-        binned_row = pd.concat([spike_sums, position_avg])
-        df_binned.append(binned_row)
-
-    df_binned = pd.DataFrame(df_binned)
-
-    # only include timepoints with >= x active cells
-    active_rows = (df_binned[place_cells] > 0).sum(axis=1) >= min_active_cells
-    df_binned = df_binned[active_rows]
-
-    # create inputs& outputs
-    X = df_binned[place_cells].values.astype(np.float32)
-    Y = df_binned[position_cols].values.astype(np.float32)
-
-    return X, Y
-
-def create_tensors(X, Y, test_size=0.1):
-    # split data into train/test
-    X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=test_size, random_state=42)
-
-    # convert to PyTorch tensors
-    X_train_tensor = torch.tensor(X_train, dtype=torch.float32)
-    Y_train_tensor = torch.tensor(Y_train, dtype=torch.float32)
-    X_test_tensor  = torch.tensor(X_test, dtype=torch.float32)
-    Y_test_tensor  = torch.tensor(Y_test, dtype=torch.float32)
-
-    # create datasets
-    train_dataset = TensorDataset(X_train_tensor, Y_train_tensor)
-    test_dataset = TensorDataset(X_test_tensor, Y_test_tensor)
-
-    # create dataloaders
-    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
-    test_loader = DataLoader(test_dataset, batch_size=32)
-
-    return train_loader, test_loader
-
-class PositionDecoder(nn.Module):
-    def __init__(self, input_dim, hidden_dim=64):
-        super(PositionDecoder, self).__init__()
-        self.net = nn.Sequential(
-            nn.Linear(input_dim, hidden_dim),   # layer_1: input -> hidden
-            nn.ReLU(),
-            nn.Linear(hidden_dim, hidden_dim),  # layer_2: hidden -> hidden
-            nn.ReLU(),
-            nn.Linear(hidden_dim, 2)            # layer_3: hidden -> output (x,y)
-        )
-
-    def forward(self, x):
-        return self.net(x)
-
-def train_model(model, train_loader, n_epochs=100, lr=1e-3, verbose=True):
-
-    # Set device
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = model.to(device)
-
-    # Loss and optimizer
-    criterion = nn.MSELoss()
-    optimizer = optim.Adam(model.parameters(), lr=lr)
-
-    # Training loop
-    for epoch in range(n_epochs):
-        model.train()
-        total_loss = 0
-        
-        for batch_X, batch_Y in train_loader:
-            batch_X = batch_X.to(device)
-            batch_Y = batch_Y.to(device)
-
-            optimizer.zero_grad()
-            outputs = model(batch_X)
-            loss = criterion(outputs, batch_Y)
-            loss.backward()
-            optimizer.step()
-            total_loss += loss.item()
-
-        avg_loss = total_loss / len(train_loader)
-    
-        # this outputs the squared px, so the root would be the actual pixel difference
-        if verbose and (epoch % 10 == 0 or epoch == n_epochs - 1):
-            print(f"Epoch {epoch:03d} | MSE: {avg_loss:.2f} px² | RMSE: {avg_loss**0.5:.2f} px")
-    
-    return model
-
-def evaluate_model(model, test_loader):
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    model.eval()
-    all_preds = []
-    all_targets = []
-
-    with torch.no_grad():
-        for batch_X, batch_Y in test_loader:
-            batch_X = batch_X.to(device)
-            batch_Y = batch_Y.to(device)
-
-            preds = model(batch_X)
-            all_preds.append(preds.cpu())
-            all_targets.append(batch_Y.cpu())
-
-    # Combine all batches into arrays
-    Y_pred = torch.cat(all_preds).numpy()
-    Y_true = torch.cat(all_targets).numpy()
-
-    return Y_pred, Y_true
-
-def plot_true_vs_pred_coords(Y_true, Y_pred):
-
-    true_x = Y_true[:, 0]
-    pred_x = Y_pred[:, 0]
-    true_y = Y_true[:, 1]
-    pred_y = Y_pred[:, 1]
-
-    fig, axes = plt.subplots(1, 2, figsize=(12, 6), sharex=False, sharey=False)
-
-    # ---- X position ----
-    ax = axes[0]
-    hb = ax.hist2d(true_x, pred_x, bins=50, cmap='viridis')
-    fig.colorbar(hb[3], ax=ax)
-    ax.plot([true_x.min(), true_x.max()], [true_x.min(), true_x.max()], 'r--', label='Perfect prediction')
-    ax.set_xlabel('True X position')
-    ax.set_ylabel('Predicted X position')
-    ax.set_title('Decoded X: Predicted vs True')
-    ax.legend()
-    ax.grid(True)
-    ax.set_aspect('equal')
-
-    # ---- Y position ----
-    ax = axes[1]
-    hb = ax.hist2d(true_y, pred_y, bins=50, cmap='viridis')
-    fig.colorbar(hb[3], ax=ax)
-    ax.plot([true_y.min(), true_y.max()], [true_y.min(), true_y.max()], 'r--', label='Perfect prediction')
-    ax.set_xlabel('True Y position')
-    ax.set_ylabel('Predicted Y position')
-    ax.set_title('Decoded Y: Predicted vs True')
-    ax.legend()
-    ax.grid(True)
-    ax.set_aspect('equal')
-
+    plt.figure(figsize=(8, 4))
+    plt.hist(shuffled_values, bins=bins, alpha=0.7, color='gray', edgecolor='black', label='randomly assigned spikes')
+    plt.axvline(real_value, color='orange', linewidth=5, label=f'Real SI = {real_value:.2f}')
+    plt.title(f'Spatial Info Shuffle Distribution for Cell_{cell}')
+    plt.xlabel('Spatial Information (bits/spike)')
+    plt.ylabel('Count')
+    plt.legend()
     plt.tight_layout()
     plt.show()
 
-    errors = np.linalg.norm(Y_true - Y_pred, axis=1)
-    print(f"Mean decoding error: {errors.mean():.2f} pixels")
-
-
-X, Y = prep_data(main_df, place_cells)
-train_loader, test_loader = create_tensors(X, Y)
-model = PositionDecoder(input_dim=X.shape[1])
-trained_model = train_model(model, train_loader)
-Y_pred, Y_true = evaluate_model(model, test_loader)
-plot_true_vs_pred_coords(Y_true, Y_pred)
-
+#plot_spikes(main_df, x_edges, y_edges, [30,28,8,31])
+#plot_spikes_heatmap(main_df, 175, sigma=4)
+#plot_histogram(175, spatial_info_real, spatial_info_shuffled)
 
 
 
 #%%
+# NEURAL NETWORK
+
+def ffn(main_df, place_cells):
+
+    def prep_data(main_df, place_cells, sampling_rate=10, bin_size=1.0, min_active_cells=2):
+
+        # downsample the df to have relyable neuronal info per timepoint
+        frames_per_bin = int(bin_size * sampling_rate)
+        position_cols = ['head_x', 'head_y']
+        n_bins = len(main_df) // frames_per_bin
+
+        df_binned = []
+        for i in range(n_bins):
+            start = i * frames_per_bin
+            end = (i + 1) * frames_per_bin
+            segment = main_df.iloc[start:end]
+
+            spike_sums = segment[place_cells].sum()
+            position_avg = segment[position_cols].mean()
+
+            binned_row = pd.concat([spike_sums, position_avg])
+            df_binned.append(binned_row)
+
+        df_binned = pd.DataFrame(df_binned)
+
+        # only include timepoints with >= x active cells
+        active_rows = (df_binned[place_cells] > 0).sum(axis=1) >= min_active_cells
+        df_binned = df_binned[active_rows]
+
+        # create inputs& outputs
+        X = df_binned[place_cells].values.astype(np.float32)
+        Y = df_binned[position_cols].values.astype(np.float32)
+
+        return X, Y
+
+    def create_tensors(X, Y, test_size=0.2):
+        # split data into train/test
+        X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=test_size, random_state=42)
+
+        # convert to PyTorch tensors
+        X_train_tensor = torch.tensor(X_train, dtype=torch.float32)
+        Y_train_tensor = torch.tensor(Y_train, dtype=torch.float32)
+        X_test_tensor  = torch.tensor(X_test, dtype=torch.float32)
+        Y_test_tensor  = torch.tensor(Y_test, dtype=torch.float32)
+
+        # create datasets
+        train_dataset = TensorDataset(X_train_tensor, Y_train_tensor)
+        test_dataset = TensorDataset(X_test_tensor, Y_test_tensor)
+
+        # create dataloaders
+        train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
+        test_loader = DataLoader(test_dataset, batch_size=32)
+
+        return train_loader, test_loader
+
+    class PositionDecoder(nn.Module):
+        def __init__(self, input_dim, hidden_dim=64):
+            super(PositionDecoder, self).__init__()
+            self.net = nn.Sequential(
+                nn.Linear(input_dim, hidden_dim),   # layer_1: input -> hidden
+                nn.ReLU(),
+                nn.Linear(hidden_dim, hidden_dim),  # layer_2: hidden -> hidden
+                nn.ReLU(),
+                nn.Linear(hidden_dim, 2)            # layer_3: hidden -> output (x,y)
+            )
+
+        def forward(self, x):
+            return self.net(x)
+
+    def train_model(model, train_loader, n_epochs=200, lr=1e-3, verbose=True):
+
+        # Set device
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        model = model.to(device)
+
+        # Loss and optimizer
+        criterion = nn.MSELoss()
+        optimizer = optim.Adam(model.parameters(), lr=lr)
+
+        # log to check later
+        train_losses, test_losses = [], []
+
+        # Training loop
+        for epoch in range(n_epochs):
+
+            # train model
+            model.train()
+            total_train_loss = 0
+            for batch_X, batch_Y in train_loader:
+                batch_X = batch_X.to(device)
+                batch_Y = batch_Y.to(device)
+                optimizer.zero_grad()
+                outputs = model(batch_X)
+                loss = criterion(outputs, batch_Y)
+                loss.backward()
+                optimizer.step()
+                total_train_loss  += loss.item()
+            avg_train_loss = total_train_loss / len(train_loader)
+            train_losses.append(avg_train_loss)
+        
+            # test model
+            model.eval()
+            total_test_loss = 0
+            with torch.no_grad():
+                for batch_X, batch_Y in test_loader:
+                    batch_X, batch_Y = batch_X.to(device), batch_Y.to(device)
+                    outputs = model(batch_X)
+                    loss = criterion(outputs, batch_Y)
+                    total_test_loss += loss.item()
+            avg_test_loss = total_test_loss / len(test_loader)
+            test_losses.append(avg_test_loss)
+        
+            # this outputs the squared px, so the root would be the actual pixel difference
+            if verbose and (epoch % 10 == 0 or epoch == n_epochs - 1):
+                print(f"Epoch {epoch:03d} | Train_RMSE: {avg_train_loss**0.5:.2f}px | Test_RMSE: {avg_test_loss**0.5:.2f}px")
+        
+        # plot training log
+        plt.plot(np.sqrt(train_losses), label='Train_RMSE')
+        plt.plot(np.sqrt(test_losses), label='Test_RMSE')
+        plt.xlabel("Epoch")
+        plt.ylabel("RMSE [px]")
+        plt.legend()
+        plt.grid(True)
+        plt.tight_layout()
+        plt.show()
+
+        return model
+
+    def evaluate_model(model, test_loader):
+
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+        model.eval()
+        all_preds = []
+        all_targets = []
+
+        with torch.no_grad():
+            for batch_X, batch_Y in test_loader:
+                batch_X = batch_X.to(device)
+                batch_Y = batch_Y.to(device)
+
+                preds = model(batch_X)
+                all_preds.append(preds.cpu())
+                all_targets.append(batch_Y.cpu())
+
+        # Combine all batches into arrays
+        Y_pred = torch.cat(all_preds).numpy()
+        Y_true = torch.cat(all_targets).numpy()
+
+        return Y_pred, Y_true
+
+    def plot_true_vs_pred_coords(Y_true, Y_pred):
+
+        true_x = Y_true[:, 0]
+        pred_x = Y_pred[:, 0]
+        true_y = Y_true[:, 1]
+        pred_y = Y_pred[:, 1]
+
+        fig, axes = plt.subplots(1, 2, figsize=(12, 6), sharex=False, sharey=False)
+
+        # ---- X position ----
+        ax = axes[0]
+        hb = ax.hist2d(true_x, pred_x, bins=50, cmap='viridis')
+        #fig.colorbar(hb[3], ax=ax)
+        ax.plot([true_x.min(), true_x.max()], [true_x.min(), true_x.max()], 'r--', label='Perfect prediction')
+        ax.set_xlabel('True X position')
+        ax.set_ylabel('Predicted X position')
+        ax.set_title('Decoded X: Predicted vs True')
+        ax.legend()
+        ax.grid(True)
+        ax.set_aspect('equal')
+
+        # ---- Y position ----
+        ax = axes[1]
+        hb = ax.hist2d(true_y, pred_y, bins=50, cmap='viridis')
+        fig.colorbar(hb[3], ax=ax)
+        ax.plot([true_y.min(), true_y.max()], [true_y.min(), true_y.max()], 'r--', label='Perfect prediction')
+        ax.set_xlabel('True Y position')
+        ax.set_ylabel('Predicted Y position')
+        ax.set_title('Decoded Y: Predicted vs True')
+        ax.legend()
+        ax.grid(True)
+        ax.set_aspect('equal')
+
+        plt.tight_layout()
+        plt.show()
+
+        errors = np.linalg.norm(Y_true - Y_pred, axis=1)
+        print(f"Mean decoding error: {errors.mean():.2f} pixels")
 
 
+    X, Y = prep_data(main_df, place_cells)
+    train_loader, test_loader = create_tensors(X, Y)
+    model = PositionDecoder(input_dim=X.shape[1])
+    trained_model = train_model(model, train_loader)
+    Y_pred, Y_true = evaluate_model(trained_model, test_loader)
+    plot_true_vs_pred_coords(Y_true, Y_pred)
 
-
-# PLOT evaluation
-plt.figure(figsize=(8, 8))
-plt.scatter(Y_true[:, 0], Y_true[:, 1], color='black', alpha=0.3, label='True Position')
-plt.scatter(Y_pred[:, 0], Y_pred[:, 1], color='red', alpha=0.3, label='Predicted Position')
-plt.xlabel('Head X')
-plt.ylabel('Head Y')
-plt.title('Decoded Position vs Ground Truth')
-plt.legend()
-plt.axis('equal')
-plt.grid(True)
-plt.show()
-
-errors = np.linalg.norm(Y_true - Y_pred, axis=1)
-print(f"Mean decoding error: {errors.mean():.2f} pixels")
-
+ffn(main_df, place_cells)
