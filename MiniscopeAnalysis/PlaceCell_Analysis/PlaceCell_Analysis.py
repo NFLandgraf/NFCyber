@@ -13,7 +13,7 @@ import torch.nn as nn
 import torch.optim as optim
 
 data_prefix = 'C:\\Users\\nicol\\Desktop\\m90\\2024-10-31-16-52-47_CA1-m90_OF_'
-data_prefix = 'm90_2024-10-31_OF\\2024-10-31-16-52-47_CA1-m90_OF_'
+data_prefix = 'C:\\Users\\landgrafn\\Desktop\\m90\\2024-10-31-16-52-47_CA1-m90_OF_'
 
 file_traces =   data_prefix + 'traces.csv'
 file_DLC    =   data_prefix + 'DLC.csv'
@@ -230,7 +230,7 @@ def bin_cellspikes(main_df, n_bins=3):
 
     return place_df, x_edges, y_edges
 
-def identify_place_cells(main_df, place_df, fps=10, n_shuffles=1000, significance_level=0.01):
+def identify_place_cells(main_df, place_df, fps=10, n_shuffles=1000, significance_level=0.05):
     '''
     Computing spatial information via Skaggs formula:
     SI = ∑i ⋅ pi ⋅ ri/r ⋅ log2(ri/r)
@@ -412,7 +412,7 @@ def plot_histogram(cell, spatial_info_real, spatial_info_shuffled, bins=30):
 
 def ffn(main_df, place_cells):
 
-    def prep_data(main_df, place_cells, sampling_rate=10, bin_size=1.0, min_active_cells=2):
+    def prep_data(main_df, place_cells, min_active_cells, sampling_rate=10, bin_size=1.0):
 
         # downsample the df to have relyable neuronal info per timepoint
         frames_per_bin = int(bin_size * sampling_rate)
@@ -432,12 +432,12 @@ def ffn(main_df, place_cells):
             df_binned.append(binned_row)
 
         df_binned = pd.DataFrame(df_binned)
-
+        print(f'min0 frames: {pd.shape(df_binned)}')
+        
         # only include timepoints with >= x active cells
         active_rows = (df_binned[place_cells] > 0).sum(axis=1) >= min_active_cells
         df_binned = df_binned[active_rows]
-
-        # create inputs& outputs
+        print(f'min{min_active_cells} frames: {pd.shape(df_binned)}')
         X = df_binned[place_cells].values.astype(np.float32)
         Y = df_binned[position_cols].values.astype(np.float32)
 
@@ -469,6 +469,14 @@ def ffn(main_df, place_cells):
         full_dataset = TensorDataset(torch.tensor(X, dtype=torch.float32), torch.tensor(Y, dtype=torch.float32))
         full_loader = DataLoader(full_dataset, batch_size=32, shuffle=True)
         return full_loader
+    def create_tensors_shuffled(X, Y):
+
+        # shuffle the data to create a negative control        
+        Y_shuffled = np.random.permutation(Y)
+        shuffled_dataset = TensorDataset(torch.tensor(X, dtype=torch.float32), torch.tensor(Y_shuffled, dtype=torch.float32))
+        shuffled_loader = DataLoader(shuffled_dataset, batch_size=32, shuffle=True)
+
+        return shuffled_loader
 
     class PositionDecoder(nn.Module):
         def __init__(self, input_dim, hidden_dim=64):
@@ -484,7 +492,7 @@ def ffn(main_df, place_cells):
         def forward(self, x):
             return self.net(x)
 
-    def train_model(model, train_loader, test_loader, n_epochs=1000, lr=1e-3, verbose=True):
+    def train_model(train_loader, test_loader, model, n_epochs=1000, lr=1e-3, verbose=True):
 
         # Set device
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -543,7 +551,7 @@ def ffn(main_df, place_cells):
 
         return model
 
-    def evaluate_model(model, test_loader):
+    def test_model(model, test_loader):
 
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -577,9 +585,11 @@ def ffn(main_df, place_cells):
 
         # ---- X position ----
         ax = axes[0]
-        hb = ax.hist2d(true_x, pred_x, bins=50, cmap='viridis')
-        #fig.colorbar(hb[3], ax=ax)
-        ax.plot([true_x.min(), true_x.max()], [true_x.min(), true_x.max()], 'r--', label='Perfect prediction')
+        hb = ax.hist2d(true_x, pred_x, bins=25, cmap='viridis')
+        fig.colorbar(hb[3], ax=ax)
+        ax.plot([true_x.min(), true_x.max()], [true_x.min(), true_x.max()], c='r', linestyle=':', label='Perfect prediction')
+        # ax.set_xlim(30, 630)
+        # ax.set_ylim(0, 600)
         ax.set_xlabel('True X position')
         ax.set_ylabel('Predicted X position')
         ax.set_title('Decoded X: Predicted vs True')
@@ -591,7 +601,9 @@ def ffn(main_df, place_cells):
         ax = axes[1]
         hb = ax.hist2d(true_y, pred_y, bins=50, cmap='viridis')
         fig.colorbar(hb[3], ax=ax)
-        ax.plot([true_y.min(), true_y.max()], [true_y.min(), true_y.max()], 'r--', label='Perfect prediction')
+        ax.plot([true_y.min(), true_y.max()], [true_y.min(), true_y.max()], c='r', linestyle=':', label='Perfect prediction')
+        # ax.set_xlim(30, 630)
+        # ax.set_ylim(0, 600)
         ax.set_xlabel('True Y position')
         ax.set_ylabel('Predicted Y position')
         ax.set_title('Decoded Y: Predicted vs True')
@@ -606,17 +618,75 @@ def ffn(main_df, place_cells):
         print(f"Mean decoding error: {errors.mean():.2f} pixels")
 
 
-    X, Y = prep_data(main_df, place_cells)
-    train_loader, test_loader = create_tensors_split(X, Y)
-    full_loader = create_tensors_whole(X, Y)
-    model = PositionDecoder(input_dim=X.shape[1])
-
-    trained_model = train_model(model, full_loader, full_loader)
-    Y_pred, Y_true = evaluate_model(trained_model, full_loader)
+    X_min0, Y_min0 = prep_data(main_df, place_cells, min_active_cells=0)
+    X_min1, Y_min1 = prep_data(main_df, place_cells, min_active_cells=1)
+    X_min2, Y_min2 = prep_data(main_df, place_cells, min_active_cells=2)
+    full_loader_min0 = create_tensors_whole(X_min0, Y_min0)
+    full_loader_min1 = create_tensors_whole(X_min1, Y_min1)
+    full_loader_min2 = create_tensors_whole(X_min2, Y_min2)
+    shuffled_loader = create_tensors_shuffled(X_min1, Y_min1)
+    
+    model = PositionDecoder(input_dim=X_min1.shape[1])
+    trained_model = train_model(full_loader_min1, full_loader_min0, model)
+    Y_pred, Y_true = test_model(trained_model, full_loader_min0)
     plot_true_vs_pred_coords(Y_true, Y_pred)
 
-ffn(main_df, place_cells)
+    return Y_pred, Y_true, trained_model
 
+Y_pred, Y_true, trained_model = ffn(main_df, place_cells)
+
+
+#%%
+from scipy.interpolate import interp1d
+
+# Assume Y_true and Y_pred are both [n_frames, 2] at 1 Hz
+n_frames = len(Y_true)
+frame_rate = 30  # output video frame rate (Hz)
+duration_sec = n_frames  # because data is 1Hz
+new_n_frames = frame_rate * duration_sec
+
+# Interpolate both to 30Hz
+time_original = np.linspace(0, duration_sec, n_frames)
+time_interp = np.linspace(0, duration_sec, new_n_frames)
+
+interp_true = interp1d(time_original, Y_true, axis=0, kind='linear')
+interp_pred = interp1d(time_original, Y_pred, axis=0, kind='linear')
+
+Y_true_30hz = interp_true(time_interp)
+Y_pred_30hz = interp_pred(time_interp)
+
+# Y_pred_30hz = np.repeat(Y_pred, frame_rate, axis=0)
+# Y_pred_30hz = np.roll(Y_pred_30hz, shift=-15, axis=0)
+
+# Set up video writer
+video_size = (600, 600)
+out = cv2.VideoWriter("decoded_trajectory.mp4", cv2.VideoWriter_fourcc(*'mp4v'), frame_rate, video_size)
+
+# Generate frames
+for i in tqdm(range(1000)):
+    fig, ax = plt.subplots(figsize=(8, 8))
+    ax.set_xlim(30, 630)
+    ax.set_ylim(0, 600)
+    ax.set_aspect('equal')
+
+    #ax.plot(Y_true_30hz[:i+1, 0], Y_true_30hz[:i+1, 1], 'k', label='True', linewidth=2, alpha=0.7)
+    #ax.plot(Y_pred_30hz[:i+1, 0], Y_pred_30hz[:i+1, 1], 'r--', label='Predicted', linewidth=2, alpha=0.7)
+    ax.scatter(Y_pred_30hz[i, 0], Y_pred_30hz[i, 1], color='red', s=500, alpha=0.5, label='True')
+    ax.scatter(Y_true_30hz[i, 0], Y_true_30hz[i, 1], color='black', s=100, label='Predicted')
+    ax.set_title(f"Frame {i+1} / {n_frames}")
+    ax.legend()
+
+    # Render plot to image
+    fig.canvas.draw()
+    frame = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
+    frame = frame.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+    frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+
+    out.write(cv2.resize(frame_bgr, video_size))
+    plt.close(fig)
+
+out.release()
+print("✅ Video saved as 'decoded_trajectory.mp4'")
 
 
 
@@ -627,8 +697,10 @@ ffn(main_df, place_cells)
 '''
 Next steps:
 - create video that shows the animal and the predicted position
-- create model on shuffled data as neg control
-- create model on non-place cells as neg control
+- create model on non-place cells as neg control (problem is that they are a lot less)
+- regarding the problem with frames that have no cells spiking: maybe we can let cells "spill" over into the next frame
+  maybe 0.5 into the previous & next frame (not digital anymore but we dont care)
+- get the p-value of the decoder, so we can find the best decoder
 
 
 '''
