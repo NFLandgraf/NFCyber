@@ -3,7 +3,6 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from sklearn.cluster import DBSCAN
 import cv2
 from tqdm import tqdm
 from scipy.ndimage import gaussian_filter
@@ -14,6 +13,7 @@ import torch.nn as nn
 import torch.optim as optim
 
 data_prefix = 'C:\\Users\\nicol\\Desktop\\m90\\2024-10-31-16-52-47_CA1-m90_OF_'
+data_prefix = 'm90_2024-10-31_OF\\2024-10-31-16-52-47_CA1-m90_OF_'
 
 file_traces =   data_prefix + 'traces.csv'
 file_DLC    =   data_prefix + 'DLC.csv'
@@ -203,7 +203,6 @@ def combine_data(file_traces, file_DLC, file_TTL, file_video):
     return main_df
 
 main_df = combine_data(file_traces, file_DLC, file_TTL, file_video)
-
 
 
 #%%
@@ -444,7 +443,7 @@ def ffn(main_df, place_cells):
 
         return X, Y
 
-    def create_tensors(X, Y, test_size=0.2):
+    def create_tensors_split(X, Y, test_size=0.2):
         # split data into train/test
         X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=test_size, random_state=42)
 
@@ -463,6 +462,13 @@ def ffn(main_df, place_cells):
         test_loader = DataLoader(test_dataset, batch_size=32)
 
         return train_loader, test_loader
+    def create_tensors_whole(X, Y):
+        # as we just want to proove that you can predict the position by looking at the neuronal activity,
+        # we don't need to split the data into train/test, just use the whole dataset
+
+        full_dataset = TensorDataset(torch.tensor(X, dtype=torch.float32), torch.tensor(Y, dtype=torch.float32))
+        full_loader = DataLoader(full_dataset, batch_size=32, shuffle=True)
+        return full_loader
 
     class PositionDecoder(nn.Module):
         def __init__(self, input_dim, hidden_dim=64):
@@ -478,7 +484,7 @@ def ffn(main_df, place_cells):
         def forward(self, x):
             return self.net(x)
 
-    def train_model(model, train_loader, n_epochs=200, lr=1e-3, verbose=True):
+    def train_model(model, train_loader, test_loader, n_epochs=1000, lr=1e-3, verbose=True):
 
         # Set device
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -601,10 +607,28 @@ def ffn(main_df, place_cells):
 
 
     X, Y = prep_data(main_df, place_cells)
-    train_loader, test_loader = create_tensors(X, Y)
+    train_loader, test_loader = create_tensors_split(X, Y)
+    full_loader = create_tensors_whole(X, Y)
     model = PositionDecoder(input_dim=X.shape[1])
-    trained_model = train_model(model, train_loader)
-    Y_pred, Y_true = evaluate_model(trained_model, test_loader)
+
+    trained_model = train_model(model, full_loader, full_loader)
+    Y_pred, Y_true = evaluate_model(trained_model, full_loader)
     plot_true_vs_pred_coords(Y_true, Y_pred)
 
 ffn(main_df, place_cells)
+
+
+
+
+#%%
+
+
+
+'''
+Next steps:
+- create video that shows the animal and the predicted position
+- create model on shuffled data as neg control
+- create model on non-place cells as neg control
+
+
+'''
