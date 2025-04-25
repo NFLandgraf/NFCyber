@@ -6,11 +6,13 @@ import matplotlib.pyplot as plt
 import cv2
 from tqdm import tqdm
 from scipy.ndimage import gaussian_filter
+from scipy.interpolate import interp1d
 from sklearn.model_selection import train_test_split
 from torch.utils.data import TensorDataset, DataLoader
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import csv
 
 data_prefix = 'C:\\Users\\nicol\\Desktop\\m90\\2024-10-31-16-52-47_CA1-m90_OF_'
 data_prefix = 'C:\\Users\\landgrafn\\Desktop\\m90\\2024-10-31-16-52-47_CA1-m90_OF_'
@@ -18,9 +20,8 @@ data_prefix = 'C:\\Users\\landgrafn\\Desktop\\m90\\2024-10-31-16-52-47_CA1-m90_O
 file_traces =   data_prefix + 'traces.csv'
 file_DLC    =   data_prefix + 'DLC.csv'
 file_TTL    =   data_prefix + 'GPIO.csv'
-file_video  =   data_prefix + 'DLC_labeled.mp4'
+file_video  =   data_prefix + 'DLC_trim_transparent.mp4'
 file_events =   data_prefix + 'traces_events.csv'
-
 
 def combine_data(file_traces, file_DLC, file_TTL, file_video):
     # this def collects all raw data (traces, DLC, TTL, video) and synchronies them in one big df
@@ -51,6 +52,7 @@ def combine_data(file_traces, file_DLC, file_TTL, file_video):
             df_z[name] = (df_z[name] - df_z[name].mean()) / df_z[name].std()    
 
         #df_z = df_z[[175]]
+        df_z.to_csv('zscore.csv')
 
         return df_dff, df_z
 
@@ -84,7 +86,7 @@ def combine_data(file_traces, file_DLC, file_TTL, file_video):
 
         return df_combined
 
-    def get_behav(file_DLC, file_TTL, main_df, file_video):
+    def get_behav(file_DLC, file_TTL, main_df, file_video, mirrorY=False):
         # if you filmed, you will have a video file (DLC file) and TTLs in the GPIO file
         # this def gets the DLC animal position and synchronizes it with the Inspx time
 
@@ -113,10 +115,10 @@ def combine_data(file_traces, file_DLC, file_TTL, file_video):
             high_times = list(zip(onsets, offsets)) if not constant else list(onsets)
             #print(f'{len(high_times)} total events')
 
-            # if print_csv:
-            #     with open(output, 'w') as f:
-            #         wr = csv.writer(f, quoting=csv.QUOTE_ALL)
-            #         wr.writerow(high_times)
+            
+            with open('tttls and stuff.csv', 'w') as f:
+                wr = csv.writer(f, quoting=csv.QUOTE_ALL)
+                wr.writerow(high_times)
 
             return high_times
         def get_video_dims(file_video):
@@ -164,12 +166,13 @@ def combine_data(file_traces, file_DLC, file_TTL, file_video):
             df[f'head{c}'] = df[[bp+c for bp in bps_head]].mean(axis=1, skipna=True)
             df[f'postbody{c}'] = df[[bp+c for bp in bps_postbody]].mean(axis=1, skipna=True)
 
-        # mirror y and forget everything except head and postbody
-        width, height = get_video_dims(file_video)
-        for bp in ['head', 'postbody']:
-            df[f'{bp}_y'] = height - df[f'{bp}_y']
+        if mirrorY:
+            # mirror y and forget everything except head and postbody
+            width, height = get_video_dims(file_video)
+            for bp in ['head', 'postbody']:
+                df[f'{bp}_y'] = height - df[f'{bp}_y']
         df_behav = df[['head_x', 'head_y', 'postbody_x', 'postbody_y']].copy()
-
+        
         # as an index for behavior, you have the frame number and the INSPX master time
         TTLs_high_times = clean_TTLs(file_TTL)
         df_behav['Time'] = TTLs_high_times[:-1]
@@ -181,7 +184,7 @@ def combine_data(file_traces, file_DLC, file_TTL, file_video):
             df_behav[col] = df_behav[col].interpolate(method='linear', limit_area='inside')
         df_behav = df_behav.round(1)
 
-        # makes index a regular column (necessary for merging) and merge
+        # makes index a regular column (necessary for merging) and merge iwht main_df
         main_df = main_df.reset_index()
         df_behav = df_behav.reset_index()
         main_df = pd.merge_asof(main_df, df_behav, on='Time', direction='nearest')
@@ -333,6 +336,7 @@ spatial_info_real, spatial_info_shuffled, place_cells, p_values = identify_place
 print(f'{len(place_cells)} place cells')
 
 
+#%%
 # PLOT
 def plot_spikes(main_df, x_edges, y_edges, cells):
 
@@ -352,17 +356,17 @@ def plot_spikes(main_df, x_edges, y_edges, cells):
     plt.ylim(0,600)
     plt.legend()
     plt.show()
-def plot_spikes_heatmap(main_df, cell, bins=200, blur=4):
+def plot_spikes_heatmap(main_df, cell, i, bins=200, blur=4):
 
     # creates the wanted grid
-    x_edges = np.linspace(0, 660, bins)
+    x_edges = np.linspace(0, 600, bins)
     y_edges = np.linspace(0, 600, bins)
 
     # plot spikes heatmap on arena
     spike_heatmap = np.zeros((len(y_edges)-1, len(x_edges)-1))
 
     # accumulate spike counts into the heatmap
-    spike_rows = main_df[main_df[f'{cell}_spike'] != 0]
+    spike_rows = main_df[main_df[f'{cell}'] != 0]
     x = spike_rows['head_x']
     y = spike_rows['head_y']
     
@@ -373,17 +377,21 @@ def plot_spikes_heatmap(main_df, cell, bins=200, blur=4):
     blurred_heatmap = gaussian_filter(spike_heatmap, sigma=blur)
 
     plt.figure(figsize=(8, 8))
-    plt.imshow(blurred_heatmap, origin='lower',extent=[x_edges[0], x_edges[-1], y_edges[0], y_edges[-1]], cmap='hot',alpha=0.8)
-    #plt.colorbar(label='Spike count')
-    plt.plot(main_df['head_x'], main_df['head_y'], alpha=0.3, color='grey', zorder=1)
+    plt.plot(main_df['head_x'], main_df['head_y'], alpha=0.4, color='grey', zorder=2)
+    plt.imshow(blurred_heatmap, origin='lower',extent=[x_edges[0], x_edges[-1], y_edges[0], y_edges[-1]], cmap='hot',alpha=0.8, zorder=1)
 
-    plt.title(f"Spike heatmap for cell_{cell}")
-    plt.xlabel("X position")
-    plt.ylabel("Y position")
+    plt.gca().set_xticks([])  # no x ticks
+    plt.gca().set_yticks([])  # no y ticks
+    plt.gca().set_frame_on(False)  # remove box around plot
+    plt.axis('off')
+
+    plt.title(f'Cell {cell.replace('_spike', '')}')
     plt.xlim(x_edges[0], x_edges[-1])
     plt.ylim(y_edges[0], y_edges[-1])
+    
     plt.gca().set_aspect('equal')
-    plt.show()
+    plt.tight_layout(pad=0)
+    plt.savefig(f"{i}.png", bbox_inches='tight', pad_inches=0, dpi=300)
 def plot_histogram(cell, spatial_info_real, spatial_info_shuffled, bins=30):
 
     # plots histogram that shows the true SI and the shuffled data
@@ -400,16 +408,52 @@ def plot_histogram(cell, spatial_info_real, spatial_info_shuffled, bins=30):
     plt.legend()
     plt.tight_layout()
     plt.show()
+def draw_position_on_video(df, file_video):
+
+    head_x = df["head_x"].values
+    head_y = df["head_y"].values
+
+    cap = cv2.VideoCapture(file_video)
+    video_nframes = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    video_fps = cap.get(cv2.CAP_PROP_FPS)
+    video_width  = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    video_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    video_duration = int(video_nframes / video_fps)
+    print(f'VIDEO duration: {video_duration}s, frames: {video_nframes}, fps: {video_fps}')
+
+    file_output = "position_overlay.mp4"
+    out = cv2.VideoWriter(file_output, cv2.VideoWriter_fourcc(*'mp4v'), video_fps, (video_width, video_height))
+
+    for frame_idx in tqdm(range(600)):
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        if frame_idx < len(head_x):
+            if not np.isnan(head_x[frame_idx]):
+                x = int(head_x[frame_idx])
+                y = int(head_y[frame_idx])
+                cv2.circle(frame, (x, y), 10, (0, 255, 0), -1)  # Green dot for position
+
+        out.write(frame)
+
+    cap.release()
+    out.release()
+    print("✅ Video with position overlay saved as 'position_overlay_first100.mp4'")
+
+# print every heatmap for the place cells
+sorted_items = sorted(spatial_info_real.items(), key=lambda item: item[1], reverse=True)
+for i, (cell, value) in enumerate(sorted_items):
+    plot_spikes_heatmap(main_df, cell, i, bins=200, blur=10)
+
 
 #plot_spikes(main_df, x_edges, y_edges, [30,28,8,31])
 #plot_spikes_heatmap(main_df, 175, sigma=4)
 #plot_histogram(175, spatial_info_real, spatial_info_shuffled)
 
 
-
 #%%
 # NEURAL NETWORK
-
 def ffn(main_df, place_cells):
 
     def prep_data(main_df, place_cells, min_active_cells, sampling_rate=10, bin_size=1.0):
@@ -432,12 +476,10 @@ def ffn(main_df, place_cells):
             df_binned.append(binned_row)
 
         df_binned = pd.DataFrame(df_binned)
-        print(f'min0 frames: {pd.shape(df_binned)}')
         
         # only include timepoints with >= x active cells
         active_rows = (df_binned[place_cells] > 0).sum(axis=1) >= min_active_cells
         df_binned = df_binned[active_rows]
-        print(f'min{min_active_cells} frames: {pd.shape(df_binned)}')
         X = df_binned[place_cells].values.astype(np.float32)
         Y = df_binned[position_cols].values.astype(np.float32)
 
@@ -458,17 +500,24 @@ def ffn(main_df, place_cells):
         test_dataset = TensorDataset(X_test_tensor, Y_test_tensor)
 
         # create dataloaders
-        train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
+        train_loader = DataLoader(train_dataset, batch_size=32, shuffle=False)
         test_loader = DataLoader(test_dataset, batch_size=32)
 
         return train_loader, test_loader
+    
     def create_tensors_whole(X, Y):
         # as we just want to proove that you can predict the position by looking at the neuronal activity,
         # we don't need to split the data into train/test, just use the whole dataset
-
         full_dataset = TensorDataset(torch.tensor(X, dtype=torch.float32), torch.tensor(Y, dtype=torch.float32))
-        full_loader = DataLoader(full_dataset, batch_size=32, shuffle=True)
-        return full_loader
+
+        # for training, the rows must be shuffled around (without breaking the X-Y pairing)
+        full_loader_train = DataLoader(full_dataset, batch_size=32, shuffle=True)
+
+        # for test, shuffle must be False, otherwise it is not the correct time series anymore
+        full_loader_test = DataLoader(full_dataset, batch_size=32, shuffle=False)
+
+        return full_loader_train, full_loader_test
+    
     def create_tensors_shuffled(X, Y):
 
         # shuffle the data to create a negative control        
@@ -618,17 +667,13 @@ def ffn(main_df, place_cells):
         print(f"Mean decoding error: {errors.mean():.2f} pixels")
 
 
-    X_min0, Y_min0 = prep_data(main_df, place_cells, min_active_cells=0)
-    X_min1, Y_min1 = prep_data(main_df, place_cells, min_active_cells=1)
-    X_min2, Y_min2 = prep_data(main_df, place_cells, min_active_cells=2)
-    full_loader_min0 = create_tensors_whole(X_min0, Y_min0)
-    full_loader_min1 = create_tensors_whole(X_min1, Y_min1)
-    full_loader_min2 = create_tensors_whole(X_min2, Y_min2)
-    shuffled_loader = create_tensors_shuffled(X_min1, Y_min1)
+    X, Y = prep_data(main_df, place_cells, min_active_cells=0)
+    full_loader_train, full_loader_test = create_tensors_whole(X, Y)
+    shuffled_loader_train = create_tensors_shuffled(X, Y)
     
-    model = PositionDecoder(input_dim=X_min1.shape[1])
-    trained_model = train_model(full_loader_min1, full_loader_min0, model)
-    Y_pred, Y_true = test_model(trained_model, full_loader_min0)
+    model = PositionDecoder(input_dim=X.shape[1])
+    trained_model = train_model(full_loader_train, full_loader_test, model)
+    Y_pred, Y_true = test_model(trained_model, full_loader_test)
     plot_true_vs_pred_coords(Y_true, Y_pred)
 
     return Y_pred, Y_true, trained_model
@@ -637,56 +682,119 @@ Y_pred, Y_true, trained_model = ffn(main_df, place_cells)
 
 
 #%%
-from scipy.interpolate import interp1d
+# VIDEO FEEDBACK
+def video_TrueandPred(Y_true, Y_pred):
+    # creates video in coordinate system of the animal, showing true and predicted position
 
-# Assume Y_true and Y_pred are both [n_frames, 2] at 1 Hz
-n_frames = len(Y_true)
-frame_rate = 30  # output video frame rate (Hz)
-duration_sec = n_frames  # because data is 1Hz
-new_n_frames = frame_rate * duration_sec
+    # Assume Y_true and Y_pred are both [n_frames, 2] at 1 Hz
+    n_frames = len(Y_true)
+    frame_rate = 30  # output video frame rate (Hz)
+    duration_sec = n_frames  # because data is 1Hz
+    new_n_frames = frame_rate * duration_sec
 
-# Interpolate both to 30Hz
-time_original = np.linspace(0, duration_sec, n_frames)
-time_interp = np.linspace(0, duration_sec, new_n_frames)
+    # Interpolate both to 30Hz
+    time_original = np.linspace(0, duration_sec, n_frames)
+    time_interp = np.linspace(0, duration_sec, new_n_frames)
 
-interp_true = interp1d(time_original, Y_true, axis=0, kind='linear')
-interp_pred = interp1d(time_original, Y_pred, axis=0, kind='linear')
+    interp_true = interp1d(time_original, Y_true, axis=0, kind='linear')
+    interp_pred = interp1d(time_original, Y_pred, axis=0, kind='linear')
 
-Y_true_30hz = interp_true(time_interp)
-Y_pred_30hz = interp_pred(time_interp)
+    Y_true_30hz = interp_true(time_interp)
+    Y_pred_30hz = interp_pred(time_interp)
 
-# Y_pred_30hz = np.repeat(Y_pred, frame_rate, axis=0)
-# Y_pred_30hz = np.roll(Y_pred_30hz, shift=-15, axis=0)
+    # Y_pred_30hz = np.repeat(Y_pred, frame_rate, axis=0)
+    # Y_pred_30hz = np.roll(Y_pred_30hz, shift=-15, axis=0)
 
-# Set up video writer
-video_size = (600, 600)
-out = cv2.VideoWriter("decoded_trajectory.mp4", cv2.VideoWriter_fourcc(*'mp4v'), frame_rate, video_size)
+    # Set up video writer
+    video_size = (600, 600)
+    out = cv2.VideoWriter("decoded_trajectory_long.mp4", cv2.VideoWriter_fourcc(*'mp4v'), frame_rate, video_size)
 
-# Generate frames
-for i in tqdm(range(1000)):
-    fig, ax = plt.subplots(figsize=(8, 8))
-    ax.set_xlim(30, 630)
-    ax.set_ylim(0, 600)
-    ax.set_aspect('equal')
+    # Generate frames
+    for i in tqdm(range(int())):
+        fig, ax = plt.subplots(figsize=(8, 8))
+        ax.set_xlim(30, 630)
+        ax.set_ylim(0, 600)
+        ax.set_aspect('equal')
 
-    #ax.plot(Y_true_30hz[:i+1, 0], Y_true_30hz[:i+1, 1], 'k', label='True', linewidth=2, alpha=0.7)
-    #ax.plot(Y_pred_30hz[:i+1, 0], Y_pred_30hz[:i+1, 1], 'r--', label='Predicted', linewidth=2, alpha=0.7)
-    ax.scatter(Y_pred_30hz[i, 0], Y_pred_30hz[i, 1], color='red', s=500, alpha=0.5, label='True')
-    ax.scatter(Y_true_30hz[i, 0], Y_true_30hz[i, 1], color='black', s=100, label='Predicted')
-    ax.set_title(f"Frame {i+1} / {n_frames}")
-    ax.legend()
+        #ax.plot(Y_true_30hz[:i+1, 0], Y_true_30hz[:i+1, 1], 'k', label='True', linewidth=2, alpha=0.7)
+        #ax.plot(Y_pred_30hz[:i+1, 0], Y_pred_30hz[:i+1, 1], 'r--', label='Predicted', linewidth=2, alpha=0.7)
+        ax.scatter(Y_pred_30hz[i, 0], Y_pred_30hz[i, 1], color='red', s=500, alpha=0.5, label='Predicted')
+        ax.scatter(Y_true_30hz[i, 0], Y_true_30hz[i, 1], color='black', s=100, label='True')
+        ax.set_title(f"Frame {i+1} / {new_n_frames}")
+        ax.legend()
 
-    # Render plot to image
-    fig.canvas.draw()
-    frame = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
-    frame = frame.reshape(fig.canvas.get_width_height()[::-1] + (3,))
-    frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+        # Render plot to image
+        fig.canvas.draw()
+        frame = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
+        frame = frame.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+        frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
 
-    out.write(cv2.resize(frame_bgr, video_size))
-    plt.close(fig)
+        out.write(cv2.resize(frame_bgr, video_size))
+        plt.close(fig)
 
-out.release()
-print("✅ Video saved as 'decoded_trajectory.mp4'")
+    out.release()
+    print("✅ Video saved as 'decoded_trajectory_long.mp4'")
+
+def video_DrawonOriginal(Y, file_video, Y_binsize=1):
+
+    def interpolate_array(arr, arr_binsize, video_nframes, video_fps):
+
+        video_duration = int(video_nframes / video_fps)
+        #print(f'VIDEO duration: {video_duration}s, frames: {video_nframes}, fps: {video_fps}')
+
+        # get array properties
+        arr_frames = len(arr)
+        arr_fps = 1 / arr_binsize
+        arr_duration = int(arr_frames / arr_binsize)
+        arr_wanted_frames = int(video_fps * video_duration)
+        #print(f'ARR duration: {arr_duration}s, frames: {arr_frames}, fps: {arr_fps}')
+        #print(f'ARR_WANTED duration: {video_duration}s, frames: {arr_wanted_frames}, fps: {video_fps}')
+
+        arr_orig_time = np.linspace(start=0, stop=arr_duration, num=arr_frames)
+        arr_time_interp = np.linspace(start=0, stop=arr_duration, num=arr_wanted_frames)
+        interpol = interp1d(arr_orig_time, arr, axis=0, kind='linear')
+        arr_interpol = interpol(arr_time_interp)
+
+        return arr_interpol
+    
+    cap = cv2.VideoCapture(file_video)
+    video_nframes = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    video_fps = 10
+    video_width  = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    video_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+    Y = np.array(Y)  # shape: [n_bins, 2] at 1Hz
+    Y_interpol = interpolate_array(Y, Y_binsize, video_nframes, video_fps)  # shape: [n_bins, 2] at 1Hz
+    
+
+    output_path = "decoded_overlay_interpolated.mp4"
+    out = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*'mp4v'), 30, (video_width, video_height))
+
+    pbar = tqdm(total=min(len(Y_interpol), video_nframes))
+    frame_idx = 0
+    while frame_idx < len(Y_interpol) and frame_idx < video_nframes:
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        x, y = Y_interpol[frame_idx]
+        if not np.isnan(x) and not np.isnan(y):
+
+            # draw interpolated prediction (small red dot)
+            cv2.circle(frame, (int(x), int(y)), 15, (0, 0, 255), -1)  # red
+
+        out.write(frame)
+        frame_idx += 1
+        pbar.update(1)
+
+    pbar.close()
+    cap.release()
+    out.release()
+    
+video_DrawonOriginal(Y_pred, file_video)
+
+
+
 
 
 
@@ -696,11 +804,13 @@ print("✅ Video saved as 'decoded_trajectory.mp4'")
 
 '''
 Next steps:
-- create video that shows the animal and the predicted position
-- create model on non-place cells as neg control (problem is that they are a lot less)
 - regarding the problem with frames that have no cells spiking: maybe we can let cells "spill" over into the next frame
   maybe 0.5 into the previous & next frame (not digital anymore but we dont care)
 - get the p-value of the decoder, so we can find the best decoder
+- do same for Y-Maze
+- check place cell stability longitudinally
 
 
 '''
+
+
