@@ -442,9 +442,9 @@ def draw_position_on_video(df, file_video):
     print("✅ Video with position overlay saved as 'position_overlay_first100.mp4'")
 
 # print every heatmap for the place cells
-sorted_items = sorted(spatial_info_real.items(), key=lambda item: item[1], reverse=True)
-for i, (cell, value) in enumerate(sorted_items):
-    plot_spikes_heatmap(main_df, cell, i, bins=200, blur=10)
+# sorted_items = sorted(spatial_info_real.items(), key=lambda item: item[1], reverse=True)
+# for i, (cell, value) in enumerate(sorted_items):
+#     plot_spikes_heatmap(main_df, cell, i, bins=200, blur=10)
 
 
 #plot_spikes(main_df, x_edges, y_edges, [30,28,8,31])
@@ -673,6 +673,7 @@ def ffn(main_df, place_cells):
     
     model = PositionDecoder(input_dim=X.shape[1])
     trained_model = train_model(full_loader_train, full_loader_test, model)
+    
     Y_pred, Y_true = test_model(trained_model, full_loader_test)
     plot_true_vs_pred_coords(Y_true, Y_pred)
 
@@ -707,10 +708,10 @@ def video_TrueandPred(Y_true, Y_pred):
 
     # Set up video writer
     video_size = (600, 600)
-    out = cv2.VideoWriter("decoded_trajectory_long.mp4", cv2.VideoWriter_fourcc(*'mp4v'), frame_rate, video_size)
+    out = cv2.VideoWriter("decoded_trajectory_long.mp4", cv2.VideoWriter_fourcc(*'mp4v'),120, video_size)
 
     # Generate frames
-    for i in tqdm(range(int())):
+    for i in tqdm(range(600)):
         fig, ax = plt.subplots(figsize=(8, 8))
         ax.set_xlim(30, 630)
         ax.set_ylim(0, 600)
@@ -718,7 +719,7 @@ def video_TrueandPred(Y_true, Y_pred):
 
         #ax.plot(Y_true_30hz[:i+1, 0], Y_true_30hz[:i+1, 1], 'k', label='True', linewidth=2, alpha=0.7)
         #ax.plot(Y_pred_30hz[:i+1, 0], Y_pred_30hz[:i+1, 1], 'r--', label='Predicted', linewidth=2, alpha=0.7)
-        ax.scatter(Y_pred_30hz[i, 0], Y_pred_30hz[i, 1], color='red', s=500, alpha=0.5, label='Predicted')
+        ax.scatter(Y_pred_30hz[i, 0], Y_pred_30hz[i, 1], color='red', s=500, alpha=1, label='Predicted')
         ax.scatter(Y_true_30hz[i, 0], Y_true_30hz[i, 1], color='black', s=100, label='True')
         ax.set_title(f"Frame {i+1} / {new_n_frames}")
         ax.legend()
@@ -735,7 +736,7 @@ def video_TrueandPred(Y_true, Y_pred):
     out.release()
     print("✅ Video saved as 'decoded_trajectory_long.mp4'")
 
-def video_DrawonOriginal(Y, file_video, Y_binsize=1):
+def video_DrawonOriginal(Y, file_video, Y_binsize=1, white_sec=85, fade_sec=10):
 
     def interpolate_array(arr, arr_binsize, video_nframes, video_fps):
 
@@ -766,24 +767,37 @@ def video_DrawonOriginal(Y, file_video, Y_binsize=1):
     Y = np.array(Y)  # shape: [n_bins, 2] at 1Hz
     Y_interpol = interpolate_array(Y, Y_binsize, video_nframes, video_fps)  # shape: [n_bins, 2] at 1Hz
     
-
+    wanted_fps = 30
     output_path = "decoded_overlay_interpolated.mp4"
-    out = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*'mp4v'), 30, (video_width, video_height))
+    out = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*'mp4v'), wanted_fps, (video_width, video_height))
+
+    white_frames = white_sec * wanted_fps
+    fade_frames = fade_sec * video_fps
 
     pbar = tqdm(total=min(len(Y_interpol), video_nframes))
     frame_idx = 0
     while frame_idx < len(Y_interpol) and frame_idx < video_nframes:
+
         ret, frame = cap.read()
         if not ret:
             break
+        
+        # to morph the background in
+        white_bg = np.full_like(frame, 255)
+        if frame_idx < white_frames:
+            blended_frame = white_bg.copy()
+        elif white_frames <= frame_idx < white_frames + fade_frames:
+            fade_progress = (frame_idx - white_frames) / fade_frames
+            blended_frame = cv2.addWeighted(white_bg, 1 - fade_progress, frame, fade_progress, 0)
+        else:
+            blended_frame = frame
 
+        # draw interpolated prediction (small red dot)
         x, y = Y_interpol[frame_idx]
         if not np.isnan(x) and not np.isnan(y):
+            cv2.circle(blended_frame, (int(x), int(y)), 15, (0, 0, 255), -1)  # red
 
-            # draw interpolated prediction (small red dot)
-            cv2.circle(frame, (int(x), int(y)), 15, (0, 0, 255), -1)  # red
-
-        out.write(frame)
+        out.write(blended_frame)
         frame_idx += 1
         pbar.update(1)
 
@@ -792,7 +806,7 @@ def video_DrawonOriginal(Y, file_video, Y_binsize=1):
     out.release()
     
 video_DrawonOriginal(Y_pred, file_video)
-
+#video_TrueandPred(Y_true, Y_pred)
 
 
 
@@ -809,6 +823,7 @@ Next steps:
 - get the p-value of the decoder, so we can find the best decoder
 - do same for Y-Maze
 - check place cell stability longitudinally
+- train & evaluate the network on x non-place cells and on x place cells and compare
 
 
 '''

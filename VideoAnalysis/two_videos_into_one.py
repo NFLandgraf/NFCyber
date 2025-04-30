@@ -2,7 +2,7 @@
 from moviepy.editor import VideoFileClip, clips_array
 
 # Load the two video files
-video1 = VideoFileClip("C:\\Users\landgrafn\\Desktop\\m90\\2024-10-31-16-52-47_CA1-m90_OF_OverlayTrained.mp4")
+video1 = VideoFileClip("C:\\Users\landgrafn\\Desktop\\m90\\2024-10-31-16-52-47_CA1-m90_OF_OverlayTrained_morph.mp4")
 video2 = VideoFileClip("C:\\Users\landgrafn\\Desktop\\m90\\2024-10-31-16-52-47_CA1-m90_OF_dff_trimmed_to_behav(firstPos).mp4")
 
 # Resize videos if needed (optional, to make sure both videos are the same height)
