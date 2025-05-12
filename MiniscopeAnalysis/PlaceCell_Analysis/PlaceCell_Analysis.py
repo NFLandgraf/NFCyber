@@ -14,16 +14,21 @@ import torch.nn as nn
 import torch.optim as optim
 import csv
 
-data_prefix = 'C:\\Users\\nicol\\Desktop\\m90\\2024-10-31-16-52-47_CA1-m90_OF_'
-data_prefix = 'C:\\Users\\landgrafn\\Desktop\\m90\\2024-10-31-16-52-47_CA1-m90_OF_'
+#data_prefix = 'C:\\Users\\nicol\\Desktop\\m90\\2024-10-31-16-52-47_CA1-m90_OF_'
+data_prefix = 'C:\\Users\\landgrafn\\Desktop\\eyy\\CA1Dopa_Longitud_f43_2025-04-28-16-53-12_OF_Baseline_'
+
+
 
 file_traces =   data_prefix + 'traces.csv'
 file_DLC    =   data_prefix + 'DLC.csv'
 file_TTL    =   data_prefix + 'GPIO.csv'
 file_video  =   data_prefix + 'DLC_trim_transparent.mp4'
 file_events =   data_prefix + 'traces_events.csv'
+file_main =   data_prefix + 'main.csv'
 
-def combine_data(file_traces, file_DLC, file_TTL, file_video):
+#%%
+
+def combine_data(file_traces, file_events, file_DLC, file_TTL, file_video):
     # this def collects all raw data (traces, DLC, TTL, video) and synchronies them in one big df
 
     def get_traces(file_traces):
@@ -205,7 +210,13 @@ def combine_data(file_traces, file_DLC, file_TTL, file_video):
 
     return main_df
 
-main_df = combine_data(file_traces, file_DLC, file_TTL, file_video)
+main_df = combine_data(file_traces, file_events, file_DLC, file_TTL, file_video)
+
+
+#%%
+#file_main = 'C:\\Users\\landgrafn\\Desktop\\m90\\2024-10-31-16-52-47_CA1-m90_OF_'
+main_df = pd.read_csv(file_main, index_col='Time')
+print(main_df)
 
 
 #%%
@@ -329,11 +340,14 @@ def identify_place_cells(main_df, place_df, fps=10, n_shuffles=1000, significanc
     spatial_info_shuffled = get_spatial_info_shuffle(place_df, occupancy)
     place_cells, p_values = check_significance(spatial_info_real, spatial_info_shuffled)
 
+    nb_place_cells, nb_all_cells = len(place_cells), len(spatial_info_real)
+    print(f'Place cells {nb_place_cells} / {nb_all_cells} ({round((nb_place_cells/nb_all_cells)*100, 1)}%)')
+
     return spatial_info_real, spatial_info_shuffled, place_cells, p_values
 
 place_df, x_edges, y_edges = bin_cellspikes(main_df)
 spatial_info_real, spatial_info_shuffled, place_cells, p_values = identify_place_cells(main_df, place_df)
-print(f'{len(place_cells)} place cells')
+
 
 
 #%%
@@ -441,10 +455,10 @@ def draw_position_on_video(df, file_video):
     out.release()
     print("✅ Video with position overlay saved as 'position_overlay_first100.mp4'")
 
-# print every heatmap for the place cells
-# sorted_items = sorted(spatial_info_real.items(), key=lambda item: item[1], reverse=True)
-# for i, (cell, value) in enumerate(sorted_items):
-#     plot_spikes_heatmap(main_df, cell, i, bins=200, blur=10)
+# print every heatmap for the cells
+sorted_items = sorted(spatial_info_real.items(), key=lambda item: item[1], reverse=True)
+for i, (cell, value) in enumerate(sorted_items):
+    plot_spikes_heatmap(main_df, cell, i, bins=200, blur=10)
 
 
 #plot_spikes(main_df, x_edges, y_edges, [30,28,8,31])
@@ -623,7 +637,7 @@ def ffn(main_df, place_cells):
 
         return Y_pred, Y_true
 
-    def plot_true_vs_pred_coords(Y_true, Y_pred):
+    def plot_true_vs_pred_coords(Y_true, Y_pred, accuracy):
 
         true_x = Y_true[:, 0]
         pred_x = Y_pred[:, 0]
@@ -634,28 +648,28 @@ def ffn(main_df, place_cells):
 
         # ---- X position ----
         ax = axes[0]
-        hb = ax.hist2d(true_x, pred_x, bins=25, cmap='viridis')
+        hb = ax.hist2d(true_x, pred_x, bins=35, cmap='viridis')
         fig.colorbar(hb[3], ax=ax)
         ax.plot([true_x.min(), true_x.max()], [true_x.min(), true_x.max()], c='r', linestyle=':', label='Perfect prediction')
         # ax.set_xlim(30, 630)
         # ax.set_ylim(0, 600)
         ax.set_xlabel('True X position')
         ax.set_ylabel('Predicted X position')
-        ax.set_title('Decoded X: Predicted vs True')
+        ax.set_title(f'Decoded X: Predicted vs True (Accuracy={accuracy}%)')
         ax.legend()
         ax.grid(True)
         ax.set_aspect('equal')
 
         # ---- Y position ----
         ax = axes[1]
-        hb = ax.hist2d(true_y, pred_y, bins=50, cmap='viridis')
+        hb = ax.hist2d(true_y, pred_y, bins=35, cmap='viridis')
         fig.colorbar(hb[3], ax=ax)
         ax.plot([true_y.min(), true_y.max()], [true_y.min(), true_y.max()], c='r', linestyle=':', label='Perfect prediction')
         # ax.set_xlim(30, 630)
         # ax.set_ylim(0, 600)
         ax.set_xlabel('True Y position')
         ax.set_ylabel('Predicted Y position')
-        ax.set_title('Decoded Y: Predicted vs True')
+        ax.set_title(f'Decoded Y: Predicted vs True (Accuracy={accuracy}%)')
         ax.legend()
         ax.grid(True)
         ax.set_aspect('equal')
@@ -666,20 +680,28 @@ def ffn(main_df, place_cells):
         errors = np.linalg.norm(Y_true - Y_pred, axis=1)
         print(f"Mean decoding error: {errors.mean():.2f} pixels")
 
+    def calc_accuracy(Y_true, Y_pred, threshold=75):
+        # calulates how many predictions are within the threshold (in px)
+        errors = np.linalg.norm(Y_true - Y_pred, axis=1)
+        accuracy = round(np.mean(errors <= threshold)*100, 1)
+        print(f'Accuracy: {accuracy}%')
+        return accuracy
+
 
     X, Y = prep_data(main_df, place_cells, min_active_cells=0)
     full_loader_train, full_loader_test = create_tensors_whole(X, Y)
     shuffled_loader_train = create_tensors_shuffled(X, Y)
     
     model = PositionDecoder(input_dim=X.shape[1])
-    trained_model = train_model(full_loader_train, full_loader_test, model)
+    trained_model = train_model(shuffled_loader_train, full_loader_test, model)
     
     Y_pred, Y_true = test_model(trained_model, full_loader_test)
-    plot_true_vs_pred_coords(Y_true, Y_pred)
+    accuracy = calc_accuracy(Y_true, Y_pred)
+    plot_true_vs_pred_coords(Y_true, Y_pred, accuracy)
 
-    return Y_pred, Y_true, trained_model
+    return Y_pred, Y_true, trained_model, accuracy
 
-Y_pred, Y_true, trained_model = ffn(main_df, place_cells)
+Y_pred, Y_true, trained_model, accuracy = ffn(main_df, place_cells)
 
 
 #%%
@@ -818,6 +840,7 @@ video_DrawonOriginal(Y_pred, file_video)
 
 '''
 Next steps:
+- camera is always at a different spot ->you need to always crop the video the same way and then adadpt px/cm, then do everything in cm
 - regarding the problem with frames that have no cells spiking: maybe we can let cells "spill" over into the next frame
   maybe 0.5 into the previous & next frame (not digital anymore but we dont care)
 - get the p-value of the decoder, so we can find the best decoder
@@ -826,6 +849,12 @@ Next steps:
 - train & evaluate the network on x non-place cells and on x place cells and compare
 
 
-'''
+Problems that could cause differences:
+- animals dont investigate the arena the same way
+- more/less cells are recruited longitudinally (problem?)
+- firing freq is different
 
+
+
+'''
 
