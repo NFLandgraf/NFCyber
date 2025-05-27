@@ -1,5 +1,5 @@
 #%%
-# IMPORTe
+# IMPORT
 
 import cv2
 import ffmpeg
@@ -7,8 +7,8 @@ from tqdm import tqdm
 import os
 import numpy as np
 
-path = 'C:\\Users\\landgrafn\\Desktop\\test\\'
-common_name = ''
+path = 'D:\\AGG\\RI_Test_edit\\'
+common_name = 'mp4'
 file_format = '.mp4'
 
 
@@ -38,9 +38,9 @@ def get_data():
                 f'duration: {duration} s\n')
     
     return files
-
 files = get_data()
       
+
 
 
 #%%####################################################################################################################
@@ -51,8 +51,12 @@ x1, y1 = 12, 10   # top left corner of future cropped image
 x2, y2 = 595, 590    # bottom right corner of future cropped image
 
 # BRIGHTNESS & CONTRAST
-alpha = 1.25   # brightness: 1.0-original, <1.0-darker, >1.0-brighter
-beta = -50    # contrast: 0-unchanged, <0-lower contrast, >0-higher contrast
+alpha = 1.5     # contrast: 1-unchanged, <1-lower contrast, >1-higher contrast
+beta = 0        # brightness: brightness that is added/taken to/from every pixel (-255 to +255)
+
+# TRIM
+start_s = 0
+stop_s = 609
 
 
 def bin_frame(frame, binning_factor):
@@ -73,67 +77,72 @@ def bin_frame(frame, binning_factor):
 
     return binned_frame
 
-
-def adjust_video(input_file, output_file, new_width, new_height, fps, nframes):
+def adjust_video(input_file, output_file, new_width, new_height, fps, nframes, start_frame, stop_frame):
 
     cap = cv2.VideoCapture(input_file)
-    first_frame = input_file.replace(file_format, '') + '_firstFrame.png'
+    #cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
 
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     video = cv2.VideoWriter(output_file, fourcc, fps, (new_width, new_height)) 
 
-    for curr_frame in tqdm(range(nframes)):    # nframes or 1
+    #first_frame = input_file.replace(file_format, '') + '_firstFrame.png'
+
+    for curr_frame in tqdm(range(nframes)):    # stop_frame, nframes or 1
+    
         ret, frame = cap.read()
 
-        if ret:      
+        if not ret:
+            print(f"Warning: Failed to read frame {curr_frame}")
+            break  
 
-            # CROP
-            #frame = frame[y1:y2, x1:x2]
+        
+        #frame = bin_frame(frame, binning_factor=2)
 
-            frame = bin_frame(frame, binning_factor=2)
+        # BRIGHTNESS & CONTRAST
+        frame = cv2.convertScaleAbs(frame, alpha=alpha, beta=beta)
 
-            # BRIGHTNESS & CONTRAST
-            #frame = cv2.convertScaleAbs(frame, alpha=alpha, beta=beta)
+        # CROP
+        #frame = cv2.resize(frame, (new_width, new_height))  # must be the same dimensions as in video = cv2.VideoWriter() 
 
-            # RESIZE
-            #frame = cv2.resize(frame, (new_width, new_height))  # must be the same dimensions as in video = cv2.VideoWriter() 
+        video.write(frame)
 
-            video.write(frame)
+        # when you had range(1) to only check the first frame, write first frame. Delete it if >0
+        # if curr_frame == start_frame:
+        #     cv2.imwrite(first_frame, frame)
+        # elif curr_frame == start_frame+1:
+        #     os.remove(first_frame)
 
-            # when you had range(1) to only check the first frame, write first frame. Delete it if >0
-            if curr_frame == 0:
-                cv2.imwrite(first_frame, frame)
-            elif curr_frame == 1:
-                os.remove(first_frame)
-
-        else:
-            break
+        
 
     cap.release()
     video.release()
 
     print(f'Done! input: {nframes} frames, output: {curr_frame+1} frames\n\n')
 
-
 def main():
     for file in files:
 
         input_file = path + file
-        output_file = input_file.replace(file_format, '') + '_crop' + file_format
+        output_file = input_file.replace(file_format, '') + '_edit' + file_format
         print(input_file)
 
+        # original video parameters
         vid = cv2.VideoCapture(input_file)
         width = int(vid.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
         nframes = int(vid.get(cv2.CAP_PROP_FRAME_COUNT))
         fps = int(vid.get(cv2.CAP_PROP_FPS))
 
+        # trim
+        start_frame, stop_frame = start_s * fps, stop_s * fps     # USE THIS WHEN TRIM
+        #start_frame, stop_frame = 0, nframes                      # USE THIS WHEN NOT TRIM
+
         #new_width, new_height = x2-x1, y2-y1                        # USE THIS WHEN     CROP     & NOT REDUCE QUALITY
         #new_width, new_height = int((x2-x1)*2/3), int((y2-y1)*2/3)  # USE THIS WHEN     CROP     &     REDUCE QUALITY
         #new_width, new_height = int(width/2), int(height/2)         # USE THIS WHEN NOT CROP     &     REDUCE QUALITY
-        new_width, new_height = width, height                       # USE THIS WHEN NOT CROP     & NOT REDUCE QUALITY
+        new_width, new_height = width, height                        # USE THIS WHEN NOT CROP     & NOT REDUCE QUALITY
 
-        adjust_video(input_file, output_file, new_width, new_height, fps, nframes)
+        adjust_video(input_file, output_file, new_width, new_height, fps, nframes, start_frame, stop_frame)
 
 
 main()
