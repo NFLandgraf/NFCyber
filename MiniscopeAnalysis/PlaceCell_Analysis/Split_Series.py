@@ -15,14 +15,14 @@ import torch.optim as optim
 import csv
 from pathlib import Path
 
-data_prefix = 'C:\\Users\\landgrafn\\Desktop\\eyy\\CA1Dopa_Longitud_m32_Week2_'
+data_prefix = 'D:\\m90YMaze\\m90_Longitud_YMaze_Day2_'
 
 file_traces =   data_prefix + 'traces.csv'
 file_events =   data_prefix + 'events.csv'
 file_DLC    =   data_prefix + 'DLC.csv'
 file_TTL    =   data_prefix + 'GPIO.csv'
-file_video  =   data_prefix + 'video.mp4'
-file_tracesevents =   data_prefix + 'traces+events.csv'
+file_video  =   data_prefix + 'video_DLC.mp4'
+file_tracesevents =   data_prefix + 'tracevents.csv'
 
 files = [file_traces, file_events, file_DLC, file_TTL, file_video, file_tracesevents]
 for f in files:
@@ -77,9 +77,7 @@ def split_traces_events(file_traces, file_events):
         for name, data in df_z.items():
             df_z[name] = (df_z[name] - df_z[name].mean()) / df_z[name].std()    
 
-        #activity_heatmap(df_z)
-
-        #df_z = df_z[[175]]
+        activity_heatmap(df_z)
 
         return df_dff, df_z
 
@@ -105,9 +103,9 @@ def split_traces_events(file_traces, file_events):
         # digitize the df (0-nospike, 1-spike) and forget the real values
         df_events = (df_events != 0).astype(int)
 
-        #df_events = df_events[['175_spike']]
-
         # merge the new columns to df_z
+        print(f'df_z.shape:      {df_events.shape}')
+        print(f'df_events.shape: {df_events.shape}')
         assert df_z.index.equals(df_events.index), "Indices do not match!"
         df_combined = pd.concat([df_z, df_events], axis=1)
 
@@ -126,10 +124,10 @@ def split_traces_events(file_traces, file_events):
             start, end = split_points[i], split_points[i+1]
             chunk = df.iloc[start:end]
             chunk.index = (chunk.index - min(chunk.index.values)).round(1)
-            chunk.to_csv(f"chunk_part{i}.csv", index=True)
+            chunk.to_csv(f"chunk_part{i+1}.csv", index=True)
 
     df_dff, df_z = get_traces(file_traces)
-    #main_df = get_traces_events(file_events, df_z)
+    main_df = get_traces_events(file_events, df_z)
     #split_by_gap(main_df)
     return df_z
 
@@ -175,7 +173,7 @@ def get_behav(file_DLC, file_TTL, main_df, file_video, mirrorY=False):
             width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
             height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
             cap.release()
-            print(f'{n_frames} frames')
+            print(f'{n_frames} video frames')
             return (width, height)
         def clean_behav(file_DLC):
             # cleans the DLC file and returns the df
@@ -222,14 +220,15 @@ def get_behav(file_DLC, file_TTL, main_df, file_video, mirrorY=False):
                     df[f'{bp}_y'] = height - df[f'{bp}_y']
             df_behav = df[['head_x', 'head_y', 'postbody_x', 'postbody_y']].copy()
 
+            print(f'{df_behav.shape[0]} DLC frames')
             return df_behav
         
         df_behav = clean_behav(file_DLC)
 
         # as an index for behavior, you have the frame number and the INSPX master time
         TTLs_high_times = clean_TTLs(file_TTL)
-        
-        df_behav['Time'] = TTLs_high_times[:-1]
+
+        df_behav['Time'] = TTLs_high_times[:-4]
         df_behav['Time'] = df_behav['Time'].round(2)
         df_behav.set_index([df_behav.index, 'Time'], inplace=True)
 
@@ -259,6 +258,15 @@ main_df = get_behav(file_DLC, file_TTL, main_df, file_video)
 main_df.to_csv('main.csv')
 
 
+
+
+#%%
+main_df = pd.read_csv('main.csv', index_col='Time')
+
+df_trimmed = main_df[main_df.index >= 15.2].copy()               # Trim from 15.2 to the end
+df_trimmed.index = (df_trimmed.index - 15.2).round(1)  # Re-zero and round if needed
+
+df_trimmed.to_csv('df_trimmed.csv')
 
 
 #%%
