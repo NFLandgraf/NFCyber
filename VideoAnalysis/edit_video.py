@@ -7,7 +7,7 @@ from tqdm import tqdm
 import os
 import numpy as np
 
-path = 'D:\\AGG\\RI_Test_edit\\'
+path = 'D:\\SimBA\\Rambo\\project_folder\\videos\\'
 common_name = 'mp4'
 file_format = '.mp4'
 
@@ -55,8 +55,10 @@ alpha = 1.5     # contrast: 1-unchanged, <1-lower contrast, >1-higher contrast
 beta = 0        # brightness: brightness that is added/taken to/from every pixel (-255 to +255)
 
 # TRIM
-start_s = 0
+start_frame = 1
 stop_s = 609
+
+ioo = 0
 
 
 def bin_frame(frame, binning_factor):
@@ -77,7 +79,8 @@ def bin_frame(frame, binning_factor):
 
     return binned_frame
 
-def adjust_video(input_file, output_file, new_width, new_height, fps, nframes, start_frame, stop_frame):
+def adjust_video(input_file, output_file, new_width, new_height, fps, nframes):
+    global ioo
 
     cap = cv2.VideoCapture(input_file)
     #cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
@@ -99,12 +102,13 @@ def adjust_video(input_file, output_file, new_width, new_height, fps, nframes, s
         #frame = bin_frame(frame, binning_factor=2)
 
         # BRIGHTNESS & CONTRAST
-        frame = cv2.convertScaleAbs(frame, alpha=alpha, beta=beta)
+        #frame = cv2.convertScaleAbs(frame, alpha=alpha, beta=beta)
 
         # CROP
         #frame = cv2.resize(frame, (new_width, new_height))  # must be the same dimensions as in video = cv2.VideoWriter() 
-
-        video.write(frame)
+        if curr_frame >= 1:
+            ioo += 1
+            video.write(frame)
 
         # when you had range(1) to only check the first frame, write first frame. Delete it if >0
         # if curr_frame == start_frame:
@@ -117,7 +121,7 @@ def adjust_video(input_file, output_file, new_width, new_height, fps, nframes, s
     cap.release()
     video.release()
 
-    print(f'Done! input: {nframes} frames, output: {curr_frame+1} frames\n\n')
+    print(f'Done! input: {nframes} frames, output: {ioo} frames\n\n')
 
 def main():
     for file in files:
@@ -132,9 +136,10 @@ def main():
         height = int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
         nframes = int(vid.get(cv2.CAP_PROP_FRAME_COUNT))
         fps = int(vid.get(cv2.CAP_PROP_FPS))
+        print(nframes)
 
         # trim
-        start_frame, stop_frame = start_s * fps, stop_s * fps     # USE THIS WHEN TRIM
+        #start_frame, stop_frame = start_s * fps, stop_s * fps     # USE THIS WHEN TRIM
         #start_frame, stop_frame = 0, nframes                      # USE THIS WHEN NOT TRIM
 
         #new_width, new_height = x2-x1, y2-y1                        # USE THIS WHEN     CROP     & NOT REDUCE QUALITY
@@ -142,7 +147,7 @@ def main():
         #new_width, new_height = int(width/2), int(height/2)         # USE THIS WHEN NOT CROP     &     REDUCE QUALITY
         new_width, new_height = width, height                        # USE THIS WHEN NOT CROP     & NOT REDUCE QUALITY
 
-        adjust_video(input_file, output_file, new_width, new_height, fps, nframes, start_frame, stop_frame)
+        #adjust_video(input_file, output_file, new_width, new_height, fps, nframes)
 
 
 main()
