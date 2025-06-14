@@ -4,8 +4,8 @@ import os
 from pathlib import Path
 from tqdm import tqdm
 
-path = 'D:\\AGG\\RI_Habituation_fps_resize\\'
-file_format = '.mp4'
+path = 'D:\\Solomon\\Videos_solo\\'
+file_format = '.avi'
 
 def get_data():
     # get all file names in directory into list
@@ -54,3 +54,24 @@ for file in files:
         
     cap.release()
     out.release()
+
+
+
+#%%
+
+
+
+for file in files:
+    print(file)
+    input_file = path + file
+
+    cap = cv2.VideoCapture(input_file)
+
+    n_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+    print(n_frames, fps)
+
+
