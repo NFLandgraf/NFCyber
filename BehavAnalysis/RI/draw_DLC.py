@@ -1,9 +1,10 @@
+#%%
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
 # -------- SETTINGS --------
-csv_file = 'D:\\SimBA\\Rambo\\project_folder\\csv\\input_csv\\2025-02-12_hTauxAPP1(3m)_RI3_m222_Test_edit_fps.csv'
+csv_file = 'D:\\annot\\RI_01_6_DLC.csv'
 output_video = 'pose_video.mp4'
 frame_width = 800
 frame_height = 470
