@@ -58,6 +58,7 @@ for file in files:
 
     df_solomon = df[cols_to_keep_solomon]
     df_solomon['Attack'] = df['Attack'].replace({1: 'Attack', 0: ''})
+    df_solomon.loc[0,'Attack'] = ''
     df_solomon.loc[1,'Attack'] = 'Attack'
     df_solomon = df_solomon.rename(columns={'scorer': 'Time', 'Attack': 'Behaviour'})
 
