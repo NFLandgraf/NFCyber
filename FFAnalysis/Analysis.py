@@ -11,8 +11,8 @@ from pathlib import Path
 import os
 
 
-path = 'C:\\Users\\nicol\\Desktop\\FF Nomifensine\\FS\\csv\\'
-file_useless_string = ['2024-12-09_FF-Weilin-3m_Nomifensine_', '_LockIn']
+path = 'D:\\data_processed\\'
+file_useless_string = ['2024-11-20_FF_Weilin_FS_', '_LockIn']
 
 
 def manage_filename(file):
@@ -294,7 +294,23 @@ def main(files):
 
 
         # add all files to df_base, each file is one column
-        df = df[::10]
+        #df = df[::10]
+
+        df = df['Fluo_dff']
+        df = df.rename(f'{file_name_short}_Fluo_dff', inplace=True)
+
+        # splits whole dff into blocks around FS, individual!
+        # indices = [30, 60, 90, 120, 150]
+        # df_all = pd.DataFrame()
+        # for i, time in enumerate(indices):
+        #     start = -5
+        #     end = 20
+        #     df_all[f'FS_{i}'] = df[time+start : time+end].reset_index(drop=True)
+        # idx = np.arange(start, len(df_all)/100+start, 0.01).round(2)
+        # df_all.index = idx
+        # df_all.to_csv(path + f'{file_name_short}_Fluo_dff_shocks.csv')
+
+
         df_base[file_name_short] = df['Fluo_dff']
         print(f'{file_name_short} added as new column to df_base')
 
@@ -306,6 +322,8 @@ def main(files):
 
 
 df_base = main(files)
+
+
 
 
 #%%
