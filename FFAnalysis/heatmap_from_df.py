@@ -43,7 +43,7 @@ for file in files:
     # Iterate through columns to create heatmap for each
     for idx, col in enumerate(df.columns):
         sns.heatmap(df[[col]].T, cmap='viridis', vmin=vmin, vmax=vmax, ax=axes[idx], cbar=True, xticklabels=False, yticklabels=False)
-        #axes[idx].set_title(f'Heatmap for {col}')
+        axes[idx].set_title(f'Heatmap for {file}')
 
     plt.tight_layout()
     plt.savefig(f"{file}.pdf", format="pdf", bbox_inches="tight")

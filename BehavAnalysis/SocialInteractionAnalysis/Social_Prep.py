@@ -1,3 +1,8 @@
+'''
+This script is to get info about the video, the poosition of the stimuli etc.
+It needs the video and the DLC file
+'''
+
 #%%
 # IMPORT
 import cv2
