@@ -10,9 +10,8 @@ from scipy import signal, optimize, stats
 from pathlib import Path
 import os
 
-
-path = 'D:\\data_processed\\'
-file_useless_string = ['2024-11-20_FF_Weilin_FS_', '_LockIn']
+path = 'D:\\FF\\proc\\'
+file_useless_string = ['CA1Dopa_FF_GRABNE_2025-08-07_', '_FS_LockIn']
 
 
 def manage_filename(file):
@@ -100,7 +99,7 @@ def plot_sig_fluo(time, fluo, title):
     #set default plot properties
     plt.rcParams['figure.figsize'] = [14, 12] # Make default figure size larger.
     plt.rcParams['axes.xmargin'] = 0          # Make default margin on x axis zero.
-    plt.rcParams['axes.labelsize'] = 12     #Set default axes label size 
+    plt.rcParams['axes.labelsize'] = 12     # Set default axes label size 
     plt.rcParams['axes.titlesize']=15
     plt.rcParams['axes.titleweight']='heavy'
     plt.rcParams['ytick.labelsize']= 10
@@ -271,6 +270,7 @@ def main(files):
     for file in files:
 
         file_name_short = manage_filename(file)
+        print(file_name_short)
 
 
         # preprocess data
@@ -278,12 +278,12 @@ def main(files):
         df = old_preprocess(df)
 
         # plot results
-        #time = np.array(df.index.values)
-        #plot_sig(time, df['Fluo'], df['Isos'], 'Raw Signal')
-        #plot_sig(time, df['Fluo_detrend'], df['Isos_detrend'], 'Detrend')
-        #plot_sig(time, df['Fluo_smooth'], df['Isos_smooth'], 'Denoised Signal')
-        #plot_sig(time, df['Isos_smooth'], df['Isos_fitted'], 'Fitted Signal')
-        #plot_sig_fluo(time, df['Fluo_dff'], 'dF/F')
+        # time = np.array(df.index.values)
+        # plot_sig(time, df['Fluo'], df['Isos'], 'Raw Signal')
+        # plot_sig(time, df['Fluo_detrend'], df['Isos_detrend'], 'Detrend')
+        # plot_sig(time, df['Fluo_smooth'], df['Isos_smooth'], 'Denoised Signal')
+        # plot_sig(time, df['Isos_smooth'], df['Isos_fitted'], 'Fitted Signal')
+        # plot_sig_fluo(time, df['Fluo_dff'], 'dF/F')
         #plot_sig_fluo(time, df['Fluo_zscore'], 'Z-Score')
         #plot_sig_isosonly(time, df['Isos_detrend'], 'Detrended Signal', file_name_short)
         #plt.plot(time, df['Fluo_detrend'], label = 'Fluo_detrend', c='g')
@@ -311,7 +311,7 @@ def main(files):
         # df_all.to_csv(path + f'{file_name_short}_Fluo_dff_shocks.csv')
 
 
-        df_base[file_name_short] = df['Fluo_dff']
+        df_base[file_name_short] = df
         print(f'{file_name_short} added as new column to df_base')
 
 
@@ -324,7 +324,17 @@ def main(files):
 df_base = main(files)
 
 
+print(df_base)
 
+
+#%%
+
+df = pd.read_csv(r"D:\FF\proc\dff_allfiles.CSV")
+df.index = df['Time']
+del df['Time']
+print(df)
+#%%
+df_base = df
 
 #%%
 # Mean and align everything to events

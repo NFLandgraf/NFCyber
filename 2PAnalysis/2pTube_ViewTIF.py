@@ -51,8 +51,8 @@ def tiff_viewer(img, title="TIFF Viewer"):
     slider_c     = add_slider(0.2, 'Channel', 0, num_c - 1, 0)
     slider_frame = add_slider(0.15, 'Frame', 0, num_t - 1, 0)
     slider_z     = add_slider(0.1, 'Z', 0, num_z - 1, 0)
-    slider_vmin  = add_slider(0.05, 'vmin', global_min, global_max/5, global_min, step=None)
-    slider_vmax  = add_slider(0.0, 'vmax', global_min, global_max/5, global_max, step=None)
+    slider_vmin  = add_slider(0.05, 'vmin', global_min, global_max, global_min, step=None)
+    slider_vmax  = add_slider(0.0, 'vmax', global_min, global_max, global_max, step=None)
 
     # === Update ===
     def update_display():
@@ -88,7 +88,7 @@ def tiff_viewer(img, title="TIFF Viewer"):
 
     plt.show()
 
-img = tifffile.imread(r"tret\suite2p\plane0\reg_tif.tif")  # works for 3D, 4D, or 5D
+img = tifffile.imread(r"D:\2P\CA1Dopa_2pTube_2025-08-01_972_Airpuff1_alt_Ch1_prepro_MotCorr.tiff")  # works for 3D, 4D, or 5D
 print(img.shape)
 
 tiff_viewer(img)

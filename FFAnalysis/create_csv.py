@@ -6,7 +6,7 @@ import os
 
 
 # path = 'C:\\Users\\landgrafn\\Desktop\\2024-12-09_FF-Weilin-3m_Nomifensine\\Baseline\\'
-path = 'C:\\Users\\nicol\\Desktop\\FF Nomifensine\\FS\\'
+path = 'D:\\FF\\'
 common_name = '.doric'
 rec_type = None
 DLC_mm_per_px = 0.12
@@ -29,8 +29,8 @@ def doric_to_csv():
                 if os.path.isfile(os.path.join(path, file)) and common_name in file]    
         
         print(f'{len(files)} files found')
-        #for file in files:
-            #print(f'{file}')
+        for file in files:
+            print(f'{file}')
         print('\n')
 
         return files
@@ -211,8 +211,8 @@ def doric_to_csv():
             sig_fluo  = np.array(f[path + 'LockInAOUT02/AIN01'])
             sig_time  = np.array(f[path + 'LockInAOUT01/Time'])
 
-            digi_io2    = np.array(f[path + 'DigitalIO/DIO02']).astype(int)
-            digi_io3    = np.array(f[path + 'DigitalIO/DIO03']).astype(int)
+            digi_io2    = np.array(f[path + 'DigitalIO/DIO05']).astype(int)
+            digi_io3    = np.array(f[path + 'DigitalIO/DIO06']).astype(int)
             digi_time   = np.array(f[path + 'DigitalIO/Time'])
 
             # output_isos = np.array(f[path + 'AnalogOut/AOUT01'])
@@ -401,7 +401,7 @@ def doric_to_csv():
 
     files_doric = get_files(path)
     for file_doric in files_doric:
-        #print(f'\n{file_doric}')
+        print(f'\n{file_doric}')
 
         # if 2 IOs
         main_df, events_IO2, events_IO3 = do_LockIn_twoIO(file_doric)
@@ -418,6 +418,7 @@ def doric_to_csv():
 
         new_file = file_doric.replace('.doric', '_LockIn.csv')
         main_df.to_csv(new_file)
+        print(main_df)
 
 doric_to_csv()
 print('Done')
