@@ -2,9 +2,9 @@
 import pandas as pd
 import os
 from pathlib import Path
-
-path = r"D:\2P\traces"
-file_useless_string = ['CA1Dopa_2pTube_', 'alt_Ch0_prepro_MotCorr_']
+#%%
+path = r"D:\2P_Analysis\Traces\deconvolved"
+file_useless_string = ['CA1Dopa_2pTube_', 'alt_Ch0_prepro_MotCorr_', '_Trace_deconv']
 
 
 def manage_filename(file):
@@ -29,20 +29,37 @@ def get_files(path, common_name):
 
     return files
 
-files = get_files(path, 'Spont')
+files = get_files(path, 'Airpuff')
 
 #%%
 
-base_df = pd.DataFrame()
+correc_df = pd.DataFrame()
+spikes_df = pd.DataFrame()
 
 for file in files:
 
-    mean = pd.read_csv(file, usecols=["Mean1"])["Mean1"].reset_index(drop=True)
+    correc = pd.read_csv(file, usecols=["spks"])["spks"].reset_index(drop=True)
+    #spikes = pd.read_csv(file, usecols=["spks"])["spks"].reset_index(drop=True)
 
     file_name_short = manage_filename(file)
-    base_df[file_name_short] = mean
+    correc_df[file_name_short] = correc
+    #spikes_df[file_name_short] = spikes
 
-base_df.to_csv('base_df.csv', index=False)
+correc_df.to_csv('correc_df.csv', index=False)
+#spikes_df.to_csv('spikes_df.csv', index=False)
 print(f"Done")
+
+
+
+
+#%%
+
+# load your CSV
+df = pd.read_csv(r"D:\2P_Analysis\Traces\Airpuff_Events.csv")
+
+# loop over columns and save each as its own CSV
+for col in df.columns:
+    df[[col]].to_csv(f"{col}_Events.csv", index=False)
+    print(f"Saved {col}.csv")
 
 

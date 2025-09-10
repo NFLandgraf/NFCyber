@@ -10,6 +10,7 @@ import mimetypes
 from pathlib import Path
 from datetime import datetime
 
+path = "C:\\Users\\landgrafn\\NFCyber\\Swellpass"
 load_dotenv()
 IMAP_HOST = os.getenv("IMAP_HOST")
 IMAP_PORT = int(os.getenv("IMAP_PORT", "993"))
@@ -19,10 +20,11 @@ EMAIL_USER = os.getenv("EMAIL_USER")
 EMAIL_PASS = os.getenv("EMAIL_PASS")
 SENDER_NAME = os.getenv("SENDER_NAME", "Swellpass Bot")
 
+
 def render_ticket(template, user_pic, user_name, datum, zeit, partner_name, partner_address) -> Image.Image:
 
     def load_font(size: int) -> ImageFont.FreeTypeFont:
-        font_path = r"D:\NFCyber\Swellpass\Roboto\Roboto-Medium.ttf"
+        font_path = path + "\\Roboto\\Roboto-Medium.ttf"
         try:
             if font_path and os.path.exists(font_path):
                 return ImageFont.truetype(font_path, size)
@@ -234,7 +236,7 @@ def render_ticket(template, user_pic, user_name, datum, zeit, partner_name, part
         durations = [40] * len(frames)   # blink speed, the higher the slower
 
         # Save as animated GIF
-        gif_path = r"D:\NFCyber\Swellpass\Ticket.gif"
+        gif_path = path + "\\Ticket.gif"
         frames[0].save(gif_path, save_all=True, append_images=frames[1:], format="GIF", duration=durations, loop=0, disposal=2)
         print("GIF saved")
 
@@ -249,13 +251,20 @@ def render_ticket(template, user_pic, user_name, datum, zeit, partner_name, part
 def ident_user(user):
 
     if user == 'Nico':
-        print('User Nico')
-        template = r"D:\NFCyber\Swellpass\Users\Nico\Template.jpg"
-        user_pic = r"D:\NFCyber\Swellpass\Users\Nico\Pic.jpg"
         user_name = 'Nicolas Landgraf'
+    elif user == 'Jonny':
+        user_name = 'Jonathan Jotter'
+    elif user == 'Lorenz':
+        user_name = 'Lorenz Baier'
+    elif user == 'Stanni':
+        user_name = 'Constanze Gathen'
     else:
         print('No user identified')
     
+    print(user_name)
+    template = path + f"\\Users\\{user_name}\\Template.jpg"
+    user_pic = path + f"\\Users\\{user_name}\\Pic.jpg"
+
     return template, user_pic, user_name
 
 def reply_with_file(to_address: str, file_path: str):
@@ -319,6 +328,7 @@ def process_message(imap, mail_id):
     # get info from mail
     lines = [line.strip() for line in payload_text.splitlines() if line.strip()]
     partner_name = lines[0] if len(lines) > 0 else ""
+    print(partner_name)
     partner_address = lines[1] if len(lines) > 1 else ""
     now = datetime.now()
     datum = lines[2] if len(lines) > 2 else str(now.date().strftime("%d.%m.%y"))
@@ -350,6 +360,6 @@ def watch_loop():
 
         except Exception as e:
             print("Fehler im Watcher:", e)
-        time.sleep(20)   # in seconds
+        time.sleep(5)   # in seconds
 
 watch_loop()
