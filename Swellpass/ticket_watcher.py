@@ -10,6 +10,7 @@ import mimetypes
 from pathlib import Path
 from datetime import datetime
 
+
 path = "C:\\Users\\landgrafn\\NFCyber\\Swellpass"
 load_dotenv()
 IMAP_HOST = os.getenv("IMAP_HOST")
@@ -258,6 +259,8 @@ def ident_user(user):
         user_name = 'Lorenz Baier'
     elif user == 'Stanni':
         user_name = 'Constanze Gathen'
+    elif user == 'Nana':
+        user_name = 'Johanna Gentz'
     else:
         print('No user identified')
     
@@ -312,6 +315,7 @@ def process_message(imap, mail_id):
         print(msg_datetime.strftime("%Y-%m-%d %H:%M:%S"))
     except Exception as e:
         print("Could not parse date:", date_raw, e)
+    print(from_addr)
     
     # Extract plain text
     payload_text = ""
@@ -328,7 +332,6 @@ def process_message(imap, mail_id):
     # get info from mail
     lines = [line.strip() for line in payload_text.splitlines() if line.strip()]
     partner_name = lines[0] if len(lines) > 0 else ""
-    print(partner_name)
     partner_address = lines[1] if len(lines) > 1 else ""
     now = datetime.now()
     datum = lines[2] if len(lines) > 2 else str(now.date().strftime("%d.%m.%y"))
@@ -337,6 +340,8 @@ def process_message(imap, mail_id):
     # identify user
     user = msg_in.get("Subject", "")
     template, user_pic, user_name = ident_user(user)
+    print(partner_name)
+    print(partner_address)
     gif_path = render_ticket(template, user_pic, user_name, datum, zeit, partner_name, partner_address)
 
     reply_with_file(from_addr, gif_path)
