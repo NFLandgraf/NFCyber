@@ -365,6 +365,6 @@ def watch_loop():
 
         except Exception as e:
             print("Fehler im Watcher:", e)
-        time.sleep(5)   # in seconds
+        time.sleep(30)   # in seconds
 
 watch_loop()
