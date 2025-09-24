@@ -11,7 +11,8 @@ from pathlib import Path
 import os
 
 
-path = r"C:\Users\landgrafn\Desktop\FF-NE\LockIn"
+
+path = r"C:\Users\landgrafn\Desktop\FF-DA\LockIn"
 file_useless_string = ['2024-11-20_FF-Weilin_FS_', '_LockIn']
 
 
@@ -82,28 +83,28 @@ def FF_analyze(time_sec, fluo_raw, isos_raw):
     # --> subtract function from trace (signal is V)
     # If bleaching comes from bleaching of the fluorophore, the amplitude suffers as well 
     # --> division is needed (signal is df/f)
-    fluo_detrend = fluo_denoised / fluo_expfit
-    isos_detrend = isos_denoised / isos_expfit
+    #fluo_detrend = fluo_denoised / fluo_expfit
+    #isos_detrend = isos_denoised / isos_expfit
 
-    # fluo_detrend = fluo_denoised
-    # isos_detrend = isos_denoised
-
-
+    fluo_detrend = fluo_denoised
+    isos_detrend = isos_denoised
 
 
+    # Motion Correction
+    slope, intercept, r_value, p_value, std_err = stats.linregress(x=isos_detrend, y=fluo_detrend)
+    # p = np.polyfit(isos_detrend, fluo_detrend, 1)     # thats what Pat is using, p=[slope, intercept]
+    fluo_est_motion = intercept + slope * isos_detrend   # fit Isos to Fluo
+    fluo_corrected = fluo_detrend - fluo_est_motion
 
 
-    # Motion
-    slope, intercept, r_value, p_value, std_err = stats.linregress(x=isos_detrend, y=fluo_detrend)        # get the linear regression line between Fluo and Isos
-    fluo_est_motion = intercept + slope * isos_detrend                                                     # fit Isos to Fluo, hwich would be the motion
 
 
 
     # Normalization
-    fluo_dff = (fluo_detrend - fluo_est_motion) / fluo_expfit * 100                                    # normalizes the trace by using the estimated motion
+    fluo_dff = np.divide(fluo_corrected, fluo_est_motion) * 100
     fluo_dff = pd.Series(fluo_dff, index=time_sec)
-    #return fluo_dff
-    #fluo_dff.to_csv('F://sdsd.csv')
+
+    fluo_dff.to_csv('F://sdsd.csv')
 
     # Peri-Event
     events = [30, 60, 90, 120, 150]
@@ -144,47 +145,96 @@ for file in files:
 
     event_mean = FF_analyze(time_sec, fluo_raw, isos_raw)
     all_animals[file_name_short] = event_mean
+    
+#all_animals.to_csv('all_animals.csv')
 
-all_animals.to_csv('negGFP_Fluodff.csv')
-
-
-#%%
-
-groups = ["mKate", "A53T", "GFP"]
-
-# build mean and SEM DataFrames
-mean_df = pd.DataFrame({f"{g}_Mean": all_animals.filter(like=g).mean(axis=1) for g in groups})
-sem_df  = pd.DataFrame({f"{g}_SEM":  all_animals.filter(like=g).sem(axis=1)  for g in groups})
-
-# plot
-plt.figure(figsize=(8,5))
-x = mean_df.index
-
-for g in groups:
-    mean_trace = mean_df[f"{g}_Mean"]
-    sem_trace  = sem_df[f"{g}_SEM"]
-
-    plt.plot(x, mean_trace, label=f"{g} Mean")
-    plt.fill_between(x,
-                     mean_trace - sem_trace,
-                     mean_trace + sem_trace,
-                     alpha=0.3)
-
-plt.xlabel("Time (frames or seconds)")
-plt.ylabel("Signal")
-plt.title("DA: no detrend, minus motion, divide by motion, mal 100")
-plt.legend()
-plt.tight_layout()
-plt.show()
 
 
 
 #%%
 
-all_animals.plot(figsize=(10,6))
-plt.xlabel("Index")
-plt.ylabel("Value")
-plt.title("All columns of DataFrame")
-plt.legend()
-plt.show()
+def get_data_csv(file):
 
+    df = pd.read_csv(file)
+    df.index = df['Time']
+    del df['Time']
+
+    return df
+
+def main(files):
+
+    df_base = pd.DataFrame()
+    for file in files:
+
+        file_name_short = manage_filename(file)
+        print(file_name_short)
+
+
+        # preprocess data
+        df = get_data_csv(file)
+        df = old_preprocess(df)
+
+
+        df = df['Fluo_dff']
+        df = df.rename(f'{file_name_short}_Fluo_dff', inplace=True)
+
+        df_base[file_name_short] = df
+        print(f'{file_name_short} added as new column to df_base')
+
+
+    #df_base.to_csv(path + 'Fluo_corrected_allfiles.csv')
+
+    return df_base
+
+
+
+df_base = main(files)
+
+
+print(df_base)
+
+
+
+#%%
+
+# Mean and align everything to events
+# You give events as input (e.g. FS) and for each animal, it means the signal around each event, therefore means the animal response to the event
+
+def perievent(df, events, window_pre=5, window_post=20, baseline_pre=2):
+    df_perievent_means = pd.DataFrame()
+
+    # go through each column in df_base
+    for column in df_base:
+
+        df = df_base[column]
+        df_all_events = pd.DataFrame()
+
+        for ev in events:
+            df_event = df.copy()
+
+            # reindex so the event is 0
+            df_event.index = df_event.index - ev
+            df_event.index = df_event.index.round(2)
+
+            # crop the recording to the time around the event
+            df_event = df_event.loc[-window_pre : window_post]
+
+            # get the mean of the Xs baseline before the event
+            baseline_mean = df_event.loc[-baseline_pre : 0].mean()
+
+            # normalize everything to the baseline_mean
+            df_event = df_event - baseline_mean
+            df_all_events[f'{ev}'] = df_event
+
+        # add the row means to the main df
+        df_all_events['mean'] = df_all_events.mean(axis=1)
+        df_perievent_means[f'{column}'] = df_all_events['mean']
+
+    df_perievent_means.to_csv(path + "Perievent_means.csv")
+    print('Done')
+
+    return df_perievent_means
+
+
+events = [30, 60, 90, 120, 150]
+df_perievent_means = perievent(df_base, events)

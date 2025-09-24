@@ -3,13 +3,13 @@ import cv2
 import pandas as pd
 
 # Path to the folder containing the .mp4 videos
-input_folder = "C:\\Users\\landgrafn\\Desktop\\CA1Dopa_Longitud_Videos\\YMaze"
+input_folder = "C:\\Users\\landgrafn\\Desktop\\CA1Dopa_Longitud_Videos"
 
 # Output folder for the cropped videos
-output_folder = "C:\\Users\\landgrafn\\Desktop\\CA1Dopa_Longitud_Videos\\crop"
+output_folder = "C:\\Users\\landgrafn\\Desktop\\CA1Dopa_Longitud_Videos\\crop_new"
 os.makedirs(output_folder, exist_ok=True)
 
-crop_data = pd.read_csv("C:\\Users\\landgrafn\\Desktop\\croppo2.csv")
+crop_data = pd.read_csv("C:\\Users\\landgrafn\\Desktop\\Croppo_new.CSV")
 
 # Create a dictionary to store cropping coordinates by filename
 crop_dict = {}

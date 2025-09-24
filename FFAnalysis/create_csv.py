@@ -6,7 +6,7 @@ import os
 
 
 # path = 'C:\\Users\\landgrafn\\Desktop\\2024-12-09_FF-Weilin-3m_Nomifensine\\Baseline\\'
-path = 'D:\\FF\\'
+path = 'C:\\Users\\landgrafn\\Desktop\\FFneg\\Lea\\'
 common_name = '.doric'
 rec_type = None
 DLC_mm_per_px = 0.12
@@ -114,7 +114,7 @@ def doric_to_csv():
     def do_LockIn(file_doric):
 
         with h5py.File(file_doric, 'r') as f:
-            # h5print(f, '')
+            h5print(f, '')
 
             path = 'DataAcquisition/NC500/Signals/Series0001/'
 
@@ -204,6 +204,7 @@ def doric_to_csv():
         # do this when you have 2 IOs, e.g. IO2-Cam_TTL and IO3-FCbox
 
         with h5py.File(file_doric, 'r') as f:
+            h5print(f, '')
             path = 'DataAcquisition/NC500/Signals/Series0001/'
 
             # collect raw data from h5 file
@@ -211,8 +212,8 @@ def doric_to_csv():
             sig_fluo  = np.array(f[path + 'LockInAOUT02/AIN01'])
             sig_time  = np.array(f[path + 'LockInAOUT01/Time'])
 
-            digi_io2    = np.array(f[path + 'DigitalIO/DIO05']).astype(int)
-            digi_io3    = np.array(f[path + 'DigitalIO/DIO06']).astype(int)
+            digi_io2    = np.array(f[path + 'DigitalIO/DIO02']).astype(int)
+            digi_io3    = np.array(f[path + 'DigitalIO/DIO03']).astype(int)
             digi_time   = np.array(f[path + 'DigitalIO/Time'])
 
             # output_isos = np.array(f[path + 'AnalogOut/AOUT01'])
@@ -404,16 +405,16 @@ def doric_to_csv():
         print(f'\n{file_doric}')
 
         # if 2 IOs
-        main_df, events_IO2, events_IO3 = do_LockIn_twoIO(file_doric)
+        #main_df, events_IO2, events_IO3 = do_LockIn_twoIO(file_doric)
         # main_df = add_distances_to_maindf(file_doric, main_df)
-        main_df = align_to_events(main_df, events_IO3)    
+        #main_df = align_to_events(main_df, events_IO3)    
 
         # if 1 IOs
         # main_df, events_IO = do_LockIn_oneIO(file_doric)
         # main_df = align_to_events(main_df, events_IO)
 
         # if 0 IOs
-        # df = do_LockIn(file)
+        main_df = do_LockIn(file_doric)
         # df = crop_recording_no_events(df)
 
         new_file = file_doric.replace('.doric', '_LockIn.csv')

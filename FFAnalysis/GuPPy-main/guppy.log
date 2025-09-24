@@ -1,0 +1,14 @@
+2025-09-24 11:25:35,695 ERROR Expecting value: line 1 column 1 (char 0)
+Traceback (most recent call last):
+  File "<ipython-input-1-d4426119c2b5>", line 1229, in <module>
+    extractTsAndSignal(json.loads(sys.argv[1]))
+                       ^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\landgrafn\AppData\Local\anaconda3\Lib\json\__init__.py", line 346, in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\landgrafn\AppData\Local\anaconda3\Lib\json\decoder.py", line 337, in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\landgrafn\AppData\Local\anaconda3\Lib\json\decoder.py", line 355, in raw_decode
+    raise JSONDecodeError("Expecting value", s, err.value) from None
+json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)

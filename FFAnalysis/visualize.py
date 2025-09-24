@@ -20,7 +20,7 @@ plt.rcParams['legend.fontsize']=12
 plt.rcParams['legend.markerscale']=2
 
 
-path = "C:\\Users\\landgrafn\\Desktop\\FF-DA\\try\\"
+path = "C:\\Users\\landgrafn\\Desktop\\FF-NE\\"
 file_useless_string = ['2024-11-20_FF-Weilin_FS_', '_LockIn']
 
 
@@ -66,7 +66,7 @@ def FF_analyze(time_sec, fluo_raw, isos_raw):
     sampling_rate = (len(time_sec) - 1) / (time_sec[-1] - time_sec[0])
 
 
-    # Plot signals
+    # # Plot signals
     reward_cue_times = [30,60,90,120,150]
     fig,ax1=plt.subplots()  # create a plot to allow for dual y-axes plotting
     plot1=ax1.plot(time_sec, fluo_raw, 'g', label='Fluo') #plot dLight on left y-axis
@@ -74,20 +74,20 @@ def FF_analyze(time_sec, fluo_raw, isos_raw):
     plot2=ax2.plot(time_sec, isos_raw, 'r', label='Isos') # plot TdTomato on right y-axis
 
     # Plot rewards times as ticks.
-    reward_ticks = ax1.plot(reward_cue_times, np.full(np.size(reward_cue_times), 0.151), label='Foot Shock', color='w', marker="|", mec='k', ms=10)
+    #reward_ticks = ax1.plot(reward_cue_times, np.full(np.size(reward_cue_times), 0.151), label='Foot Shock', color='w', marker="|", mec='k', ms=10)
 
 
-    ax1.set_ylim(0.134, 0.152)
-    ax2.set_ylim(0.119, 0.137)
+    #ax1.set_ylim(0.134, 0.152)
+    #ax2.set_ylim(0.119, 0.137)
     ax1.set_xlabel('Time [s]')
     ax1.set_ylabel('Fluo Signal (V)', color='g')
     ax2.set_ylabel('Isos Signal (V)', color='r')
     ax1.set_title('Raw signals')
     ax1.set_xlim(140,170)
 
-    lines = plot1 + plot2 +reward_ticks #line handle for legend
+    lines = plot1 + plot2# +reward_ticks #line handle for legend
     labels = [l.get_label() for l in lines]  #get legend labels
-    #legend = ax1.legend(lines, labels, loc='upper right', bbox_to_anchor=(0.98, 0.93)) #add legend
+    legend = ax1.legend(lines, labels, loc='upper right', bbox_to_anchor=(0.98, 0.93)) #add legend
 
 
 
@@ -117,8 +117,8 @@ def FF_analyze(time_sec, fluo_raw, isos_raw):
     plot2=ax2.plot(time_sec, isos_denoised, 'r', label='Isos denoised')
     reward_ticks = ax1.plot(reward_cue_times, np.full(np.size(reward_cue_times), 0.151), label='Foot Shock', color='w', marker="|", mec='k', ms=10)
 
-    ax1.set_ylim(0.134, 0.152)
-    ax2.set_ylim(0.119, 0.137)
+    #ax1.set_ylim(0.134, 0.152)
+    #ax2.set_ylim(0.119, 0.137)
     ax1.set_xlabel('Time (seconds)')
     ax1.set_ylabel('Fluo Signal (V)', color='g')
     ax2.set_ylabel('Isos Signal (V)', color='r')
@@ -127,7 +127,7 @@ def FF_analyze(time_sec, fluo_raw, isos_raw):
 
     lines = plot1+plot2 +reward_ticks #line handle for legend
     labels = [l.get_label() for l in lines]  #get legend labels
-    #legend = ax1.legend(lines, labels, loc='upper right', bbox_to_anchor=(0.98, 0.92)) #add legend
+    legend = ax1.legend(lines, labels, loc='upper right', bbox_to_anchor=(0.98, 0.92)) #add legend
 
 
 
@@ -155,8 +155,8 @@ def FF_analyze(time_sec, fluo_raw, isos_raw):
     # --> subtract function from trace (signal is V)
     # If bleaching comes from bleaching of the fluorophore, the amplitude suffers as well 
     # --> division is needed (signal is df/f)
-    fluo_detrend = fluo_denoised - fluo_expfit
-    isos_detrend = isos_denoised - isos_expfit
+    fluo_detrend = fluo_denoised / fluo_expfit
+    isos_detrend = isos_denoised / isos_expfit
 
 
     #plot fits over denoised data
@@ -167,7 +167,7 @@ def FF_analyze(time_sec, fluo_raw, isos_raw):
     plot2=ax2.plot(time_sec, isos_denoised, color='r', label='Isos') 
     plot4=ax2.plot(time_sec, isos_expfit,color='k', linewidth=1.5) 
 
-    reward_ticks = ax1.plot(reward_cue_times, np.full(np.size(reward_cue_times), 0.151), label='Foot Shock', color='w', marker="|", mec='k', ms=10)
+    #reward_ticks = ax1.plot(reward_cue_times, np.full(np.size(reward_cue_times), 0.151), label='Foot Shock', color='w', marker="|", mec='k', ms=10)
 
 
 
@@ -180,8 +180,8 @@ def FF_analyze(time_sec, fluo_raw, isos_raw):
     lines = plot1 + plot2 + plot3
     labels = [l.get_label() for l in lines]  
     #legend = ax1.legend(lines, labels, loc='upper right')
-    ax1.set_ylim(0.134, 0.152)
-    ax2.set_ylim(0.119, 0.137)
+    #ax1.set_ylim(0.134, 0.152)
+    #ax2.set_ylim(0.119, 0.137)
 
 
 
@@ -189,7 +189,7 @@ def FF_analyze(time_sec, fluo_raw, isos_raw):
     plot1=ax1.plot(time_sec, fluo_detrend, 'g', label='Fluo')
     ax2=plt.twinx()
     plot2=ax2.plot(time_sec, isos_detrend, color='r', label='Isos') 
-    reward_ticks = ax1.plot(reward_cue_times, np.full(np.size(reward_cue_times), 0.0035), label='Foot Shock', color='w', marker="|", mec='k', ms=10)
+    #reward_ticks = ax1.plot(reward_cue_times, np.full(np.size(reward_cue_times), 0.0035), label='Foot Shock', color='w', marker="|", mec='k', ms=10)
 
 
     ax1.set_xlabel('Time (seconds)')
@@ -200,8 +200,8 @@ def FF_analyze(time_sec, fluo_raw, isos_raw):
     lines = plot1+plot2 
     labels = [l.get_label() for l in lines]  
     #legend = ax1.legend(lines, labels, loc='upper right')
-    ax1.set_ylim(-0.01, 0.01)
-    ax2.set_ylim(-0.01, 0.01)
+    #ax1.set_ylim(-0.01, 0.01)
+    #ax2.set_ylim(-0.01, 0.01)
     ax1.set_xlim(140,170)
     plt.show()
 
@@ -214,15 +214,15 @@ def FF_analyze(time_sec, fluo_raw, isos_raw):
     fluo_corrected = fluo_detrend - fluo_est_motion
 
 
-    plt.scatter(isos_detrend[::5], fluo_detrend[::5],alpha=0.1, marker='.')
-    x = np.array(plt.xlim())
-    plt.plot(x, intercept+slope*x)
-    plt.xlabel('Isos')
-    plt.ylabel('Fluo')
-    plt.title('Isos - Fluo correlation.')
+    # plt.scatter(isos_detrend[::5], fluo_detrend[::5],alpha=0.1, marker='.')
+    # x = np.array(plt.xlim())
+    # plt.plot(x, intercept+slope*x)
+    # plt.xlabel('Isos')
+    # plt.ylabel('Fluo')
+    # plt.title('Isos - Fluo correlation.')
 
-    print('Slope    : {:.3f}'.format(slope))
-    print('R-squared: {:.3f}'.format(r_value**2))
+    # print('Slope    : {:.3f}'.format(slope))
+    # print('R-squared: {:.3f}'.format(r_value**2))
 
 
 
@@ -231,19 +231,19 @@ def FF_analyze(time_sec, fluo_raw, isos_raw):
     plot3=ax1.plot(time_sec, fluo_corrected, 'g', label='Fluo - motion corrected', alpha=1)
     ax2=plt.twinx()
     plot4=ax2.plot(time_sec, fluo_est_motion - 0.05, 'y', label='estimated motion')
-    reward_ticks = ax1.plot(reward_cue_times, np.full(np.size(reward_cue_times), 0.004), label='Foot Shock', color='w', marker="|", mec='k', ms=10)
+    #reward_ticks = ax1.plot(reward_cue_times, np.full(np.size(reward_cue_times), 0.004), label='Foot Shock', color='w', marker="|", mec='k', ms=10)
 
     ax1.set_xlabel('Time (seconds)')
     ax1.set_ylabel('Fluo Signal (V)', color='g')
     ax1.set_title('Motion Correction')
 
-    lines = plot1+plot3+plot4+ reward_ticks
+    lines = plot1+plot3+plot4#+ reward_ticks
     labels = [l.get_label() for l in lines]  
     legend = ax1.legend(lines, labels, loc='upper right', bbox_to_anchor=(0.95, 0.98))
 
     ax1.set_xlim(140,170)
-    ax1.set_ylim(-0.01, 0.01)
-    ax2.set_ylim(-0.055, -0.035)
+    #ax1.set_ylim(-0.01, 0.01)
+    #ax2.set_ylim(-0.055, -0.035)
     plt.plot()
 
 
@@ -262,18 +262,18 @@ def FF_analyze(time_sec, fluo_raw, isos_raw):
 
     fig,ax1=plt.subplots()  
     plot1=ax1.plot(time_sec, fluo_dff, 'g', label='Fluo dF/F')
-    reward_ticks = ax1.plot(reward_cue_times, np.full(np.size(reward_cue_times), 1.5), label='Foot Shock', color='w', marker="|", mec='k', ms=10)
+    #reward_ticks = ax1.plot(reward_cue_times, np.full(np.size(reward_cue_times), 1.5), label='Foot Shock', color='w', marker="|", mec='k', ms=10)
 
     ax1.set_xlabel('Time (seconds)')
     ax1.set_ylabel('Fluo dF/F (%)')
     ax1.set_title('Fluo dF/F')
 
-    lines = plot1+ reward_ticks
+    lines = plot1#+ reward_ticks
     labels = [l.get_label() for l in lines]  
     #legend = ax1.legend(lines, labels, loc='upper right', bbox_to_anchor=(0.95, 0.98))
 
     ax1.set_xlim(140,170)
-    ax1.set_ylim(-3, 3)
+    #ax1.set_ylim(-3, 3)
 
 
 
