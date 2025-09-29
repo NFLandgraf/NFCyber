@@ -15,7 +15,7 @@ import torch.optim as optim
 import csv
 from pathlib import Path
 
-data_prefix = 'D:\\m90YMaze\\m90_Longitud_YMaze_Day2_'
+data_prefix = r"D:\CA1Dopa_Miniscope\Place"
 
 file_traces =   data_prefix + 'traces.csv'
 file_events =   data_prefix + 'events.csv'
@@ -132,6 +132,27 @@ def split_traces_events(file_traces, file_events):
     return df_z
 
 main_df = split_traces_events(file_traces, file_events)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 #%%
