@@ -15,26 +15,11 @@ import torch.optim as optim
 import csv
 from pathlib import Path
 import os
+from scipy.stats import zscore
+
 
 
 #%%
-
-path = r"D:\CA1Dopa_Miniscope\Post"
-common_name = '.csv'
-
-def get_files(path):
-        # get files
-        files = [os.path.join(path, file) for file in os.listdir(path) 
-                if os.path.isfile(os.path.join(path, file)) and common_name in file]    
-        
-        print(f'{len(files)} files found')
-        for file in files:
-            print(f'{file}')
-        print('\n')
-        return files
-
-files = get_files(path)
-
 
 def activity_heatmap(df):
     df_t = df.T
@@ -55,8 +40,15 @@ def activity_heatmap(df):
 
 
 #%%
-# collect, clean and fuse the traces& events
-def split_traces_events(file_traces, file_events):
+'''
+So, for this code we have a series of recordings, e.g. OF+YMaze together from the same day recording or recordings from sveral days, that were analyzed together in IDPS
+When exported from IDPS, these recording chunks are separated by gaps in time_index (at least 10s I think, but check every time)
+We use those gaps to divide the chunks to get one chunk per recording
+1. clean the file_traces blablabla and return the dff files, cells are columns
+2. clean the file_events and digitize the spikes, then add the 0 or 1 to the dff df
+3. split the file into individual recording chunks according to the time threshold
+'''
+def split_traces_events(file_traces, file_events, data_prefix):
     # use this when you have a time series of several recordings (e.g. Baseline, 15Hz, etc. in one time series)
     # this gets traces and events and puts them together, then it splits the time series into individual ones and saves them
     def get_traces(file_traces):
@@ -122,7 +114,7 @@ def split_traces_events(file_traces, file_events):
         main_df = pd.concat([df_dff, df_events], axis=1)
         return main_df
 
-    def split_by_gap(df, gap_threshold=50):
+    def split_by_gap(df, gap_threshold=10):
     
         # take time_index, search gaps > threshold and define [start, endpoint] for splitting
         time_index = df.index.values
@@ -130,13 +122,18 @@ def split_traces_events(file_traces, file_events):
         split_indices = np.where(gaps > gap_threshold)[0] + 1
         split_points = [0] + split_indices.tolist() + [len(df)]
 
+        # sanity check
+        gaps = np.round(gaps, 3)
+        unique_vals, counts = np.unique(gaps, return_counts=True)
+        print(f'TTL gaps: {[float(x) for x in unique_vals]}\nTTL numb: {counts}')
+
         # go through timeseries and save each chunk defined by [start, end]
         individ_time_lengths = 0
         for i in range(len(split_points) - 1):
             start, end = split_points[i], split_points[i+1]
             chunk = df.iloc[start:end]
             chunk.index = (chunk.index - min(chunk.index.values)).round(1)
-            chunk.to_csv(f"{path}\\chunk_part{i+1}.csv", index=True)
+            chunk.to_csv(f"{data_prefix}chunk_part{i}.csv", index=True)
             individ_time_lengths += len(chunk.index.values)
         
         # checks that there is no mistake is splitting
@@ -146,18 +143,17 @@ def split_traces_events(file_traces, file_events):
     df_dff, df_z = get_traces(file_traces)
     df_events = get_traces_events(file_events, df_dff)
     main_df = fuse_df(df_dff, df_events)
-    main_df.to_csv(f"{path}\\main_df.csv")
+    #main_df.to_csv(f"{data_prefix}main_nosplit.csv")
 
     split_by_gap(main_df)
 
     return main_df
 
-file_traces = r"D:\CA1Dopa_Miniscope\Post\CA1Dopa_Longitud_f48_Post_traces.csv"
-file_events = r"D:\CA1Dopa_Miniscope\Post\CA1Dopa_Longitud_f48_Post_events.csv"
+data_prefix = "D:\\CA1Dopa_Miniscope\\Post_f51\\CA1Dopa_Longitud_f51_Post_"
+file_traces = data_prefix + 'traces.csv'
+file_events = data_prefix + 'events.csv'
 
-main_df = split_traces_events(file_traces, file_events)
-
-
+main_df = split_traces_events(file_traces, file_events, data_prefix)
 
 
 
@@ -165,8 +161,17 @@ main_df = split_traces_events(file_traces, file_events)
 
 
 #%%
-# collect, clean and fuse traces/events with DLC
-def get_behav(file_DLC, file_TTL, file_dff, file_video, mirrorY=False):
+'''
+So, this code implements the csv_DLC file, the ISPX_TTL file, the DLC_video file and a csv with dff/events traces from ISPX
+1. cleans the TTL file and gets the rising times from DAQ (when a TTL was sent to trigger a frame or when DAQ received a TTL from a recorded frame)
+2. cleans the DLC behavior csv with the frames as index and all the bodyparts together with head and postbody
+3. adds the rising DAQ times to the behav_file, so we have the frames and the corresponding DAQ master clock times
+4. takes the traces/dff csv with original DAQ times that was created and cleaned earlier
+5. takes the index of the traces file (original DAQ times) and searches for the closest corresponding TTLs in the behav_df, then fuses the respective behav rows to the traces_df
+6. trims the resulting main_df depending on the video frames where the animal is released/taken out into/out of the area
+7. normalizes the dff of each cell of the final df via zscore and saves the resulting file as csv
+'''
+def get_behav(file_DLC, file_TTL, file_dff, file_video, trim_frames, data_prefix, mirrorY=False):
         # if you filmed, you will have a video file (DLC file) and TTLs in the GPIO file
         # this def gets the DLC animal position and synchronizes it with the Inspx time
 
@@ -205,10 +210,9 @@ def get_behav(file_DLC, file_TTL, file_dff, file_video, mirrorY=False):
                 print(f'unique_count: {counts}')
 
             print(f'{len(high_times)} TTLs')
-
             return high_times
         
-        def clean_behav(file_DLC):
+        def clean_behav(file_DLC, file_video):
             # cleans the DLC file and returns the df
             # idea: instead of picking some 'trustworthy' points to mean e.g. head, check the relations between 'trustworthy' points, so when one is missing, it can gues more or less where it is
             bps_all = ['nose', 'left_ear', 'right_ear', 'left_ear_tip', 'right_ear_tip', 'left_eye', 'right_eye', 'head_midpoint', 
@@ -217,6 +221,15 @@ def get_behav(file_DLC, file_TTL, file_dff, file_video, mirrorY=False):
                         'left_shoulder', 'left_midside', 'left_hip', 'right_shoulder', 'right_midside', 'right_hip']
             bps_head = ['nose', 'left_eye', 'right_eye', 'head_midpoint', 'left_ear', 'right_ear', 'neck']
             bps_postbody = ['mid_backend2', 'mid_backend3', 'tail_base']
+
+            def get_video_dims(file_video):
+                cap = cv2.VideoCapture(file_video)
+                n_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+                width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                cap.release()
+                return (width, height)
+            width, height = get_video_dims(file_video)
 
             df = pd.read_csv(file_DLC, header=None, low_memory=False)
 
@@ -241,21 +254,32 @@ def get_behav(file_DLC, file_TTL, file_dff, file_video, mirrorY=False):
             
             if mirrorY:
                 # mirror y and forget everything except head and postbody
-                def get_video_dims(file_video):
-                    cap = cv2.VideoCapture(file_video)
-                    n_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-                    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-                    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                    cap.release()
-                    print(f'{n_frames} video frames')
-                    return (width, height)
-                width, height = get_video_dims(file_video)
                 for bp in bps_all:
                     df[f'{bp}_y'] = height - df[f'{bp}_y']
             
             # interpolate to skip nans
             df = df.interpolate(method="linear")
-                                
+
+
+            # transform the coordinates into mm to normalize for camera reposition between recordings (we have the same dimension in mm during video_processing so all good)
+            if 'OF' in data_prefix:
+                scale_x = 460 / width   # mm/px
+                scale_y = 460 / height  # mm/px
+                print('OF! for transformation px into mm ')
+            elif 'YMaze' in data_prefix:
+                scale_x = 580 / width   # mm/px
+                scale_y = 485 / height  # mm/px
+                print('YMaze! for transformation px into mm ')
+            else:
+                raise ValueError('Bro, Transformation px into mm doesnt know which arena you use')
+            
+            for col in df.columns:
+                if col.endswith('_x'):
+                    df[col] = df[col] * scale_x
+                elif col.endswith('_y'):
+                    df[col] = df[col] * scale_y
+ 
+
             # mean 'trustworthy' bodyparts (ears, ear tips, eyes, midpoint, neck) to 'head' column
             for c in ('_x', '_y'):
                 df[f'head{c}'] = df[[bp+c for bp in bps_head]].mean(axis=1, skipna=True)
@@ -274,9 +298,12 @@ def get_behav(file_DLC, file_TTL, file_dff, file_video, mirrorY=False):
 
             main_df = pd.read_csv(file_dff, index_col='Time', low_memory=False)
 
+            # adds the index as a regular column to keep it after the fusion
+            df_behav['Frame'] = df_behav.index
+
             # check which row of behav is closest to the ISPX index and add these rows, all columns of df_behav to main_df
-            behav_times = df_behav['Behav_Time'].values
-            closest_behav_idx = np.abs(main_df.index.values[:, None] - behav_times).argmin(axis=1)
+            TTL_times = df_behav['TTL_Time'].values
+            closest_behav_idx = np.abs(main_df.index.values[:, None] - TTL_times).argmin(axis=1)
             main_df[df_behav.columns] = df_behav.iloc[closest_behav_idx].values
 
             return main_df
@@ -291,9 +318,35 @@ def get_behav(file_DLC, file_TTL, file_dff, file_video, mirrorY=False):
                 df_missing = pd.DataFrame(np.nan, index=range(len(df_behav), len(df_behav)+missing), columns=df_behav.columns)
                 df_behav = pd.concat([df_behav, df_missing])
 
-                df_behav['Behav_Time'] = TTLs_high_times
+                df_behav['TTL_Time'] = TTLs_high_times
             
             return df_behav, TTLs_high_times
+
+        def trim_n_norm(df, trim_frames):
+
+            start_frame, stop_frame = trim_frames  # allow None
+            
+            # trim the df according to start and stop frame
+            mask = df['Frame'] >= (float(start_frame) if start_frame is not None else df['Frame'].min())
+            if stop_frame is not None:
+                mask &= df['Frame'] <= float(stop_frame)
+
+            
+            df_trimmed = df.loc[mask].copy()
+            df_trimmed.index = (df_trimmed.index - df_trimmed.index[0]).round(1)
+
+
+            # normalize via zscore
+            dff_cols = [col for col in df_trimmed.columns if 'dff' in col]
+            df_z = (df_trimmed[dff_cols] - df_trimmed[dff_cols].mean()) / df_trimmed[dff_cols].std()
+            df_z.columns = [col.replace('dff', 'z') for col in df_z.columns]
+            df = pd.concat([df_trimmed, df_z], axis=1)
+
+            # arrange the columns
+            other_cols = [c for c in df.columns if all(x not in c for x in ['spike', 'z', 'dff', 'Frame', 'TTL_Time'])]
+            df = df[['Frame', 'TTL_Time'] + [c for c in df.columns if 'spike' in c] + [c for c in df.columns if 'z' in c] + [c for c in df.columns if 'dff' in c] + other_cols]
+
+            return df
 
         def create_video(df):
            
@@ -348,57 +401,35 @@ def get_behav(file_DLC, file_TTL, file_dff, file_video, mirrorY=False):
             print(f"Video saved as {video_name}")
 
         # get the files and use the TTL list as the index for behav
-        df_behav = clean_behav(file_DLC)
+        df_behav = clean_behav(file_DLC, file_video)
         TTLs_high_times = clean_TTLs(file_TTL)
 
         # if TTLs are more than DLC rows
         if len(df_behav.index.values) == len(TTLs_high_times):
-            df_behav['Behav_Time'] = TTLs_high_times
+            df_behav['TTL_Time'] = TTLs_high_times
         else:
             df_behav, TTLs_high_times = different_length(df_behav, TTLs_high_times)
-            
+        
+        # fuse both df
         main_df = fuse_df(file_dff, df_behav)
-        # maybe delete Behav_time and Frame
 
+        # arrange the columns
+        other_cols = [c for c in main_df.columns if all(x not in c for x in ['spike', 'z', 'dff', 'Frame', 'TTL_Time'])]
+        main_df = main_df[['Frame', 'TTL_Time'] + [c for c in main_df.columns if 'spike' in c] + [c for c in main_df.columns if 'z' in c] + [c for c in main_df.columns if 'dff' in c] + other_cols]
+
+        # trim and normalize the trimmed df
+        main_df = trim_n_norm(main_df, trim_frames)
+
+        main_df.to_csv(data_prefix + 'main.csv')
         return main_df
 
-data_prefix = "D:\\CA1Dopa_Miniscope\\Post\\CA1Dopa_Longitud_f48_Post3_YMaze_"
-
-file_dff =   data_prefix + 'trace.csv'
+data_prefix = "D:\\CA1Dopa_Miniscope\\Post_f48\\CA1Dopa_Longitud_f48_Post3_YMaze_"
+file_dff    =   data_prefix + 'trace.csv'
 file_DLC    =   data_prefix + 'DLC.csv'
 file_TTL    =   data_prefix + 'GPIO.csv'
 file_video  =   data_prefix + 'video_DLC.mp4'
+trim_frames = (766, None)
 
-main_df = get_behav(file_DLC, file_TTL, file_dff, file_video)
-main_df.to_csv('main_df.csv')
+main_df = get_behav(file_DLC, file_TTL, file_dff, file_video, trim_frames, data_prefix)
 
-
-#%%
-
-
-
-
-#%%
-
-data_prefix = r"D:\CA1Dopa_Miniscope\live"
-
-file_traces =   data_prefix + 'traces.csv'
-file_events =   data_prefix + 'events.csv'
-file_DLC    =   data_prefix + 'DLC.csv'
-file_TTL    =   data_prefix + 'GPIO.csv'
-file_video  =   data_prefix + 'video_DLC.mp4'
-file_tracesevents =   data_prefix + 'tracevents.csv'
-
-files = [file_traces, file_events, file_DLC, file_TTL, file_video, file_tracesevents]
-for f in files:
-    if not Path(f).exists():
-        print(f"❌ {f}")
-    else:
-        print(f"✅ {f}")
-
-
-
-#%%
-
-file_DLC    = r"D:\CA1Dopa_Miniscope\live\CA1Dopa_Longitud_f48_Post1_YMaze_DLC.csv"
 
