@@ -16,10 +16,7 @@ import csv
 from pathlib import Path
 import os
 from scipy.stats import zscore
-
-
-
-#%%
+from scipy.ndimage import gaussian_filter1d
 
 def activity_heatmap(df):
     df_t = df.T
@@ -262,11 +259,11 @@ def get_behav(file_DLC, file_TTL, file_dff, file_video, trim_frames, data_prefix
 
 
             # transform the coordinates into mm to normalize for camera reposition between recordings (we have the same dimension in mm during video_processing so all good)
-            if 'OF' in data_prefix:
+            if 'OF' in file_DLC:
                 scale_x = 460 / width   # mm/px
                 scale_y = 460 / height  # mm/px
                 print('OF! for transformation px into mm ')
-            elif 'YMaze' in data_prefix:
+            elif 'YMaze' in file_DLC:
                 scale_x = 580 / width   # mm/px
                 scale_y = 485 / height  # mm/px
                 print('YMaze! for transformation px into mm ')
@@ -285,11 +282,9 @@ def get_behav(file_DLC, file_TTL, file_dff, file_video, trim_frames, data_prefix
                 df[f'head{c}'] = df[[bp+c for bp in bps_head]].mean(axis=1, skipna=True)
                 df[f'postbody{c}'] = df[[bp+c for bp in bps_postbody]].mean(axis=1, skipna=True)
 
-            # # make one column (x,y) per bodypart
-            # bodyparts = sorted(set(c[:-2] for c in df.columns if c.endswith(("_x", "_y"))))
-            # df_behav = pd.DataFrame(index=df.index)
-            # for bp in bodyparts:
-            #     df_behav[bp] = list(zip(df[f"{bp}_x"], df[f"{bp}_y"]))
+            # smoothing along time vai gaussian filter
+            for col in df.columns:
+                df[col] = gaussian_filter1d(df[col].values, sigma=2, mode="nearest")
 
             print(f'{df.shape[0]} DLC frames')
             return df
@@ -297,6 +292,14 @@ def get_behav(file_DLC, file_TTL, file_dff, file_video, trim_frames, data_prefix
         def fuse_df(file_dff, df_behav):
 
             main_df = pd.read_csv(file_dff, index_col='Time', low_memory=False)
+
+            # apparently there are duplicate values in the Index/ISPX master time in the recording, remove their second occurences 
+            duplicate_mask = main_df.index.to_series().diff().eq(0)
+            if duplicate_mask.any():
+                dup_indices = main_df.index[duplicate_mask]
+                mask = ~duplicate_mask
+                main_df = main_df[mask]
+                print(f'{len(dup_indices)} Duplicate Index values in ISPX time were removed! {list(dup_indices)}')
 
             # adds the index as a regular column to keep it after the fusion
             df_behav['Frame'] = df_behav.index
@@ -324,16 +327,37 @@ def get_behav(file_DLC, file_TTL, file_dff, file_video, trim_frames, data_prefix
 
         def trim_n_norm(df, trim_frames):
 
-            start_frame, stop_frame = trim_frames  # allow None
-            
-            # trim the df according to start and stop frame
-            mask = df['Frame'] >= (float(start_frame) if start_frame is not None else df['Frame'].min())
-            if stop_frame is not None:
-                mask &= df['Frame'] <= float(stop_frame)
+            # trim the df according to user start and stop frame (you get those frames by looking at the video)
+            user_start_frame, user_stop_frame = trim_frames 
+            mask = df['Frame'] >= (float(user_start_frame) if user_start_frame is not None else df['Frame'].min())
+            if user_stop_frame is not None:
+                mask &= df['Frame'] <= float(user_stop_frame)
 
-            
             df_trimmed = df.loc[mask].copy()
             df_trimmed.index = (df_trimmed.index - df_trimmed.index[0]).round(1)
+
+
+            # before, you found the frames that corresponded to the ISPX time by nearest neighbour, so in the beginning and in the end, it may be a repetition of the same frames, delete those
+            # check if there is a repetition of Frame values (there shouldnt be any reps in the middle, because rep values were deleted in ISPX index before)
+            if df_trimmed['Frame'].duplicated().any():
+
+                # if repetition in the beginning
+                if df_trimmed['Frame'].iloc[0] == df_trimmed['Frame'].iloc[1]:
+                    first_row_no_rep = df_trimmed['Frame'].ne(df_trimmed['Frame'].iloc[0]).idxmax()    # gets the index of the first row where 'Frame' value is not equal to first row anymore (=where repetition ends)
+                    df_trimmed = df_trimmed.loc[first_row_no_rep:].copy()
+                    df_trimmed.index = df_trimmed.index - df_trimmed.index[0]
+                    print(f'Repetition of Frames in the beginning, first proper row is {first_row_no_rep} ->trim')
+
+                # if repetition at the end
+                elif df_trimmed['Frame'].iloc[-1] == df_trimmed['Frame'].iloc[-2]:
+                    last_index = df_trimmed.index[-1]                   # just for diagnostics print
+                    mask = df_trimmed['Frame'].diff().gt(0)             # True when increasing, False when the frames stay the same
+                    mask.iloc[0] = True                                 # always keep the first row
+                    df_trimmed = df_trimmed[mask]                       # drops the False values, so it only keeps the rows where Frames are increasing
+                    print(f'Repetition of Frames at the end, starting at row {mask[mask == False].index.min()} / {last_index} ->trim')
+                
+                else:
+                    print('Repetition of Frame value in the middle of the recording, beginning and end is ok')
 
 
             # normalize via zscore
@@ -420,16 +444,24 @@ def get_behav(file_DLC, file_TTL, file_dff, file_video, trim_frames, data_prefix
         # trim and normalize the trimmed df
         main_df = trim_n_norm(main_df, trim_frames)
 
+
+
         main_df.to_csv(data_prefix + 'main.csv')
         return main_df
 
-data_prefix = "D:\\CA1Dopa_Miniscope\\Post_f48\\CA1Dopa_Longitud_f48_Post3_YMaze_"
+data_prefix = "D:\\CA1Dopa_Miniscope\\Post_f48\\CA1Dopa_Longitud_f48_Post1_YMaze_"
 file_dff    =   data_prefix + 'trace.csv'
 file_DLC    =   data_prefix + 'DLC.csv'
 file_TTL    =   data_prefix + 'GPIO.csv'
 file_video  =   data_prefix + 'video_DLC.mp4'
-trim_frames = (766, None)
+trim_frames = (775, 19482)
 
 main_df = get_behav(file_DLC, file_TTL, file_dff, file_video, trim_frames, data_prefix)
 
 
+
+
+
+
+
+                                                                                                     
