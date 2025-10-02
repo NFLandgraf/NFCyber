@@ -15,89 +15,6 @@ import torch.optim as optim
 import csv
 from shapely.geometry import Polygon, Point
 
-#%%
-'''
-To keep the recording comparable between animals, we need to filter certain things
--Speed: drop rows that are below a certain speed, where the animal only sits around
--Movement: trim the recording in the end, when a certain distance has been travelled, so that every recording had the same distance 
--Events: Delete cells that didnt fire enough
-'''
-def filter_recording(df):
-
-    def speed_filter(df, fps=10, step=1, speed_thresh_mm=15.0):
-        # remove rows where the animals moves below threshold
-
-        x_col = 'head_x'
-        y_col = 'head_y'
-
-        # Compute frame-to-frame differences with step (to reduce noise) and get the distance. Convert it to speed.
-        dx = df[x_col].diff(step)
-        dy = df[y_col].diff(step)
-        dist = np.sqrt(dx**2 + dy**2)
-        speed = dist / (step / fps)     # in mm/s
-
-        # Fill NaNs in first rows (where speed is 0) and set threshold
-        speed = speed.fillna(0)
-        mask = speed >= speed_thresh_mm
-
-        # Apply mask to dataframe
-        df_filtered = df[mask].copy()
-        df_filtered['speed'] = speed[mask]
-
-        return df_filtered
-
-    def movement_filter(df, step=1, move_threshold_m=20):
-        # only use x meters travelled for each recording to compare between animals. For this you need to know the distances travelled for each animal and take the minimum.
-        
-        # Compute total distance travelled
-        dx = df['head_x'].diff(step)
-        dy = df['head_y'].diff(step)
-        step_dist = np.sqrt(dx**2 + dy**2).fillna(0)
-        total_dist = step_dist.iloc[step::step].sum().round()
-        print(f'Dist moved {round(total_dist/1000, 1)}m')
-
-        # Cumulative distance
-        cum_dist = np.cumsum(step_dist)
-        cum_dist = np.insert(cum_dist, 0, 0)  # align with df length
-
-        # Find first frame that is above threshold and trim the recording there
-        mask = cum_dist >= move_threshold_m*1000
-        if mask.any():
-            cutoff_pos = np.argmax(mask)  # first True position
-            cutoff_index = df.index[cutoff_pos]
-            print(f'Movement threshold reached at {cutoff_index}s / {df.index[-1]}s')
-        else:
-            cutoff_index = df.index[-1]
-            print('!Movement threshold never reached! Animals not in sync')
-
-        df_trimmed = df.loc[:cutoff_index]
-        
-        return df_trimmed
-
-    def event_filter(df, event_thresh=5):
-        # drop cells that have less events than event_thresh in the whole recording
-
-        spike_cols = [c for c in df.columns if "spike" in c]
-        total_events = df[spike_cols].sum(axis=0)
-
-        # identifies cells that are below threshold and deletes everything of those cells (z, dff, spike)
-        low_event_cols = total_events[total_events < event_thresh].index
-        drop_cells = [col.replace("spike_", "") for col in low_event_cols]
-
-        drop_cols = [c for c in df.columns if any(cell in c for cell in drop_cells)]
-        df_filtered = df.drop(columns=drop_cols)
-
-        return df_filtered
-
-    df_speed = speed_filter(df)
-    df_move = movement_filter(df_speed)
-    df_event = event_filter(df_move)
-
-    return df_event
-
-main_df = pd.read_csv(r"D:\CA1Dopa_Miniscope\live\CA1Dopa_Longitud_f48_Post1_YMaze_main.csv", index_col='Time', low_memory=False)
-main_df = filter_recording(main_df)
-
 
 #%%
 
@@ -288,8 +205,15 @@ def identify_place_cells(main_df, place_df, fps=10, n_shuffles=100, significance
 
     return spatial_info_real, spatial_info_shuffled, p_values, place_cells
 
+file_main = "D:\\CA1Dopa_Miniscope\\Post_f48\\CA1Dopa_Longitud_f48_Post1_YMaze_main.csv"
+main_df = pd.read_csv(file_main, index_col='Time', low_memory=False)
+
 place_df, areas = bin_cellspikes(main_df)
 spatial_info_real, spatial_info_shuffled, p_values, place_cells = identify_place_cells(main_df, place_df)
+
+
+
+
 
 
 #%%
