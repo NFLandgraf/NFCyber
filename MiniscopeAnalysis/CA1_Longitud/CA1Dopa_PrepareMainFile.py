@@ -48,7 +48,7 @@ def create_video(df):
     # Video parameters
     frame_width = 650
     frame_height = 550
-    fps = 30
+    fps = 10
     video_name = "bodyparts_video.mp4"
 
     # Create VideoWriter
@@ -86,6 +86,8 @@ def create_video(df):
     out.release()
     print(f"Video saved as {video_name}")
 
+main_df = pd.read_csv(r"D:\CA1Dopa_Miniscope\live\CA1Dopa_Longitud_f48_Post1_YMaze_main_filtered.csv", index_col='Time', low_memory=False)
+create_video(main_df)
 
 #%%
 '''
@@ -496,7 +498,7 @@ def filter_recording(file_main, trim_frames, data_prefix):
         print(f'{len(df)-len(df_filtered)} / {len(df)} rows under speed threshold={speed_thresh_mm}mm/s ->dropped')
         return df_filtered
 
-    def movement_filter(df, step=1, move_threshold_m=19):
+    def distance_filter(df, step=1, move_threshold_m=19):
         # only use x meters travelled for each recording to compare between animals. For this you need to know the distances travelled for each animal and take the minimum.
         
         # Compute total distance travelled
@@ -544,7 +546,7 @@ def filter_recording(file_main, trim_frames, data_prefix):
 
     main_df = trim_n_norm(main_df, trim_frames)
     main_df = speed_filter(main_df)
-    main_df = movement_filter(main_df)
+    main_df = distance_filter(main_df)
     main_df = event_filter(main_df)
 
     main_df.to_csv(data_prefix + 'main_filtered.csv')

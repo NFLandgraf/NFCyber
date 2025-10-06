@@ -100,10 +100,9 @@ def bin_cellspikes(main_df, arena_is_OF=False):
     place_df = pd.DataFrame(place_map).fillna(0).astype(int)
     place_df = place_df.sort_index()
 
-    print(place_df)
     return place_df, areas
 
-def identify_place_cells(main_df, place_df, fps=10, n_shuffles=100, significance_level=0.05):
+def identify_place_cells(main_df, place_df, fps=10, n_shuffles=10, significance_level=0.05):
     '''
     Computing spatial information via Skaggs formula:
     SI = ∑i ⋅ pi ⋅ ri/r ⋅ log2(ri/r)
@@ -205,14 +204,17 @@ def identify_place_cells(main_df, place_df, fps=10, n_shuffles=100, significance
 
     return spatial_info_real, spatial_info_shuffled, p_values, place_cells
 
-file_main = "D:\\CA1Dopa_Miniscope\\Post_f48\\CA1Dopa_Longitud_f48_Post1_YMaze_main.csv"
+
+data_prefix = r"D:\CA1Dopa_Miniscope\live"
+file_main = data_prefix + "\CA1Dopa_Longitud_f51_Post3_YMaze_main_filtered.csv"
 main_df = pd.read_csv(file_main, index_col='Time', low_memory=False)
 
 place_df, areas = bin_cellspikes(main_df)
 spatial_info_real, spatial_info_shuffled, p_values, place_cells = identify_place_cells(main_df, place_df)
 
 
-
+save_df = pd.DataFrame(list(spatial_info_real.items()), columns=['cell', 'value'])
+save_df.to_csv(data_prefix+r'\f51_Post3_YMaze.csv', index=False)
 
 
 
