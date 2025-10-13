@@ -9,8 +9,9 @@ import os
 #%%
 # does processing of the traces
 
-df = pd.read_csv(r"D:\2P\All_RawTraces_csv.CSV")
+df = pd.read_csv(r"D:\CA1Dopa_2pTube\Traces\Airpuff_RawTraces.CSV")
 df.index = df['Frames']
+time_arr = df['Time [s]']
 df = df.drop('Frames', axis=1)
 df = df.drop('Time [s]', axis=1)
 print(df)
@@ -81,7 +82,6 @@ def dff_from_trace(trace, baseline_range=None, eps=1e-6):
     dff = (trace - denom) / denom
     return dff
 
-
 df_detrend = pd.DataFrame(index=df.index)
 df_dff = pd.DataFrame(index=df.index)
 
@@ -92,7 +92,9 @@ for col in df.columns:
 #for col in df_detrend:
 #    df_dff[col] = dff_from_trace(df_detrend[col].values)
 
-print(df_detrend)
+#print(df_detrend)
+df_detrend['Time [s]'] = time_arr
+
 df_detrend.to_csv('detrend.csv')
 
 # print(df_dff)
@@ -102,9 +104,10 @@ df_detrend.to_csv('detrend.csv')
 #%%
 # does peri event 
 
-df = pd.read_csv(r"D:\2P_Analysis\Airpuff_detrend_frames.csv")
+df = pd.read_csv(r"D:\CA1Dopa_2pTube\Traces\Airpuff_RawTraces_detrend.csv")
 df.index = df['Frames']
 df = df.drop('Frames', axis=1)
+df = df.drop('Time [s]', axis=1)
 
 event_frames = [323, 647, 971, 1296, 1620]
 fps = 10.8056
@@ -112,7 +115,7 @@ all_means = pd.DataFrame()
 allevents_allrois = pd.DataFrame()
 
 
-def peri_event_dff_frames(series, event_frames, fps, col, window_pre=-2, window_post=10, baseline_pre=-2, baseline_post=-0.1):
+def peri_event_dff_frames(series, event_frames, fps, col, window_pre=-2, window_post=15, baseline_pre=-2, baseline_post=-0.1):
 
     # to calculate everything in frames
     window_pre = int(round(window_pre * fps))
@@ -138,7 +141,7 @@ def peri_event_dff_frames(series, event_frames, fps, col, window_pre=-2, window_
         f0 = max(float(f0), 1e-6)  # numeric safety
         dff = (window - f0) / f0
 
-        with open(r"D:\2P_Analysis\lulu.txt", "a") as f:
+        with open(r"D:\CA1Dopa_2pTube\Traces\lulu.txt", "a") as f:
             f.write(f'\n{max(dff)}')
 
         df_all_events[f'Air{i}'] = dff.reindex(rel_index)
@@ -150,18 +153,19 @@ def peri_event_dff_frames(series, event_frames, fps, col, window_pre=-2, window_
     return df_all_events
 
 for col in df:
-    with open(r"D:\2P_Analysis\lulu.txt", "a") as f:
+    with open(r"D:\CA1Dopa_2pTube\Traces\lulu.txt", "a") as f:
         f.write(f'\n{col}')
 
     df_all_events = peri_event_dff_frames(df[col], event_frames, fps, col)
     #df_all_events.to_csv(f'{col}.csv')
 
     all_means[col] = df_all_events['mean']
+    all_means.to_csv('all_means.csv')
 
 #%%
 
 print(all_means)
-all_means.to_csv('all_means2.csv')
+all_means.to_csv('all_means.csv')
 
 
 #%%
