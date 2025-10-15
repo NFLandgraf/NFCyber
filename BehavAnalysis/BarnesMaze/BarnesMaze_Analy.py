@@ -2,9 +2,9 @@
 # IMPORT & DEFINE
 import pandas as pd
 import numpy as np
-#from shapely.geometry import Polygon, Point
+from shapely.geometry import Polygon, Point
 from tqdm import tqdm
-#import cv2
+import cv2
 from pathlib import Path
 
 # USER INPUT
@@ -97,12 +97,12 @@ def cleaning_raw_df(csv_file):
             df = df.interpolate(method="linear")
             
             # make one column (x,y) per bodypart
-            bodyparts = sorted(set(c[:-2] for c in df.columns if c.endswith(("_x", "_y"))))
-            df_tuples = pd.DataFrame(index=df.index)
-            for bp in bodyparts:
-                df_tuples[bp] = list(zip(df[f"{bp}_x"], df[f"{bp}_y"]))
+            # bodyparts = sorted(set(c[:-2] for c in df.columns if c.endswith(("_x", "_y"))))
+            # df_tuples = pd.DataFrame(index=df.index)
+            # for bp in bodyparts:
+            #     df_tuples[bp] = list(zip(df[f"{bp}_x"], df[f"{bp}_y"]))
                         
-            return df_tuples
+            return df
 
 def bp_at_which_hole(df, holes, bps, radius=35):
 
@@ -188,22 +188,25 @@ def right_hole(df, df_holes, corr_hole='D'):
 
 
 csv_files = get_files(path, common_name_csv)
+
+#%%
 for file in csv_files:
 
     # Prep
     holes = define_areas()
     bps_all, bps_relevant, bps_head = define_bodyparts()
     df = cleaning_raw_df(file)
+    print(df)
 
     # Holes visited
-    df_holes = bp_at_which_hole(df, holes, bps_head)
-    df_holes, maj_holes = anim_at_which_hole(df_holes)
+    # df_holes = bp_at_which_hole(df, holes, bps_head)
+    # df_holes, maj_holes = anim_at_which_hole(df_holes)
 
     # Get data
-    corr_frame, wrong_holes, dist_until_corr = right_hole(df, df_holes)
+    #corr_frame, wrong_holes, dist_until_corr = right_hole(df, df_holes)
     
     
 
-    print(df_holes)
+    #print(df_holes)
 
 

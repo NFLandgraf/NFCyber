@@ -6,7 +6,7 @@ import os
 
 
 # path = 'C:\\Users\\landgrafn\\Desktop\\2024-12-09_FF-Weilin-3m_Nomifensine\\Baseline\\'
-path = 'C:\\Users\\landgrafn\\Desktop\\FFneg\\Lea\\'
+path = r"D:\FF_DA\data"
 common_name = '.doric'
 rec_type = None
 DLC_mm_per_px = 0.12
@@ -405,16 +405,16 @@ def doric_to_csv():
         print(f'\n{file_doric}')
 
         # if 2 IOs
-        #main_df, events_IO2, events_IO3 = do_LockIn_twoIO(file_doric)
+        main_df, events_IO2, events_IO3 = do_LockIn_twoIO(file_doric)
         # main_df = add_distances_to_maindf(file_doric, main_df)
-        #main_df = align_to_events(main_df, events_IO3)    
+        main_df = align_to_events(main_df, events_IO3)    
 
         # if 1 IOs
         # main_df, events_IO = do_LockIn_oneIO(file_doric)
         # main_df = align_to_events(main_df, events_IO)
 
         # if 0 IOs
-        main_df = do_LockIn(file_doric)
+        # main_df = do_LockIn(file_doric)
         # df = crop_recording_no_events(df)
 
         new_file = file_doric.replace('.doric', '_LockIn.csv')

@@ -11,8 +11,8 @@ from pathlib import Path
 import os
 
 
-path = r"C:\Users\landgrafn\Desktop\FF-NE\LockIn"
-file_useless_string = ['2024-11-20_FF-Weilin_FS_', '_LockIn']
+path = r"D:\FF_NE\data"
+file_useless_string = ['CA1Dopa_FF_GRABNE_2025-08-07_', '_FS_LockIn']
 
 
 def manage_filename(file):
@@ -41,18 +41,7 @@ files = get_files(path, 'csv')
 
 def FF_analyze(time_sec, fluo_raw, isos_raw):
 
-    def double_exponential(t, const, amp_fast, amp_slow, tau_slow, tau_multiplier):
-            # fits a double-exponential function to trace to correct for all possible bleaching reasons
-            '''Compute a double exponential function with constant offset.
-            t               : Time vector in seconds.
-            const           : Amplitude of the constant offset. 
-            amp_fast        : Amplitude of the fast component.  
-            amp_slow        : Amplitude of the slow component.  
-            tau_slow        : Time constant of slow component in seconds.
-            tau_multiplier  : Time constant of fast component relative to slow. '''
-            
-            tau_fast = tau_slow * tau_multiplier
-            return const+amp_slow*np.exp(-t/tau_slow)+amp_fast*np.exp(-t/tau_fast)
+    
 
     sampling_rate = (len(time_sec) - 1) / (time_sec[-1] - time_sec[0])
 
@@ -66,6 +55,19 @@ def FF_analyze(time_sec, fluo_raw, isos_raw):
 
 
     # Photobleaching Correction
+    def double_exponential(t, const, amp_fast, amp_slow, tau_slow, tau_multiplier):
+            # fits a double-exponential function to trace to correct for all possible bleaching reasons
+            '''Compute a double exponential function with constant offset.
+            t               : Time vector in seconds.
+            const           : Amplitude of the constant offset. 
+            amp_fast        : Amplitude of the fast component.  
+            amp_slow        : Amplitude of the slow component.  
+            tau_slow        : Time constant of slow component in seconds.
+            tau_multiplier  : Time constant of fast component relative to slow. '''
+            
+            tau_fast = tau_slow * tau_multiplier
+            return const+amp_slow*np.exp(-t/tau_slow)+amp_fast*np.exp(-t/tau_fast)
+    
     max_sig = np.max(fluo_denoised)
     initial_params = [max_sig/2, max_sig/4, max_sig/4, 3600, 0.1]
     bounds = ([0, 0, 0, 600, 0], [max_sig, max_sig, max_sig, 36000, 1])
@@ -82,11 +84,8 @@ def FF_analyze(time_sec, fluo_raw, isos_raw):
     # --> subtract function from trace (signal is V)
     # If bleaching comes from bleaching of the fluorophore, the amplitude suffers as well 
     # --> division is needed (signal is df/f)
-    fluo_detrend = fluo_denoised / fluo_expfit
-    isos_detrend = isos_denoised / isos_expfit
-
-    # fluo_detrend = fluo_denoised
-    # isos_detrend = isos_denoised
+    #fluo_detrend = fluo_denoised / fluo_expfit
+    #isos_detrend = isos_denoised / isos_expfit
 
 
 
@@ -94,13 +93,13 @@ def FF_analyze(time_sec, fluo_raw, isos_raw):
 
 
     # Motion
-    slope, intercept, r_value, p_value, std_err = stats.linregress(x=isos_detrend, y=fluo_detrend)        # get the linear regression line between Fluo and Isos
-    fluo_est_motion = intercept + slope * isos_detrend                                                     # fit Isos to Fluo, hwich would be the motion
+    slope, intercept, r_value, p_value, std_err = stats.linregress(x=isos_denoised, y=fluo_denoised)        # get the linear regression line between Fluo and Isos
+    fluo_est_motion = intercept + slope * isos_denoised                                                     # fit Isos to Fluo, hwich would be the motion
 
 
 
     # Normalization
-    fluo_dff = (fluo_detrend - fluo_est_motion) / fluo_expfit * 100                                    # normalizes the trace by using the estimated motion
+    fluo_dff = (fluo_denoised - fluo_est_motion) / fluo_est_motion * 100                                    # normalizes the trace by using the estimated motion
     fluo_dff = pd.Series(fluo_dff, index=time_sec)
     #return fluo_dff
     #fluo_dff.to_csv('F://sdsd.csv')
@@ -117,7 +116,7 @@ def FF_analyze(time_sec, fluo_raw, isos_raw):
 
         # crop the recording to the area around the event
         window = df_event.loc[-5 : 20]
-        baseline = df_event.loc[-2 : -0.1]
+        baseline = df_event.loc[-1 : -0.1]
         baseline_mean = baseline.mean()
 
         # normalize everything to the baseline_mean
@@ -132,7 +131,7 @@ all_animals = pd.DataFrame()
 
 for file in files:
     file_name_short = manage_filename(file)
-    print(file_name_short)
+    #print(file_name_short)
 
     df = pd.read_csv(file)
     df.index = df['Time']
@@ -145,7 +144,9 @@ for file in files:
     event_mean = FF_analyze(time_sec, fluo_raw, isos_raw)
     all_animals[file_name_short] = event_mean
 
-all_animals.to_csv('negGFP_Fluodff.csv')
+#all_animals.to_csv('Fluodff.csv')
+
+
 
 
 #%%
