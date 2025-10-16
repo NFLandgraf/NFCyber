@@ -14,6 +14,38 @@ import torch.nn as nn
 import torch.optim as optim
 import csv
 from shapely.geometry import Polygon, Point
+import os
+from pathlib import Path
+
+
+
+
+path = r"D:\CA1Dopa_Miniscope\live"
+file_useless_string = ['CA1Dopa_Longitud_', '_main_filtered']
+
+
+def manage_filename(file):
+
+    # managing file names
+    file_name = os.path.basename(file)
+    file_name_short = os.path.splitext(file_name)[0]
+    for word in file_useless_string:
+        file_name_short = file_name_short.replace(word, '')
+    
+    return file_name_short
+def get_files(path, common_name):
+
+    # get files
+    files = [file for file in Path(path).iterdir() if file.is_file() and common_name in file.name]
+    
+    print(f'\n{len(files)} files found')
+    for file in files:
+        print(file)
+    print('\n')
+
+    return files
+files = get_files(path, 'YMaze')
+
 
 
 #%%
@@ -102,7 +134,7 @@ def bin_cellspikes(main_df, arena_is_OF=False):
 
     return place_df, areas
 
-def identify_place_cells(main_df, place_df, fps=10, n_shuffles=10, significance_level=0.05):
+def identify_place_cells(main_df, place_df, fps=10, n_shuffles=1000, significance_level=0.05):
     '''
     Computing spatial information via Skaggs formula:
     SI = ∑i ⋅ pi ⋅ ri/r ⋅ log2(ri/r)
@@ -158,7 +190,7 @@ def identify_place_cells(main_df, place_df, fps=10, n_shuffles=10, significance_
 
         occupancy_probs = occupancy / occupancy.sum()
         spatial_info_shuffled = {cell: [] for cell in place_df.columns}
-
+        print('Compute random distributon for SI...')
         for _ in tqdm(range(n_shuffles)):
             for cell in place_df.columns:
                 
@@ -197,24 +229,296 @@ def identify_place_cells(main_df, place_df, fps=10, n_shuffles=10, significance_
     occupancy = main_df.groupby('head_bin').size()
     spatial_info_real = get_spatial_info_real(place_df, occupancy)
     spatial_info_shuffled = get_spatial_info_shuffle(place_df, occupancy)
-    place_cells, p_values = check_significance(spatial_info_real, spatial_info_shuffled)
+    p_values, place_cells = check_significance(spatial_info_real, spatial_info_shuffled)
 
     nb_place_cells, nb_all_cells = len(place_cells), len(spatial_info_real)
-    print(f'Place cells {nb_place_cells} / {nb_all_cells} ({round((nb_place_cells/nb_all_cells)*100, 1)}%)')
+    print(f'Place cells {nb_place_cells} / {nb_all_cells} ({round((nb_place_cells/nb_all_cells)*100, 1)}%)\n')
+
+    save_df = pd.DataFrame(list(spatial_info_real.items()), columns=['cell', 'value'])
+    #save_df.to_csv(.csv', index=False)
 
     return spatial_info_real, spatial_info_shuffled, p_values, place_cells
 
+def ffn(main_df, place_cells):
 
-data_prefix = r"D:\CA1Dopa_Miniscope\live"
-file_main = data_prefix + "\CA1Dopa_Longitud_f51_Post3_YMaze_main_filtered.csv"
-main_df = pd.read_csv(file_main, index_col='Time', low_memory=False)
+    def prep_data(main_df, place_cells, min_active_cells=0, sampling_rate=10, bin_size=1.0):
 
-place_df, areas = bin_cellspikes(main_df)
-spatial_info_real, spatial_info_shuffled, p_values, place_cells = identify_place_cells(main_df, place_df)
+        # downsample the df to have relyable neuronal info per timepoint
+        frames_per_bin = int(bin_size * sampling_rate)
+        position_cols = ['head_x', 'head_y']
+        n_bins = len(main_df) // frames_per_bin
+
+        df_binned = []
+        for i in range(n_bins):
+            start = i * frames_per_bin
+            end = (i + 1) * frames_per_bin
+            segment = main_df.iloc[start:end]
+
+            spike_sums = segment[place_cells].sum()
+            position_avg = segment[position_cols].mean()
+
+            binned_row = pd.concat([spike_sums, position_avg])
+            df_binned.append(binned_row)
+
+        df_binned = pd.DataFrame(df_binned)
+        
+        # only include timepoints with >= x active cells
+        active_rows = (df_binned[place_cells] > 0).sum(axis=1) >= min_active_cells
+        df_binned = df_binned[active_rows]
+        X = df_binned[place_cells].values.astype(np.float32)
+        Y = df_binned[position_cols].values.astype(np.float32)
+
+        return X, Y
+
+    def create_tensors_split(X, Y, test_size=0.2):
+        # split data into train/test
+        X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=test_size, random_state=42)
+
+        # convert to PyTorch tensors
+        X_train_tensor = torch.tensor(X_train, dtype=torch.float32)
+        Y_train_tensor = torch.tensor(Y_train, dtype=torch.float32)
+        X_test_tensor  = torch.tensor(X_test, dtype=torch.float32)
+        Y_test_tensor  = torch.tensor(Y_test, dtype=torch.float32)
+
+        # create datasets
+        train_dataset = TensorDataset(X_train_tensor, Y_train_tensor)
+        test_dataset = TensorDataset(X_test_tensor, Y_test_tensor)
+
+        # create dataloaders
+        train_loader = DataLoader(train_dataset, batch_size=32, shuffle=False)
+        test_loader = DataLoader(test_dataset, batch_size=32)
+
+        return train_loader, test_loader
+    
+    def create_tensors_whole(X, Y):
+        # as we just want to proove that you can predict the position by looking at the neuronal activity,
+        # we don't need to split the data into train/test, just use the whole dataset
+        full_dataset = TensorDataset(torch.tensor(X, dtype=torch.float32), torch.tensor(Y, dtype=torch.float32))
+
+        # for training, the rows must be shuffled around (without breaking the X-Y pairing)
+        full_loader_train = DataLoader(full_dataset, batch_size=32, shuffle=True)
+
+        # for test, shuffle must be False, otherwise it is not the correct time series anymore
+        full_loader_test = DataLoader(full_dataset, batch_size=32, shuffle=False)
+
+        return full_loader_train, full_loader_test
+    
+    def create_tensors_shuffled(X, Y):
+
+        # shuffle the data to create a negative control        
+        Y_shuffled = np.random.permutation(Y)
+        shuffled_dataset = TensorDataset(torch.tensor(X, dtype=torch.float32), torch.tensor(Y_shuffled, dtype=torch.float32))
+        shuffled_loader = DataLoader(shuffled_dataset, batch_size=32, shuffle=True)
+
+        return shuffled_loader
+
+    class PositionDecoder(nn.Module):
+        def __init__(self, input_dim, hidden_dim=64):
+            super(PositionDecoder, self).__init__()
+            self.net = nn.Sequential(
+                nn.Linear(input_dim, hidden_dim),   # layer_1: input -> hidden
+                nn.ReLU(),
+                nn.Linear(hidden_dim, hidden_dim),  # layer_2: hidden -> hidden
+                nn.ReLU(),
+                nn.Linear(hidden_dim, 2)            # layer_3: hidden -> output (x,y)
+            )
+
+        def forward(self, x):
+            return self.net(x)
+
+    def train_model(train_loader, test_loader, model, n_epochs=1000, lr=1e-3, verbose=True):
+
+        # Set device
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        model = model.to(device)
+
+        # Loss and optimizer
+        criterion = nn.MSELoss()
+        optimizer = optim.Adam(model.parameters(), lr=lr)
+
+        # log to check later
+        train_losses, test_losses = [], []
+
+        # Training loop
+        pbar = tqdm(range(n_epochs), desc="Training FFN", leave=True)
+        for epoch in pbar:
+
+            # train model
+            model.train()
+            total_train_loss = 0
+            for batch_X, batch_Y in train_loader:
+                batch_X = batch_X.to(device)
+                batch_Y = batch_Y.to(device)
+                optimizer.zero_grad()
+                outputs = model(batch_X)
+                loss = criterion(outputs, batch_Y)
+                loss.backward()
+                optimizer.step()
+                total_train_loss  += loss.item()
+            avg_train_loss = total_train_loss / len(train_loader)
+            train_losses.append(avg_train_loss)
+        
+            # test model
+            model.eval()
+            total_test_loss = 0
+            with torch.no_grad():
+                for batch_X, batch_Y in test_loader:
+                    batch_X, batch_Y = batch_X.to(device), batch_Y.to(device)
+                    outputs = model(batch_X)
+                    loss = criterion(outputs, batch_Y)
+                    total_test_loss += loss.item()
+            avg_test_loss = total_test_loss / len(test_loader)
+            test_losses.append(avg_test_loss)
 
 
-save_df = pd.DataFrame(list(spatial_info_real.items()), columns=['cell', 'value'])
-save_df.to_csv(data_prefix+r'\f51_Post3_YMaze.csv', index=False)
+            if verbose:
+                pbar.set_postfix({"Train_RMSE": f"{avg_train_loss**0.5:.2f}","Test_RMSE": f"{avg_test_loss**0.5:.2f}"})
+
+            # this outputs the squared px, so the root would be the actual pixel difference
+            if verbose and (epoch % 10 == 0 or epoch == n_epochs - 1):
+                pass
+                #print(f"Epoch {epoch:03d} | Train_RMSE: {avg_train_loss**0.5:.2f}px | Test_RMSE: {avg_test_loss**0.5:.2f}px")
+        
+        def plot_training_log():
+            plt.plot(np.sqrt(train_losses), label='Train_RMSE')
+            plt.plot(np.sqrt(test_losses), label='Test_RMSE')
+            plt.xlabel("Epoch")
+            plt.ylabel("RMSE [px]")
+            plt.legend()
+            plt.grid(True)
+            plt.tight_layout()
+            plt.show()
+        #plot_training_log()
+
+        return model
+
+    def test_model(model, test_loader):
+
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+        model.eval()
+        all_preds = []
+        all_targets = []
+
+        with torch.no_grad():
+            for batch_X, batch_Y in test_loader:
+                batch_X = batch_X.to(device)
+                batch_Y = batch_Y.to(device)
+
+                preds = model(batch_X)
+                all_preds.append(preds.cpu())
+                all_targets.append(batch_Y.cpu())
+
+        # Combine all batches into arrays
+        Y_pred = torch.cat(all_preds).numpy()
+        Y_true = torch.cat(all_targets).numpy()
+
+        return Y_pred, Y_true
+
+    def plot_true_vs_pred_coords(Y_true, Y_pred, accuracy):
+
+        true_x = Y_true[:, 0]
+        pred_x = Y_pred[:, 0]
+        true_y = Y_true[:, 1]
+        pred_y = Y_pred[:, 1]
+
+        fig, axes = plt.subplots(1, 2, figsize=(12, 6), sharex=False, sharey=False)
+
+        # ---- X position ----
+        ax = axes[0]
+        hb = ax.hist2d(true_x, pred_x, bins=35, cmap='viridis')
+        fig.colorbar(hb[3], ax=ax)
+        ax.plot([true_x.min(), true_x.max()], [true_x.min(), true_x.max()], c='r', linestyle=':', label='Perfect prediction')
+        # ax.set_xlim(30, 630)
+        # ax.set_ylim(0, 600)
+        ax.set_xlabel('True X position')
+        ax.set_ylabel('Predicted X position')
+        ax.set_title(f'Decoded X: Predicted vs True (Accuracy={accuracy}%)')
+        ax.legend()
+        ax.grid(True)
+        ax.set_aspect('equal')
+
+        # ---- Y position ----
+        ax = axes[1]
+        hb = ax.hist2d(true_y, pred_y, bins=35, cmap='viridis')
+        fig.colorbar(hb[3], ax=ax)
+        ax.plot([true_y.min(), true_y.max()], [true_y.min(), true_y.max()], c='r', linestyle=':', label='Perfect prediction')
+        # ax.set_xlim(30, 630)
+        # ax.set_ylim(0, 600)
+        ax.set_xlabel('True Y position')
+        ax.set_ylabel('Predicted Y position')
+        ax.set_title(f'Decoded Y: Predicted vs True (Accuracy={accuracy}%)')
+        ax.legend()
+        ax.grid(True)
+        ax.set_aspect('equal')
+
+        plt.tight_layout()
+        plt.show()
+
+    def calc_accuracy(Y_true, Y_pred, threshold_mm=50):
+
+        # calulates how many predictions are within the threshold (in depends if mm or px (main_df creation))
+        errors = np.linalg.norm(Y_true - Y_pred, axis=1)
+        accuracy = round(np.mean(errors <= threshold_mm)*100, 1)
+        print(f"Mean decoding error: {errors.mean():.2f} mm, Accuracy: {accuracy}%\n")
+
+        return accuracy, errors
+
+
+    X, Y = prep_data(main_df, place_cells)
+    full_loader_train, full_loader_test = create_tensors_whole(X, Y)
+    shuffled_loader_train = create_tensors_shuffled(X, Y)
+    
+    model = PositionDecoder(input_dim=X.shape[1])
+    trained_model = train_model(full_loader_train, full_loader_test, model)
+    
+    Y_pred, Y_true = test_model(trained_model, full_loader_test)
+    accuracy, errors = calc_accuracy(Y_true, Y_pred)
+    #plot_true_vs_pred_coords(Y_true, Y_pred, accuracy)
+
+    return Y_pred, Y_true, trained_model, accuracy, errors
+
+
+
+
+for file_main in files:
+    print('\n\n')
+    print(file_main)
+
+    
+    main_df = pd.read_csv(file_main, index_col='Time', low_memory=False)
+
+    place_df, areas = bin_cellspikes(main_df)
+    spatial_info_real, spatial_info_shuffled, p_values, place_cells = identify_place_cells(main_df, place_df)
+
+    n_cells = 40
+    n_repeats = 10
+    results_acc, results_err = [], []
+    for i in range(n_repeats):
+        sampled_cells = np.random.choice(place_cells, size=min(n_cells, len(place_cells)), replace=False)
+        Y_pred, Y_true, model, acc, error = ffn(main_df, sampled_cells)
+        results_acc.append(acc)
+        results_err.append(error)
+
+
+    print(file_main)
+
+    results_acc_mean = np.mean(results_acc)
+    results_acc_stdv = np.std(results_acc)
+    print(results_acc)
+    print(results_acc_mean)
+    print(results_acc_stdv)
+
+    results_err_mean = np.mean(results_err)
+    results_err_stdv = np.std(results_err)
+    #print(results_err)
+    #print(results_err_mean)
+    #print(results_err_stdv)
+
+    print('\n\n')
+
+
+
 
 
 
@@ -324,3 +628,5 @@ for i, (cell, value) in enumerate(sorted_items):
         print(value)
         plot_spikes_heatmap_polygons(main_df, cell, i, areas)
         plot_spikes_polygons(main_df, cell, areas)
+
+
