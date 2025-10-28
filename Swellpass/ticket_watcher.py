@@ -10,6 +10,7 @@ import mimetypes
 from pathlib import Path
 from datetime import datetime
 
+sleepy_time = 10    # in seconds
 
 path = "C:\\Users\\landgrafn\\NFCyber\\Swellpass"
 load_dotenv()
@@ -365,6 +366,6 @@ def watch_loop():
 
         except Exception as e:
             print("Fehler im Watcher:", e)
-        time.sleep(30)   # in seconds
+        time.sleep(sleepy_time)
 
 watch_loop()
