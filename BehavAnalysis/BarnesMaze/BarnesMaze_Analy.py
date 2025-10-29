@@ -213,6 +213,25 @@ def annotate_video_with_letters(file, letters, holes, font_scale=3, thickness=6,
     cap.release()
     out.release()
 
+def save_results(results_by_animal, output_csv):
+    """
+    Converts results_by_animal dict to a DataFrame and saves it as CSV.
+    Each value should be a tuple or list like (latency_s, wrong_holes, dist_mm).
+    """
+    rows = []
+    for animal_id, results in results_by_animal.items():
+        for latency_s, wrong_holes, dist_mm in results:
+            rows.append({
+                "animal_id": animal_id,
+                "latency_s": latency_s,
+                "wrong_holes": wrong_holes,
+                "distance_mm": dist_mm
+            })
+
+    df = pd.DataFrame(rows)
+    df.to_csv(output_csv, index=False)
+    print(f"✅ Results saved to {output_csv}")
+
 
 def bp_at_which_hole(main_df, holes, center, bps, radius=55, center_radius=410):
 
@@ -312,8 +331,8 @@ def do_analysis(file):
     corr_frame, wrong_holes, dist_until_corr = right_hole(main_df)
 
     # create check
-    # rainbow_tract(r"D:\BM\canvass.png", main_df, file)
-    # annotate_video_with_letters(file, maj_holes, holes)
+    rainbow_tract(r"D:\BM\canvass.png", main_df, file)
+    annotate_video_with_letters(file, maj_holes, holes)
 
     return corr_frame, wrong_holes, dist_until_corr
 
@@ -336,8 +355,18 @@ for file_path in csv_files:
     print('\n')
 
 
+save_results(results_by_animal, r"D:\BM\results_summary.csv")
 for aid, vals in results_by_animal.items():
         print(aid, "->", vals)
+
+
+
+
+
+
+
+
+
 
 
 
@@ -382,65 +411,5 @@ holes = define_areas()
 img = cv2.imread(r"D:\BM\a.png")
 hole_map = draw_hole_map(img, holes, radius=55, radius_center= 410)
 cv2.imwrite(r"D:\BM\b.png", hole_map)
-
-
-#%%
-
-def annotate_video_with_letters(video_path, output_path, letters, holes, font_scale=3, thickness=6, color=(0,0,255), skip_value='nothing'):
-    
-    cap = cv2.VideoCapture(video_path)
-    if not cap.isOpened():
-        raise ValueError(f"Cannot open video {video_path}")
-
-    fps = cap.get(cv2.CAP_PROP_FPS)
-    width  = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-
-    if len(letters) < total_frames:
-        print(f"⚠️ Warning: letters list has fewer entries ({len(letters)}) than frames ({total_frames}). Missing frames will be left unannotated.")
-    elif len(letters) > total_frames:
-        letters = letters[:total_frames]
-
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
-    font = cv2.FONT_HERSHEY_SIMPLEX
-
-    for frame_idx in tqdm(range(total_frames), desc="Annotating video"):
-        ret, frame = cap.read()
-        if not ret:
-            break
-
-        for letter, (x, y) in holes.items():
-            center = (int(x), int(y))
-            if letter == 'center':
-                cv2.circle(frame, center, int(410), (0, 255, 255), 2, lineType=cv2.LINE_AA)
-            if letter != 'center':
-                cv2.circle(frame, center, int(55), (0, 255, 255), 2, lineType=cv2.LINE_AA)
-                cv2.putText(frame, letter, (center[0] + 6, center[1] - 6), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 2, cv2.LINE_AA)
-
-        letter = letters[frame_idx] if frame_idx < len(letters) else skip_value
-
-        if letter != skip_value and not pd.isna(letter):
-            text_size = cv2.getTextSize(letter, font, font_scale, thickness)[0]
-            text_x = (width - text_size[0]) // 2
-            text_y = (height + text_size[1]) // 2
-
-            cv2.putText(frame, letter, (text_x, text_y), font, font_scale,
-                        color, thickness, cv2.LINE_AA)
-
-        out.write(frame)
-
-    cap.release()
-    out.release()
-    print(f"✅ Saved annotated video to {output_path}")
-
-holes = define_areas()
-video_path = r"D:\BM\Aq1_1006_trim_mask_mask_DLC.mp4"
-output_path = r"D:\BM\Aq1_1006_trim_mask_mask_DLC_annot.mp4"
-annotate_video_with_letters(video_path, output_path, maj_holes, holes)
-
-
-
 
 
