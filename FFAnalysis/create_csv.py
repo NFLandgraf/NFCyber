@@ -6,7 +6,7 @@ import os
 
 
 # path = 'C:\\Users\\landgrafn\\Desktop\\2024-12-09_FF-Weilin-3m_Nomifensine\\Baseline\\'
-path = r"D:\FF_DA\data"
+path = r"D:\FF-DA_Nomifensine\FS"
 common_name = '.doric'
 rec_type = None
 DLC_mm_per_px = 0.12

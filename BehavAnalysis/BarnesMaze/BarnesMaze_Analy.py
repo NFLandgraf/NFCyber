@@ -13,7 +13,7 @@ from collections import defaultdict
 import os
 
 
-path = r"D:\BM\\"
+path = r"D:\\"
 common_name_csv = '.csv'
 px_per_mm = 0.909
 fps = 25
@@ -332,7 +332,7 @@ def do_analysis(file):
 
     # create check
     rainbow_tract(r"D:\BM\canvass.png", main_df, file)
-    annotate_video_with_letters(file, maj_holes, holes)
+    #annotate_video_with_letters(file, maj_holes, holes)
 
     return corr_frame, wrong_holes, dist_until_corr
 

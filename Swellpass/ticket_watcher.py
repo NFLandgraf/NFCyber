@@ -262,6 +262,8 @@ def ident_user(user):
         user_name = 'Constanze Gathen'
     elif user == 'Nana':
         user_name = 'Johanna Gentz'
+    elif user == 'Assel':
+        user_name = 'Susanna Pekrun'
     else:
         print('No user identified')
     
