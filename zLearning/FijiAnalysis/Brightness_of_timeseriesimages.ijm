@@ -8,13 +8,10 @@ for (i = 1; i <= nSlices; i++) {
     meanBrightness[i-1] = mean;
 }
 
-
-path = "C:\\Users\\landgrafn\\Desktop\\brightness_means.csv";
-
+path = "D:\\2pTube_rGRABDA_Airpuff\\Results_FullFrame\\brightness_means.csv";
 file = File.open(path);
 
 for (i = 0; i < nSlices; i++) 
 	print(file, meanBrightness[i] + "\n");
-
 
 File.close(file);

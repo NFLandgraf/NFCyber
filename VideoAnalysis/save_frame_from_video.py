@@ -1,15 +1,18 @@
+#%%
+# goes through videos in folder and saves the first frame
 import os
 import cv2
 
 # Path to the folder containing the .mp4 videos
-input_folder = "C:\\Users\\landgrafn\\Desktop\\CA1Dopa_Longitud_Videos"
+input_folder = "D:\\CA1Dopa_Longitud_Videos\\all videos"
 
 # Create an output folder if it doesn't exist
-output_folder = "C:\\Users\\landgrafn\\Desktop\\CA1Dopa_Longitud_Videos\\frames"
+output_folder = "D:\\CA1Dopa_Longitud_Videos\\all videos firstframe"
 
 # Loop through all files in the input folder
 for filename in os.listdir(input_folder):
     if filename.endswith('.mp4'):
+        print(filename)
         video_path = os.path.join(input_folder, filename)
         
         

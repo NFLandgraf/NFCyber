@@ -1,10 +1,10 @@
-
+#%%
 import os
 
-folder_path = r"D:\CA1Dopa_BarnesMaze\BarnesMaze_DLC"  
+folder_path = "E:\\labeled"
 
-old_text = "_labeled"
-new_text = ""
+old_text = "Post"
+new_text = "Zost"
 
 for filename in os.listdir(folder_path):
 

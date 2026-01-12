@@ -1,15 +1,17 @@
+#%%
+# goes through folder and crops videos according to csv
 import os
 import cv2
 import pandas as pd
 
 # Path to the folder containing the .mp4 videos
-input_folder = "C:\\Users\\landgrafn\\Desktop\\CA1Dopa_Longitud_Videos"
+input_folder = "D:\\CA1Dopa_Longitud_Videos\\videos_1raw\\YMaze"
 
 # Output folder for the cropped videos
-output_folder = "C:\\Users\\landgrafn\\Desktop\\CA1Dopa_Longitud_Videos\\crop_new"
+output_folder = "D:\\CA1Dopa_Longitud_Videos\\videos_3crop\\YMaze"
 os.makedirs(output_folder, exist_ok=True)
 
-crop_data = pd.read_csv("C:\\Users\\landgrafn\\Desktop\\Croppo_new.CSV")
+crop_data = pd.read_csv("D:\\CA1Dopa_Longitud_Videos\\Dimensions_YMaze.csv")
 
 # Create a dictionary to store cropping coordinates by filename
 crop_dict = {}
@@ -28,12 +30,13 @@ for filename in os.listdir(input_folder):
     if filename.endswith('.mp4'):
         video_path = os.path.join(input_folder, filename)
         filename_new = filename.strip('.mp4')
-        print(filename)
+        print(filename_new)
 
         if filename in crop_dict:
             crop_params = crop_dict[filename]
             x1, x2, y1, y2 = crop_params['x1_new'], crop_params['x2_new'], crop_params['y1_new'], crop_params['y2_new']
-        
+        print(x1, x2, y1, y2)
+
         # Create an output file path
         output_video_path = os.path.join(output_folder, f'{filename_new}_crop.mp4')
         
@@ -63,6 +66,6 @@ for filename in os.listdir(input_folder):
         # Release video objects
         cap.release()
         out.release()
-        print('video done')
+        print('done')
 
 print("Videos cropped and saved successfully!")

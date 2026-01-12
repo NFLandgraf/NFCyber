@@ -9,7 +9,8 @@ import os
 #%%
 # does processing of the traces
 
-df = pd.read_csv(r"D:\CA1Dopa_2pTube\Traces\Airpuff_RawTraces.CSV")
+df = pd.read_csv(r"D:\2pTube_rGRABDA_Airpuff\Results_FullFrame\combined.csv")
+df.index.name = "my_index"
 df.index = df['Frames']
 time_arr = df['Time [s]']
 df = df.drop('Frames', axis=1)
