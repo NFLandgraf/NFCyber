@@ -1,7 +1,7 @@
 #%%
 import os
 
-folder_path = "E:\\labeled"
+folder_path = r"D:\Neuro_5_seg"
 
 old_text = "Post"
 new_text = "Zost"

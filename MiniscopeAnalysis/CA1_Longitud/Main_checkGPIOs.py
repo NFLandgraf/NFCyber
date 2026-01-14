@@ -2,20 +2,9 @@
 # IMPORT
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 import cv2
 from tqdm import tqdm
-from scipy.ndimage import gaussian_filter
-from scipy.interpolate import interp1d
-from sklearn.model_selection import train_test_split
-from torch.utils.data import TensorDataset, DataLoader
-import torch
-import torch.nn as nn
-import torch.optim as optim
-import csv
 from pathlib import Path
-import os
-from scipy.stats import zscore
 from scipy.ndimage import gaussian_filter1d
 import tifffile as tiff
 
@@ -28,9 +17,37 @@ def get_files(path, common_name, suffix=".csv"):
         print(f)
     print('\n\n')
     return files
-path = r"D:\test"
-files = get_files(path, 'gpio', suffix=".csv")
 
+path = r"D:\zest"
+files = get_files(path, 'gpio', suffix=".csv")
+file_trimming = "D:\\1stuff\\Video_TrimFrames.csv"
+round_to = 3
+interpolate = True
+kill_Cam_TTLs = True    # if the DAQ sent out TTLs but you manually stopped the Cam at some point ->delete Cam_TTLs
+
+def interpolate_TTLs(high_times, target_length, alarm):
+    print(f'\n❌ WARNING Interpolation of {alarm} due to massive loss (interpolate=True)')
+    # if the gpio file at some point just stops and you have to interpolate
+    high_times = np.array(high_times)
+    high_times_intervals = np.round(np.diff(high_times), round_to)
+    unique_vals, counts = np.unique(high_times_intervals, return_counts=True)
+    print(f'Befor interpol: Unique {unique_vals}')
+    print(f'Befor interpol: Counts {counts}')
+    print(f'Befor interpol: Border {round(high_times[0], round_to)} - {round(high_times[-1], round_to)}')
+    assert len(unique_vals) == 1
+
+    n_add = target_length - len(high_times)
+    last = high_times[-1]
+    new_times = last + unique_vals[0] * np.arange(1, n_add + 1)
+    high_times = np.concatenate([high_times, new_times])
+
+    high_times_intervals = np.round(np.diff(high_times), round_to)
+    unique_vals, counts = np.unique(high_times_intervals, return_counts=True)
+    print(f'After interpol: Unique {unique_vals}')
+    print(f'After interpol: Counts {counts}')
+    print(f'After interpol: Border {round(high_times[0], round_to)} - {round(high_times[-1], round_to)}')
+
+    return high_times
 
 def fuse(file_DLC, file_TTL, file_video, file_motcor, file_master_out, mirrorY=False):
         
@@ -38,8 +55,8 @@ def fuse(file_DLC, file_TTL, file_video, file_motcor, file_master_out, mirrorY=F
         # this takes the file_motcor and file_TTL and checks wether they have the same number, then takes the file_TTL Neuro time
         # afterwards, it puts the file_TTL Neuro time on the df_behav, so we have one big df_master
 
-        # cleans and merges behav stuff
-        def clean_TTLs(file_TTL, cam_name=' GPIO-1', cam_threshold=10000, constant=True):
+        # get Cam stuff
+        def get_Cam_TTLs(file_TTL, cam_name=' GPIO-1', cam_threshold=10000, constant=True):
             # returns list of TTL input times
 
             # expects nan values to be just a string: ' nan', convert these strings into proper nans
@@ -62,21 +79,21 @@ def fuse(file_DLC, file_TTL, file_video, file_motcor, file_master_out, mirrorY=F
             offsets = df.index[~is_high & is_high.shift(1, fill_value=False)]
 
             # high times are all the times where signal goes from below to above threshold
-            high_times = list(zip(onsets, offsets)) if not constant else list(onsets)
-            print(f'{len(high_times)} Cam_ttl')
+            high_times = np.array(list(zip(onsets, offsets)) if not constant else list(onsets))
 
             # sanity check
-            high_times_arr = np.array(high_times)
-            high_times_intervals = np.round(np.diff(high_times_arr), 5)
+            high_times_intervals = np.round(np.diff(high_times), round_to)
             unique_vals, counts = np.unique(high_times_intervals, return_counts=True)
-            if unique_vals > 1:
+            if len(unique_vals):# > 1:
                 print('\nCam_TTL time intervals:')
                 print(f'unique_valus: {unique_vals}')
                 print(f'unique_count: {counts}')
-
+                print(f'TTL_Borderss: {round(high_times[0], round_to)} - {round(high_times[-1], round_to)}')
+            
+            print(f'{len(high_times)} Cam_ttl')
             return high_times
 
-        def clean_behav(file_DLC, file_video):
+        def get_Cam_frames(file_DLC, file_video):
             # cleans the DLC file and returns the df
             # idea: instead of picking some 'trustworthy' points to mean e.g. head, check the relations between 'trustworthy' points, so when one is missing, it can gues more or less where it is
             bps_all = ['nose', 'left_ear', 'right_ear', 'left_ear_tip', 'right_ear_tip', 'left_eye', 'right_eye', 'head_midpoint', 
@@ -125,11 +142,12 @@ def fuse(file_DLC, file_TTL, file_video, file_motcor, file_master_out, mirrorY=F
             df = df.interpolate(method="linear")
 
             # transform the coordinates into mm to normalize for camera reposition between recordings (we have the same dimension in mm during video_processing so all good)
-            if 'OF' in file_DLC:
+            if any(x in file_DLC for x in ['OF', 'O2F', 'O3F', 'OF2']):
                 scale_x = 460 / width   # mm/px
                 scale_y = 460 / height  # mm/px
                 #print('OF! for transformation px into mm ')
-            elif 'YM' in file_DLC:
+
+            elif any(x in file_DLC for x in ['YM', 'Y1M', 'Y2M', 'Y3M']):
                 scale_x = 580 / width   # mm/px
                 scale_y = 485 / height  # mm/px
                 #print('YMaze! for transformation px into mm ')
@@ -155,39 +173,52 @@ def fuse(file_DLC, file_TTL, file_video, file_motcor, file_master_out, mirrorY=F
             print(f'{df.shape[0]} Cam_frames')
             return df
         
-        def fuse_behav_TTL(df_behav, TTLs_high_times):
+        def fuse_Cam(df_behav, Cam_ttl):
 
-            Cam_frames = len(df_behav)
-            Cam_TTLs = len(TTLs_high_times)
+            n_Cam_frames = len(df_behav)
+            n_Cam_ttl = len(Cam_ttl)
 
-            if Cam_TTLs != Cam_frames:
+            # if the DAQ sent out TTLs but you manually stopped the Cam at some point ->delete Cam_TTLs and leave Cam_frames
+            if n_Cam_ttl > n_Cam_frames and kill_Cam_TTLs:
+                n_delete = n_Cam_ttl - n_Cam_frames
+                Cam_ttl = Cam_ttl[:n_Cam_frames]
+                print(f'❌ WARNING: Cam_ttl ({n_Cam_ttl}) and Cam_frames ({n_Cam_frames}) ->delete {n_delete} Cam_TTLs because kill_Cam_TTLs=True')
 
-                if Cam_TTLs > Cam_frames:
-                    df_missing = pd.DataFrame(np.nan,index=range(Cam_frames, Cam_TTLs),columns=df_behav.columns)
-                    df_behav = pd.concat([df_behav, df_missing])
+            # if there is just a small difference, just add some nan frames to the df_behav
+            elif n_Cam_ttl > n_Cam_frames:
+                df_missing = pd.DataFrame(np.nan,index=range(n_Cam_frames, n_Cam_ttl),columns=df_behav.columns)
+                df_behav = pd.concat([df_behav, df_missing])
+                n_after = len(df_behav)
+                added = n_after - n_Cam_frames
+                print(f'🔴 WARNING: Cam_ttl ({n_Cam_ttl}) and Cam_frames ({n_Cam_frames}) -> {added} Cam_frames rows added (now {n_after})')
+                
+            # only do this when a lot of TTLs are missing
+            elif n_Cam_ttl < n_Cam_frames and interpolate:
+                Cam_ttl = interpolate_TTLs(Cam_ttl, n_Cam_frames, 'Cam_TTLs')
 
-                    # sanity check
-                    n_after = len(df_behav)
-                    added = n_after - Cam_frames
-                    print(f'WARNING: Cam_ttl ({Cam_TTLs}) and Cam_frames ({Cam_frames}) -> {added} Cam_frames rows added (now {n_after})')
+            # if there is just a small difference, just remove some frames to the df_behav
+            elif n_Cam_ttl < n_Cam_frames:
+                df_behav = df_behav.iloc[:n_Cam_ttl]
+                removed = n_Cam_frames - n_Cam_ttl
+                n_after = len(df_behav)
+                print(f'🔴 WARNING: Cam_ttl ({n_Cam_ttl}) and Cam_frames ({n_Cam_frames}) -> {removed} Cam_frames rows removed (now {n_after})')
 
-                else:
-                    raise ValueError('more DLC frames than TTLs')
             
-            if len(df_behav) != len(TTLs_high_times):
+
+            if len(df_behav) != len(Cam_ttl):
                 raise ValueError('Immernoch Cam_frames != Cam_TTLs')
             
             # change index
             df_behav["Cam_frames"] = df_behav.index.astype(int)
             #df_behav["Cam_ttl"] = TTLs_high_times
-            df_behav.index = TTLs_high_times
+            df_behav.index = Cam_ttl
             df_behav.index.name = 'Mastertime [s]'
             
             return df_behav
 
 
-        # cleans and merges Neuro stuff
-        def get_frametimes(file_TTL, neur_name=' BNC Sync Output', neur_threshold=0.9, constant=True):
+        # get Neuro stuff
+        def get_Neuro_TTLs(file_TTL, neur_name=' BNC Sync Output'):
 
             # get everything in the correct order
             df = pd.read_csv(file_TTL, na_values=[' nan'], low_memory=False)
@@ -199,39 +230,69 @@ def fuse(file_DLC, file_TTL, file_video, file_motcor, file_master_out, mirrorY=F
 
             is_high = df[' Value'] == 1
             onsets = df.index[is_high & ~is_high.shift(1, fill_value=False)]
-            timepoints_neur = np.array(list(onsets))
+            Neuro_ttl = np.array(list(onsets))
 
             # sanity check
-            timepoints_neur_intervals = np.round(np.diff(timepoints_neur), 3)
-            unique_vals, counts = np.unique(timepoints_neur_intervals, return_counts=True)
-            if unique_vals > 1:
+            Neuro_ttl_intervals = np.round(np.diff(Neuro_ttl), round_to)
+            unique_vals, counts = np.unique(Neuro_ttl_intervals, return_counts=True)
+            if len(unique_vals):# > 1:
                 print(f'\nNeuro_ttl: unique_valus: {unique_vals}')
-                print(f'nNeuro_ttl: unique_count: {counts}')
-            #print(f'{len(timepoints_neur)} Neuro_ttl')
+                print(f'Neuro_ttl: unique_count: {counts}')
+                print(f'Neuro_ttl: Borderssssss: {round(Neuro_ttl[0], round_to)} - {round(Neuro_ttl[-1], round_to)}')
+            print(f'{len(Neuro_ttl)} Neuro_ttl')
 
             # downsample the list to 10Hz (mean 2 timestamps, drop the last in odd)
-            timepoints_neur_odd_dropped = timepoints_neur[:len(timepoints_neur) - len(timepoints_neur) % 2]
-            timepoints_neur_downsampled = timepoints_neur_odd_dropped.reshape(-1, 2).mean(axis=1)
-            print(f'\n{len(timepoints_neur_downsampled)} Neuro_ttl downsampled')
+            Neuro_ttl_odd_dropped = Neuro_ttl[:len(Neuro_ttl) - len(Neuro_ttl) % 2]
+            Neuro_ttl_downsampled = Neuro_ttl_odd_dropped.reshape(-1, 2).mean(axis=1)
 
-            # create df for later
-            frames_neur_downsampled = np.arange(len(timepoints_neur_downsampled))
-            df_10Hz = pd.DataFrame(data={'Neuro_frames_10Hz': frames_neur_downsampled}, index=pd.Index(timepoints_neur_downsampled, name='Mastertime [s]'))
+            print(f'{len(Neuro_ttl_downsampled)} Neuro_ttl downsampled')
+            return Neuro_ttl_downsampled
 
-            return df_10Hz
-
-        def check_motcor_frames(file_motcor, df_neur_10Hz):
+        def get_Neuro_frames(file_motcor):
 
             with tiff.TiffFile(file_motcor) as tif:
-                Neuro_frames = len(tif.pages)
-            print(f"{Neuro_frames} Neuro_frames")
+                Neuro_frames_n = len(tif.pages)
+                print(f"{Neuro_frames_n} Neuro_frames")
+            
+            return Neuro_frames_n
 
-            if Neuro_frames != len(df_neur_10Hz):
-                raise ValueError('Neuro_frames != Neuro_ttl')
+        def fuse_Neuro(Neuro_ttl, Neuro_frames_n):
+
+            n_Neuro_ttl = len(Neuro_ttl)
+            
+            # if somehow there are more TTLs than frames, check first TTL time
+            if Neuro_frames_n < n_Neuro_ttl:
+                n_delete = n_Neuro_ttl - Neuro_frames_n
+                Neuro_ttl = Neuro_ttl[:Neuro_frames_n]
+                print(f'❌ WARNING: Neuro_ttl ({n_Neuro_ttl}) and Neuro_frames ({Neuro_frames_n}) ->delete {n_delete} Neuro_TTLs')
+
+            # only do if the TTLs need to be interpolated
+            if Neuro_frames_n > len(Neuro_ttl) and interpolate:
+                Neuro_ttl = interpolate_TTLs(Neuro_ttl, Neuro_frames_n, 'Neuro_TTLs')
+
+            # if there are more frames than ttls
+            elif Neuro_frames_n > n_Neuro_ttl:
+                trim_frames = Neuro_frames_n - n_Neuro_ttl
+                print(f'🔴 WARNING: Neuro_frames > Neuro_ttl (removing {trim_frames} Neuro_frames)')
+                with tiff.TiffFile(file_motcor) as tif:
+                    frames = tif.asarray(key=slice(0, Neuro_frames_n - trim_frames))
+                tiff.imwrite(file_motcor, frames)
+
+            # sanity check
+            with tiff.TiffFile(file_motcor) as tif:
+                Neuro_frames_n = len(tif.pages)
+                if Neuro_frames_n != len(Neuro_ttl):
+                    raise ValueError('Neuro_frames != Neuro_ttl')
+            
+            return Neuro_ttl
 
 
         # merges behav and neuro into df_master
-        def fuse_neur_behavTTL(df_neur_10Hz, df_behav_TTL):
+        def fuse_Cam_Neuro(Neuro_ttl, df_behav_TTL):
+
+            # create df for later
+            frames_neur_downsampled = np.arange(len(Neuro_ttl))
+            df_neur_10Hz = pd.DataFrame(data={'Neuro_frames_10Hz': frames_neur_downsampled}, index=pd.Index(Neuro_ttl, name='Mastertime [s]'))
             
             # merges Neuro and Cam
             df_master = pd.merge_asof(
@@ -253,19 +314,20 @@ def fuse(file_DLC, file_TTL, file_video, file_motcor, file_master_out, mirrorY=F
             return df_master
 
 
+        # get Cam stuff
+        Cam_ttl = get_Cam_TTLs(file_TTL)
+        Cam_frames = get_Cam_frames(file_DLC, file_video)
+        Cam_fused = fuse_Cam(Cam_frames, Cam_ttl)
 
+        # get Neuro stuff
+        Neuro_ttl = get_Neuro_TTLs(file_TTL)
+        Neuro_frames_n = get_Neuro_frames(file_motcor)
+        Neuro_fused = fuse_Neuro(Neuro_ttl, Neuro_frames_n)
 
-        df_behav = clean_behav(file_DLC, file_video)
-        TTLs_high_times = clean_TTLs(file_TTL)
-        df_behav_TTL = fuse_behav_TTL(df_behav, TTLs_high_times)
-
-        df_neur_10Hz = get_frametimes(file_TTL)
-        check_motcor_frames(file_motcor, df_neur_10Hz)
-
-        df_master = fuse_neur_behavTTL(df_neur_10Hz, df_behav_TTL)
-
-
+        # create Master csv
+        df_master = fuse_Cam_Neuro(Neuro_fused, Cam_fused)
         df_master.to_csv(file_master_out)
+
         return df_master
 
 def get_trimming_file(filebase, file_trimming, start_extraframes=120):
@@ -279,7 +341,7 @@ def get_trimming_file(filebase, file_trimming, start_extraframes=120):
         behav_end   = match["behav_end"].iloc[0]
     else:
         raise ValueError(f"Expected 1 match for {filebase}, found {len(match)}")
-    
+
     if behav_end == 'ind':
         return (behav_start, behav_end)
     else:
@@ -296,7 +358,7 @@ def trim(df_master, file_video, file_motcor, behav_borders, file_master_trim_out
         df_master_trim["Neuro_frames_10Hz"] = (df_master_trim["Neuro_frames_10Hz"] - df_master_trim["Neuro_frames_10Hz"].iloc[0])
         df_master_trim["Cam_ttl"] = (df_master_trim["Cam_ttl"] - df_master_trim["Cam_ttl"].iloc[0])
         df_master_trim["Cam_frames"] = (df_master_trim["Cam_frames"] - df_master_trim["Cam_frames"].iloc[0])
-        df_master_trim.index = (df_master_trim.index - df_master_trim.index[0]).round(3)
+        df_master_trim.index = (df_master_trim.index - df_master_trim.index[0]).round(round_to)
 
         out_frames_Master = len(df_master_trim)
 
@@ -349,7 +411,6 @@ def trim(df_master, file_video, file_motcor, behav_borders, file_master_trim_out
 
         return len(frames)
 
-
     start_Cam_frames, end_Cam_frames = behav_borders
     start_mastertime = (df_master["Cam_frames"] - start_Cam_frames).abs().idxmin()
     start_Neuro_frames = df_master.loc[start_mastertime, "Neuro_frames_10Hz"]
@@ -357,38 +418,61 @@ def trim(df_master, file_video, file_motcor, behav_borders, file_master_trim_out
     end_mastertime = (df_master["Cam_frames"] - end_Cam_frames).abs().idxmin()
     end_Neuro_frames = df_master.loc[end_mastertime, "Neuro_frames_10Hz"]
 
-    print(f'\n{round(start_mastertime, 3)} - {round(end_mastertime, 3)} (Start-End Mastertime)')
+    print(f'\n{round(start_mastertime, round_to)} - {round(end_mastertime, round_to)} (Start-End Mastertime)')
 
     out_frames_Master, frames_keeping_for_trimming_mp4 = trim_master(start_mastertime, end_mastertime, file_master_trim_out)
     out_frames_Cam = trim_mp4(file_video, frames_keeping_for_trimming_mp4, file_video_trim_out)
     out_frames_Neuro = trim_tif(file_motcor, file_motcor_trim_out)
 
-    if out_frames_Master == out_frames_Cam == out_frames_Neuro:
-        print(f'{out_frames_Master} = {out_frames_Cam} = {out_frames_Neuro} (Master-Cam-Neuro frames)')
-    else:
-        raise ValueError('trimming went wrong')
+def final_check(file_master_trim_out, file_video_trim_out, file_motcor_trim_out):
+
+    # check master
+    df = pd.read_csv(file_master_trim_out)
+    length_master_trim = len(df)
+
+    # check mp4
+    cap = cv2.VideoCapture(file_video_trim_out)
+    length_mp4_trim = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    cap.release()   # if not exact use fidderent code, due to compression
+
+    # check tif
+    with tiff.TiffFile(file_motcor_trim_out) as tif:
+        length_tif_trim = len(tif.pages)
+
+
+    if not (length_master_trim == length_mp4_trim == length_tif_trim):
+        raise ValueError('Out files not same length')
+    else: 
+        print(f'✅ Master ({length_master_trim}) = mp4 ({length_mp4_trim}) = tif ({length_tif_trim})')
 
 
 
-file_trimming = "D:\\1stuff\\Video_TrimFrames.csv"
+
+
 for gpio_file in files:
 
     # create base
     name = gpio_file.name
     base = name[:-len("_gpio.csv")]
-    print(str(gpio_file.with_name(base)))
+    print('\n\n' + str(gpio_file.with_name(base)))
 
 
     # define all files
     file_TTL    = gpio_file
     file_DLC    = gpio_file.with_name(f"{base}_crop_mask_DLC.csv")
-    file_video  = gpio_file.with_name(f"{base}_crop_mask.mp4")
-    file_motcor = gpio_file.with_name(f"{base}_motcor.tif")
+    file_video  = gpio_file.with_name(f"{base}_crop_mask_DLC.mp4")
+    file_motcor = gpio_file.with_name(f"{base}.tif")
 
     file_master_out = gpio_file.with_name(f"{base}_master.csv")
     file_master_trim_out = gpio_file.with_name(f"{base}_master_trim.csv")
-    file_video_trim_out  = gpio_file.with_name(f"{base}_crop_mask_trim.mp4")
+    file_video_trim_out  = gpio_file.with_name(f"{base}_crop_mask_DLC_trim.mp4")
     file_motcor_trim_out = gpio_file.with_name(f"{base}_motcor_trim.tif")
+
+    out_dir = Path("D:/eee")
+    file_master_out = out_dir / file_master_out.name
+    file_master_trim_out = out_dir / file_master_trim_out.name
+    file_video_trim_out = out_dir / file_video_trim_out.name
+    file_motcor_trim_out = out_dir / file_motcor_trim_out.name
 
 
     # if a file is missing
@@ -405,7 +489,5 @@ for gpio_file in files:
     behav_borders = get_trimming_file(base, file_trimming)
     trim(df_master, str(file_video), str(file_motcor), behav_borders, file_master_trim_out, file_video_trim_out, file_motcor_trim_out)
 
+    final_check(file_master_trim_out, file_video_trim_out, file_motcor_trim_out)
 
-
-
-#%%

@@ -6,8 +6,8 @@ import tifffile as tiff
 
 
 CSV_PATH = "D:\\1stuff\\Ispx_TimeseriesSeparates.csv"
-TIF_DIR  = "D:\\neur_2_motcorr"
-OUT_DIR  = "E:\\neur_3_motcorr_seg"
+TIF_DIR  = "D:\\1stuff"
+OUT_DIR  = "D:\\1stuff"
 TIF_EXT  = ".tiff"
 COMPRESSION = None  # e.g. "zlib" or None
 
