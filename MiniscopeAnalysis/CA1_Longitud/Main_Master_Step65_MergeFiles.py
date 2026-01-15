@@ -1,5 +1,9 @@
 #%%
-# Merge data
+'''
+If you have recordings like YM1, YM2, YM3 that belong behind each other, you can fuse them (Behav_mp4+MotCor_tif+Master) here to a single recording
+This happens AFTER Step6, after they were synchronized and trimmed
+'''
+
 import tifffile as tiff
 import numpy as np
 import pandas as pd

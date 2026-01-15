@@ -1,4 +1,9 @@
 #%%
+'''
+After the IDPS pipeline (Preprocess, SpatFilter, MotCor), you can split recordings into segments (Week2_YM, Week2_OF)
+This depends on a csv where you told them where each segment starts/stops
+'''
+
 import os
 import re
 import pandas as pd

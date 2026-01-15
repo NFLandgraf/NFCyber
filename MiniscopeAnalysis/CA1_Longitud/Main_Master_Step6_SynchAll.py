@@ -1,5 +1,12 @@
 #%%
-# IMPORT
+'''
+This does a lot:
+1. Synchronizes the Behav_TTL with the Behav_Frames and gives you options to correct for missing values on either side
+2. Synchronizes the Neuro_TTL with the Neuro_Frames and gives you options to correct for missing values on either side (I used Post-MotCor Neuro_Frames but works always I guess)
+3. Creates one Master_csv with the Mastertime[s] and the corresponding Neuro_Frame_number, Behav_Frame_number and DLC_positions
+4. Trims the Master_csv, Behav_mp4 and Neuro_tif according to the Behav_Frames, where the Behav started/ended (info in csv where you manually wrote start/end)
+-> In the end, ou get perfectly synchronized Master_csv, Behav_mp4 and Neuro_tif with the exact number of rows/frames
+'''
 import pandas as pd
 import numpy as np
 import cv2
@@ -7,6 +14,15 @@ from tqdm import tqdm
 from pathlib import Path
 from scipy.ndimage import gaussian_filter1d
 import tifffile as tiff
+
+
+# adapt
+path_in     = r"D:\zest"
+path_out    = Path("D:/eee")
+file_trimming = "D:\\1stuff\\Video_TrimFrames.csv"
+interpolate_ttl = True     # if the TTLs are missing at some point (but the first TTL is correct and the interal is the same, so TTLs prob just ended)
+kill_Cam_TTLs = True        # if the DAQ sent out TTLs but you manually stopped the Cam at some point ->delete Cam_TTLs
+round_to = 3
 
 
 def get_files(path, common_name, suffix=".csv"):
@@ -18,16 +34,13 @@ def get_files(path, common_name, suffix=".csv"):
     print('\n\n')
     return files
 
-path = r"D:\zest"
-files = get_files(path, 'gpio', suffix=".csv")
-file_trimming = "D:\\1stuff\\Video_TrimFrames.csv"
-round_to = 3
-interpolate = True
-kill_Cam_TTLs = True    # if the DAQ sent out TTLs but you manually stopped the Cam at some point ->delete Cam_TTLs
-
 def interpolate_TTLs(high_times, target_length, alarm):
     print(f'\n❌ WARNING Interpolation of {alarm} due to massive loss (interpolate=True)')
+
     # if the gpio file at some point just stops and you have to interpolate
+    # Important: The first TTL must be at the correct time and the Inter-TTL-Interval is valid
+    # then, the start of the recording is prob valid and only TTLs in the end are missing
+
     high_times = np.array(high_times)
     high_times_intervals = np.round(np.diff(high_times), round_to)
     unique_vals, counts = np.unique(high_times_intervals, return_counts=True)
@@ -49,7 +62,7 @@ def interpolate_TTLs(high_times, target_length, alarm):
 
     return high_times
 
-def fuse(file_DLC, file_TTL, file_video, file_motcor, file_master_out, mirrorY=False):
+def sync(file_DLC, file_TTL, file_video, file_motcor, file_master_out, mirrorY=False):
         
         # this takes the file_DLC and file_TTL and checks wether they have the same numbers, then put the file_TTL time on DLC
         # this takes the file_motcor and file_TTL and checks wether they have the same number, then takes the file_TTL Neuro time
@@ -193,7 +206,7 @@ def fuse(file_DLC, file_TTL, file_video, file_motcor, file_master_out, mirrorY=F
                 print(f'🔴 WARNING: Cam_ttl ({n_Cam_ttl}) and Cam_frames ({n_Cam_frames}) -> {added} Cam_frames rows added (now {n_after})')
                 
             # only do this when a lot of TTLs are missing
-            elif n_Cam_ttl < n_Cam_frames and interpolate:
+            elif n_Cam_ttl < n_Cam_frames and interpolate_ttl:
                 Cam_ttl = interpolate_TTLs(Cam_ttl, n_Cam_frames, 'Cam_TTLs')
 
             # if there is just a small difference, just remove some frames to the df_behav
@@ -267,7 +280,7 @@ def fuse(file_DLC, file_TTL, file_video, file_motcor, file_master_out, mirrorY=F
                 print(f'❌ WARNING: Neuro_ttl ({n_Neuro_ttl}) and Neuro_frames ({Neuro_frames_n}) ->delete {n_delete} Neuro_TTLs')
 
             # only do if the TTLs need to be interpolated
-            if Neuro_frames_n > len(Neuro_ttl) and interpolate:
+            if Neuro_frames_n > len(Neuro_ttl) and interpolate_ttl:
                 Neuro_ttl = interpolate_TTLs(Neuro_ttl, Neuro_frames_n, 'Neuro_TTLs')
 
             # if there are more frames than ttls
@@ -446,9 +459,7 @@ def final_check(file_master_trim_out, file_video_trim_out, file_motcor_trim_out)
         print(f'✅ Master ({length_master_trim}) = mp4 ({length_mp4_trim}) = tif ({length_tif_trim})')
 
 
-
-
-
+files = get_files(path_in, 'gpio', suffix=".csv")
 for gpio_file in files:
 
     # create base
@@ -458,21 +469,19 @@ for gpio_file in files:
 
 
     # define all files
-    file_TTL    = gpio_file
-    file_DLC    = gpio_file.with_name(f"{base}_crop_mask_DLC.csv")
-    file_video  = gpio_file.with_name(f"{base}_crop_mask_DLC.mp4")
-    file_motcor = gpio_file.with_name(f"{base}.tif")
+    file_TTL                = gpio_file
+    file_DLC                = gpio_file.with_name(f"{base}_crop_mask_DLC.csv")
+    file_video              = gpio_file.with_name(f"{base}_crop_mask_DLC.mp4")
+    file_motcor             = gpio_file.with_name(f"{base}.tif")
 
-    file_master_out = gpio_file.with_name(f"{base}_master.csv")
-    file_master_trim_out = gpio_file.with_name(f"{base}_master_trim.csv")
-    file_video_trim_out  = gpio_file.with_name(f"{base}_crop_mask_DLC_trim.mp4")
-    file_motcor_trim_out = gpio_file.with_name(f"{base}_motcor_trim.tif")
-
-    out_dir = Path("D:/eee")
-    file_master_out = out_dir / file_master_out.name
-    file_master_trim_out = out_dir / file_master_trim_out.name
-    file_video_trim_out = out_dir / file_video_trim_out.name
-    file_motcor_trim_out = out_dir / file_motcor_trim_out.name
+    file_master_out         = gpio_file.with_name(f"{base}_master.csv")
+    file_master_trim_out    = gpio_file.with_name(f"{base}_master_trim.csv")
+    file_video_trim_out     = gpio_file.with_name(f"{base}_crop_mask_DLC_trim.mp4")
+    file_motcor_trim_out    = gpio_file.with_name(f"{base}_motcor_trim.tif")
+    file_master_out         = path_out / file_master_out.name
+    file_master_trim_out    = path_out / file_master_trim_out.name
+    file_video_trim_out     = path_out / file_video_trim_out.name
+    file_motcor_trim_out    = path_out / file_motcor_trim_out.name
 
 
     # if a file is missing
@@ -485,7 +494,7 @@ for gpio_file in files:
 
 
     # main actions
-    df_master = fuse(str(file_DLC), str(file_TTL), str(file_video), str(file_motcor), file_master_out)
+    df_master = sync(str(file_DLC), str(file_TTL), str(file_video), str(file_motcor), file_master_out)
     behav_borders = get_trimming_file(base, file_trimming)
     trim(df_master, str(file_video), str(file_motcor), behav_borders, file_master_trim_out, file_video_trim_out, file_motcor_trim_out)
 

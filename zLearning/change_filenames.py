@@ -1,10 +1,10 @@
 #%%
 import os
 
-folder_path = r"D:\Neuro_5_seg"
+folder_path = r"W:\_proj_CA1Dopa\CA1Dopa_Longitud\Analysis_new\Videos_4_mask"
 
-old_text = "Post"
-new_text = "Zost"
+old_text = "OF_crop"
+new_text = "OF_crop_mask"
 
 for filename in os.listdir(folder_path):
 
