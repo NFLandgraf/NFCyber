@@ -5,6 +5,7 @@ We have TIFs of each cell from the CNMFe, this is the first part of the QC- the 
 '''
 
 import os
+import shutil
 from pathlib import Path
 import pandas as pd
 import numpy as np
@@ -15,32 +16,33 @@ from skimage.measure import label, regionprops
 from skimage.morphology import remove_small_objects, binary_closing, disk
 from skimage.segmentation import clear_border
 
-
-path_in = "D:\\zest"
+parent_folder = Path("D:/Neuro_7_CNMFe")
 path_out = "D:\\zest_out\\"
 
-temp_rainbow_folder = "D:\\rainbow\\"
-temp_mask_folder = "D:\\masks\\"
+temp_rainbow_folder = "D:\\zemp_MaskRainbow\\"
+temp_mask_folder = "D:\\zemp_Mask\\"
 
 common_name = ''
 suffix = '.tif'
 
-qc_min_area_px              = 25
-qc_max_area_px              = 800
-qc_max_axis_ratio           = 3.0
-qc_max_eccentricity         = 0.95
-qc_min_circularity          = 0.20
-qc_min_solidity             = 0.80
+qc_min_area_px              = 90
+qc_max_area_px              = 350
+qc_max_axis_ratio           = 2.5
+qc_max_eccentricity         = 1
+qc_min_circularity          = 0.6
+qc_min_solidity             = 0
 qc_max_components           = 1
 
 
-def get_files(path, common_name, suffix):
+def get_files(path, common_name, suffix, print_out):
     path = Path(path)
     files = sorted([p for p in path.iterdir() if p.is_file() and (common_name in p.name) and p.name.endswith(suffix)])
-    print(f"\n{len(files)} files found")
-    for f in files:
-        print(f)
-    print('\n\n')
+    if print_out:
+        print(f"{len(files)} tifs found")
+        for f in files:
+            pass
+            #print(f)
+        #print('\n\n')
     return files
 
 def load_tif(tif_path):
@@ -143,28 +145,44 @@ def qc_spat_footprint(area_px, circularity, solidity, eccentricity, axis_ratio, 
 
 
 # Creating Images
+def get_color_palette(files_n):
+    rng = np.random.default_rng()
+    cmap = plt.get_cmap('hsv', files_n)
+    palette = (cmap(np.arange(files_n))[:, :3] * 255).astype(np.uint8)  # (N,3)
+    rng.shuffle(palette)
+
+    return palette
+
 def save_mask(mask, tif_path):
+
+    # create temporary folder
+    all_masks_path = temp_mask_folder
+    if not os.path.exists(all_masks_path):
+        os.makedirs(all_masks_path)
+
     # save the mask as a white mask
     mask = mask.astype(np.uint8) * 255
     out = temp_mask_folder + Path(tif_path).stem + '_mask.tif'
     io.imsave(out, mask, check_contrast=False)
     
-def save_mask_rainbow(mask, tif_path, i, files_n):
-    # safe the mask as a rainbow mask
-    cmap = plt.get_cmap('hsv', files_n)
-    r, g, b, _ = cmap(i)
-    color = np.array([r, g, b]) * 255
+def save_mask_rainbow(mask, tif_path, i, palette):
 
+    # create temporary folder
+    all_masksrainbow_path = temp_rainbow_folder
+    if not os.path.exists(all_masksrainbow_path):
+        os.makedirs(all_masksrainbow_path)
+
+    color = palette[i]
     H, W = mask.shape
     rgb = np.zeros((H, W, 3), dtype=np.uint8)
     rgb[mask] = color.astype(np.uint8)
 
-    out = rainbow_folder + Path(tif_path).stem + '_mask_rainbow.tif'
+    out = temp_rainbow_folder + Path(tif_path).stem + '_mask_rainbow.tif'
     io.imsave(str(out), rgb, check_contrast=False)
 
-def max_img_folder(folder, out_name="\\MaxImg.tif"):
+def max_img_folder(folder, name):
 
-    files = get_files(folder, common_name, suffix)
+    files = get_files(folder, common_name, suffix, False)
     
     # create a pixelwise maximum image across all tifs in a folder.
     max_img = None
@@ -177,12 +195,13 @@ def max_img_folder(folder, out_name="\\MaxImg.tif"):
         else:
             max_img = np.maximum(max_img, img)
 
-    out_path = path_out + out_name
-    io.imsave(f'{path_out}\\MaxMask.tif', max_img, check_contrast=False)
+    out_path = path_out + name + '_MaxImg.tif'
+    io.imsave(out_path, max_img, check_contrast=False)
+    print('saved MaxImg')
 
-def max_img_folder_rainbow(folder):
+def max_img_folder_rainbow(folder, name):
     
-    files = get_files(folder, common_name, suffix)
+    files = get_files(folder, common_name, suffix, False)
 
     # Load first to determine shape
     first = io.imread(str(files[0]))
@@ -204,20 +223,25 @@ def max_img_folder_rainbow(folder):
         best_brightness[update] = b[update]
         out_rgb[update] = img[..., :3][update].astype(np.uint8)
 
-    io.imsave(f'{path_out}\\MaxMaskRainbow.tif', out_rgb, check_contrast=False)
+    out_path = path_out + name + '_MaxImgRainbow.tif'
+    io.imsave(out_path, out_rgb, check_contrast=False)
+    print('saved MaxImgRainbow')
 
 
 
+def main(path_in):
 
-
-
-def main():
-
-    files = get_files(path_in, common_name, suffix)
+    name = path_in.name
+    print('\n' + name)
+    files = get_files(path_in, common_name, suffix, True)
     files_n = len(files)
+
+    # get colors for rainbow mask
+    palette = get_color_palette(files_n)
 
     rows = []
     for i, tif_path in enumerate(files):
+        print(tif_path)
         # loop over every file and comp spatial things
         # one row per cell (index = filename stem) and columns containing metrics + per-rule FAIL flags + overall PASS/FAIL.
         img = load_tif(tif_path)
@@ -225,7 +249,7 @@ def main():
 
         # save masks for max image
         save_mask(mask, tif_path)
-        save_mask_rainbow(mask, tif_path, i, files_n)
+        save_mask_rainbow(mask, tif_path, i, palette)
 
         m = compute_shape_metrics(mask)
         qc_flags = qc_spat_footprint(m["area_px"], m["circul"], m["solid"], m["eccentr"], m["axis_ratio"], m["n_comps"])
@@ -234,7 +258,7 @@ def main():
         rows.append(row)
 
         
-    # clean and safe df
+    # clean and safe QC_spatial df
     df = pd.DataFrame(rows).set_index("cell_id")
     col_order = [
         "file", "area_px", "circul", "solid", "eccentr", "axis_ratio", "n_comps", "maj_axis_len", "min_axis_len", "perim_px",
@@ -243,15 +267,24 @@ def main():
     df = df[[c for c in col_order if c in df.columns] + [c for c in df.columns if c not in col_order]]
     numeric_cols = df.select_dtypes(include=["number"]).columns
     df[numeric_cols] = df[numeric_cols].round(4)
-    df.to_csv(f'{path_out}\\QC_spatial.csv')
-    print('df saved')
+    df.to_csv(f'{path_out}\\{name}_QC_spatial.csv')
+    print('saved QC_spatial')
 
-    max_img_folder_rainbow(temp_rainbow_folder)
-    max_img_folder(temp_mask_folder)
+    # get maximum images of the respective folders and delete them
+    max_img_folder(temp_mask_folder, name)
+    max_img_folder_rainbow(temp_rainbow_folder, name)
+    shutil.rmtree(temp_rainbow_folder)
+    shutil.rmtree(temp_mask_folder)
 
-main()
+
+for subfolder in parent_folder.iterdir():
+    if subfolder.is_dir():
+        #main(subfolder)
+        pass
+
+main(parent_folder)
 
 
 #%%
 
-
+df = pd.read_csv("D:\\zest_out\\Neuro_7_CNMFe_QC_spatial.csv")
