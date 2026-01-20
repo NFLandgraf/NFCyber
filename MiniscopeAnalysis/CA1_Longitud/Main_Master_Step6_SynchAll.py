@@ -17,9 +17,13 @@ import tifffile as tiff
 
 
 # adapt
-path_in     = r"D:\zest"
-path_out    = Path("D:/eee")
-file_trimming = "D:\\1stuff\\Video_TrimFrames.csv"
+path_gpio   = Path(r"D:\new\GPIO_2_csv")
+path_dlc    = Path(r"D:\new\Behav_5_DLC_csv")
+path_video  = Path(r"D:\new\Behav_5_DLC_mp4")
+path_motcor = Path(r"E:\Neuro_4_motcor")
+path_out    = Path(r"D:\new\out")
+
+file_trimming = "D:\\Video_TrimFrames.csv"
 interpolate_ttl = True     # if the TTLs are missing at some point (but the first TTL is correct and the interal is the same, so TTLs prob just ended)
 kill_Cam_TTLs = True        # if the DAQ sent out TTLs but you manually stopped the Cam at some point ->delete Cam_TTLs
 round_to = 3
@@ -47,7 +51,9 @@ def interpolate_TTLs(high_times, target_length, alarm):
     print(f'Befor interpol: Unique {unique_vals}')
     print(f'Befor interpol: Counts {counts}')
     print(f'Befor interpol: Border {round(high_times[0], round_to)} - {round(high_times[-1], round_to)}')
-    assert len(unique_vals) == 1
+    
+    if len(unique_vals) != 1:
+        print('ALARM ALARM ALARM len(unique_vals) is not 1')
 
     n_add = target_length - len(high_times)
     last = high_times[-1]
@@ -287,6 +293,7 @@ def sync(file_DLC, file_TTL, file_video, file_motcor, file_master_out, mirrorY=F
             elif Neuro_frames_n > n_Neuro_ttl:
                 trim_frames = Neuro_frames_n - n_Neuro_ttl
                 print(f'🔴 WARNING: Neuro_frames > Neuro_ttl (removing {trim_frames} Neuro_frames)')
+                raise Exception("🔴🔴🔴wanted to trim the original tif🔴🔴🔴")
                 with tiff.TiffFile(file_motcor) as tif:
                     frames = tif.asarray(key=slice(0, Neuro_frames_n - trim_frames))
                 tiff.imwrite(file_motcor, frames)
@@ -459,30 +466,25 @@ def final_check(file_master_trim_out, file_video_trim_out, file_motcor_trim_out)
         print(f'✅ Master ({length_master_trim}) = mp4 ({length_mp4_trim}) = tif ({length_tif_trim})')
 
 
-files = get_files(path_in, 'gpio', suffix=".csv")
+files = get_files(path_gpio, 'gpio', suffix=".csv")
 for gpio_file in files:
 
     # create base
     name = gpio_file.name
-    base = name[:-len("_gpio.csv")]
-    print('\n\n' + str(gpio_file.with_name(base)))
-
+    base = name.removesuffix("_gpio.csv")
+    print('' + str(gpio_file.with_name(base)))
 
     # define all files
-    file_TTL                = gpio_file
-    file_DLC                = gpio_file.with_name(f"{base}_crop_mask_DLC.csv")
-    file_video              = gpio_file.with_name(f"{base}_crop_mask_DLC.mp4")
-    file_motcor             = gpio_file.with_name(f"{base}.tif")
+    file_TTL    = gpio_file
+    file_DLC    = path_dlc   / f"{base}_crop_mask_DLC.csv"
+    file_video  = path_video / f"{base}_crop_mask_DLC.mp4"
+    file_motcor = path_motcor / f"{base}_motcor.tif"
 
-    file_master_out         = gpio_file.with_name(f"{base}_master.csv")
-    file_master_trim_out    = gpio_file.with_name(f"{base}_master_trim.csv")
-    file_video_trim_out     = gpio_file.with_name(f"{base}_crop_mask_DLC_trim.mp4")
-    file_motcor_trim_out    = gpio_file.with_name(f"{base}_motcor_trim.tif")
-    file_master_out         = path_out / file_master_out.name
-    file_master_trim_out    = path_out / file_master_trim_out.name
-    file_video_trim_out     = path_out / file_video_trim_out.name
-    file_motcor_trim_out    = path_out / file_motcor_trim_out.name
-
+    # output files (single output folder)
+    file_master_out      = path_out / f"{base}_master.csv"
+    file_master_trim_out = path_out / f"{base}_master_trim.csv"
+    file_video_trim_out  = path_out / f"{base}_crop_mask_DLC_trim.mp4"
+    file_motcor_trim_out = path_out / f"{base}_motcor_trim.tif"
 
     # if a file is missing
     missing = [p for p in [file_DLC, file_video, file_motcor] if not p.exists()]
@@ -492,6 +494,7 @@ for gpio_file in files:
             print("  -", m)
         continue
 
+    
 
     # main actions
     df_master = sync(str(file_DLC), str(file_TTL), str(file_video), str(file_motcor), file_master_out)

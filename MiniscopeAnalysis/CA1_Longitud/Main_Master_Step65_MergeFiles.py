@@ -10,7 +10,7 @@ import pandas as pd
 import cv2
 from tqdm import tqdm
 
-path = "D:\\zest\\51_Zost2_OF"
+path = "D:\\new\\out\\72_Zost2_OF"
 
 master1 = path + '_master_trim.csv'
 master2 = path + '2_master_trim.csv'
@@ -54,6 +54,7 @@ def combine_Master(master1, master2, master_out):
     out.to_csv(master_out)
 
 def combine_TIFs(tif1, tif2, tif_out):
+    print(tif1)
     with tiff.TiffFile(tif1) as t1, tiff.TiffFile(tif2) as t2:
         arr1 = t1.asarray()
         arr2 = t2.asarray()
