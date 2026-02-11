@@ -2,6 +2,7 @@
 '''
 After the IDPS pipeline (Preprocess, SpatFilter, MotCor), you can split recordings into segments (Week2_YM, Week2_OF)
 This depends on a csv where you told them where each segment starts/stops
+This is not needed, when you process each Neuro video individually without any timeseries
 '''
 
 import os

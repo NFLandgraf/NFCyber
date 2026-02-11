@@ -1,5 +1,7 @@
 #%%
-# IMPORT
+'''
+Easy pease, masks the YMaze files around the arms
+'''
 import cv2
 from matplotlib import pyplot as plt 
 from matplotlib import image 

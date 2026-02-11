@@ -5,10 +5,10 @@ import cv2
 from pathlib import Path
 
 # ==== USER INPUT ====
-csv_path   = Path(r"D:\32_Week1_OF_final.csv")
-out_video  = Path(r"D:\32_Week1_OF_final.mp4")
+csv_path   = Path(r"D:\11_ALL_MERGE_trim\77_Zost2_YM_final_trim(15m).csv")
+out_video  = Path(r"D:\77_Zost2_YM_final_trim(15m)_DLC.mp4")
 fps        = 30  # frames per second for the output video
-point_radius = 5
+point_radius = 4
 # ====================
 
 # Load CSV
@@ -46,11 +46,10 @@ if len(all_x) == 0:
 
 min_x, max_x = all_x.min(), all_x.max()
 min_y, max_y = all_y.min(), all_y.max()
-print(min_x, max_x, min_y, max_y)
 
 # Define canvas size with some margin
-width  = 460
-height = 460
+width  = 580
+height = 485
 
 # Video writer
 fourcc = cv2.VideoWriter_fourcc(*"mp4v")
@@ -58,19 +57,7 @@ writer = cv2.VideoWriter(str(out_video), fourcc, fps, (width, height))
 
 n_frames = len(df)
 
-# Colors for each bodypart (BGR)
-# You can define as many as you like; they cycle if fewer than bodyparts.
-colors = [
-    (255, 0, 0),    # blue
-    (0, 255, 0),    # green
-    (0, 0, 255),    # red
-    (255, 255, 0),  # cyan
-    (255, 0, 255),  # magenta
-    (0, 255, 255),  # yellow
-    (128, 128, 255),
-    (128, 255, 128),
-    (255, 128, 128),
-]
+
 
 for t in range(n_frames):
     # White background
@@ -93,8 +80,7 @@ for t in range(n_frames):
         # Option B (Cartesian y-up): flip vertically
         # y_canvas = height - 1 - (int(round(y - min_y)) + margin)
 
-        color = colors[i % len(colors)]
-        cv2.circle(frame, (x_canvas, y_canvas), point_radius, color, thickness=-1)
+        cv2.circle(frame, (x_canvas, y_canvas), point_radius, (0,0,0), thickness=-1)
 
         # Optional: label with bodypart name
         # cv2.putText(frame, bp, (x_canvas+5, y_canvas-5),

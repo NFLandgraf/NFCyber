@@ -145,13 +145,13 @@ import pandas as pd
 from pathlib import Path
 from tqdm import tqdm
 
-CSV_FOLDER = Path(r"D:\11_ALL_MERGE_trim")
-OUT_CSV    = Path(r"D:\spikeprob_per_cell_ALLFILES.csv")
+CSV_FOLDER = Path(r"C:\Users\landgrafn\Desktop\CA1Dopa_Paper\Mini\traces")
+OUT_CSV    = Path(r"D:\blub.csv")
 
 rows = []
 
 csv_files = sorted(CSV_FOLDER.glob("*Zost2_YM_final_trim(15m).csv"))
-csv_files = [Path(r"D:\11_ALL_MERGE_trim\77_Zost2_YM_final_trim(15m).csv")]#, Path(r"D:\11_ALL_MERGE_trim\77_Zost2_YM_final_trim(15m).csv")]
+#csv_files = [Path(r"D:\11_ALL_MERGE_trim\77_Zost2_YM_final_trim(15m).csv")]#, Path(r"D:\11_ALL_MERGE_trim\77_Zost2_YM_final_trim(15m).csv")]
 print(f"Found {len(csv_files)} CSV files")
 
 for csv in tqdm(csv_files):
@@ -185,5 +185,7 @@ print("Saved per-cell means:")
 print(OUT_CSV)
 
 #%%
-df_filtered = df_out[(df_out["mean_spikeprob"] >= 0.035) & (df_out["mean_spikeprob"] <= 0.045)]
+df_filtered = df_out[(df_out["mean_spikeprob"] >= 0.045) & (df_out["mean_spikeprob"] <= 0.055)]
+df_filtered.to_csv('eeh.csv')
+
 print(df_filtered)

@@ -2,60 +2,13 @@
 import pandas as pd
 from pathlib import Path
 from tqdm import tqdm
-
-FOLDER   = Path(r"D:\your_folder")
-OUT_CSV  = Path(r"D:\cells_meanSpikeprob_vs_SI_ALLFILES.csv")
-
-# patterns you use in column names
-SPIKE_TAG = "spikeprob"
-SI_TAG    = "SI"   # adjust if your SI column pattern is different (e.g., "spatial_info")
-
-csv_files = sorted(FOLDER.glob("*.csv"))
-print(f"Found {len(csv_files)} files")
-
-rows = []
-
-for fp in tqdm(csv_files):
-    df = pd.read_csv(fp)
-
-    spike_cols = [c for c in df.columns if SPIKE_TAG in c]
-    
-
-    # build a mapping: base cell id -> spike col / si col
-    # e.g. "C071_spikeprob" + "C071_SI" share base "C071"
-    def base_name(col, tag):
-        return col.replace(tag, "").replace("__", "_").strip("_")
-
-    spike_map = {base_name(c, SPIKE_TAG): c for c in spike_cols}
-    si_map    = {base_name(c, SI_TAG): c for c in si_cols}
-
-    common_cells = sorted(set(spike_map).intersection(si_map))
-
-    for cell_base in common_cells:
-        spike_col = spike_map[cell_base]
-        si_col    = si_map[cell_base]
-
-        mean_spikeprob = df[spike_col].mean()
-        # SI is typically constant per cell; take first non-nan
-        si_val = df[si_col].dropna().iloc[0] if df[si_col].notna().any() else float("nan")
-
-        rows.append({
-            "file": fp.stem,
-            "cell": cell_base,
-            "mean_spikeprob": mean_spikeprob,
-            "SI": si_val
-        })
-
-out_df = pd.DataFrame(rows)
-out_df.to_csv(OUT_CSV, index=False)
-print("Saved:", OUT_CSV)
-print("Rows (cells):", len(out_df))
+from matplotlib.path import Path as MplPath
+import numpy as np
 
 
-
-#%%
-
-
+CSV_FOLDER = Path(r"D:\Analy_Post2")
+OUT_CSV    = Path(r"D:\Analy_Post2\cells_meanSpikeprob_vs_SI_ALLFILES.csv")
+fps = 10.0
 
 
 def bin_cellspikes_prob_YM(main_df):
@@ -66,7 +19,7 @@ def bin_cellspikes_prob_YM(main_df):
     df = main_df.copy()
     x_max, y_max = 1000, 1000
 
-    # bin coordinates
+    # YM geometry (your values)
     left_corner = (250, 280)
     middle_corner = (290, 340)
     right_corner = (330, 280)
@@ -76,11 +29,18 @@ def bin_cellspikes_prob_YM(main_df):
     bottom_right = (x_max, y_max)
     bottom_left = (0, y_max)
     wall_bottom = (middle_corner[0], y_max)
+
     poly_center = np.array([left_corner, middle_corner, right_corner])
     poly_arm_left = np.array([left_corner, middle_corner, wall_bottom, bottom_left, top_left])
     poly_arm_right = np.array([right_corner, middle_corner, wall_bottom, bottom_right, top_right])
     poly_arm_middle = np.array([left_corner, right_corner, top_right, top_left])
-    paths = {"center":MplPath(poly_center), "arm_left":MplPath(poly_arm_left), "arm_right":MplPath(poly_arm_right), "arm_middle":MplPath(poly_arm_middle)}
+
+    paths = {
+        "center": MplPath(poly_center),
+        "arm_left": MplPath(poly_arm_left),
+        "arm_right": MplPath(poly_arm_right),
+        "arm_middle": MplPath(poly_arm_middle),
+    }
     bin_order = ["center", "arm_left", "arm_right", "arm_middle"]
     bin_ids   = {"center":0, "arm_left":1, "arm_right":2, "arm_middle":3}
 
@@ -92,29 +52,25 @@ def bin_cellspikes_prob_YM(main_df):
         head_bin[(head_bin == -1) & inside] = bin_ids[name]
     df["head_bin"] = head_bin
 
-    # sum spike probabilities
+    # sum spike probabilities per bin
     spike_prob_cells = [c for c in df.columns if isinstance(c, str) and c.endswith("_spikeprob")]
     place_map = {}
     for cell in spike_prob_cells:
-        # sum of spike probability in each bin = expected spike count in that bin
         bin_probs = df.groupby("head_bin")[cell].sum()
         place_map[cell] = bin_probs
 
     place_df = pd.DataFrame(place_map).fillna(0.0).sort_index()
     return df, place_df
 
-def identify_place_cells_prob(main_df, place_df, fps=10, n_shuffles=100, significance_level=0.05):
-    
-    # assumes place_df entries are sums of spike probabilities (expected spike counts)
-    
+def compute_spatial_info_only(main_df, place_df):
+    """
+    Computes Skaggs spatial information for each cell in place_df (no shuffles).
+    This is the part you need for correlation with mean spikeprob.
+    """
+
     def spatial_information(firing_freq, occupancy):
-
-        # occupancy: number of frames per bin
         occupancy_probability = occupancy / occupancy.sum()
-
-        # overall mean rate
         avrg_firing_rate = np.dot(firing_freq, occupancy_probability)
-        #print(avrg_firing_rate)
 
         if avrg_firing_rate == 0:
             return 0.0
@@ -124,26 +80,52 @@ def identify_place_cells_prob(main_df, place_df, fps=10, n_shuffles=100, signifi
             if r > 0 and p > 0:
                 ratio = r / avrg_firing_rate
                 info += p * ratio * np.log2(ratio)
-        return info
+        return float(info)
 
-    # real spatial info
-    occupancy = main_df.groupby('head_bin').size() # how many frames did animal spend in each bin
-    occupancy = occupancy.reindex(place_df.index, fill_value=0) # no idea
-    occupancy_sec = occupancy / fps 
-    occ_nonzero = occupancy_sec.replace(0, np.nan)  # replacing 0 with nan
+    # occupancy in frames per bin (includes head_bin=-1 if present)
+    occupancy = main_df.groupby("head_bin").size()
+    occupancy = occupancy.reindex(place_df.index, fill_value=0)
 
-    df_firing_freq = place_df.div(occ_nonzero, axis=0).fillna(0.0)  # what was fring frequency in each bin
+    occupancy_sec = occupancy / fps
+    occ_nonzero = occupancy_sec.replace(0, np.nan)
+
+    # firing frequency (expected spikes per second) per bin
+    df_firing_freq = place_df.div(occ_nonzero, axis=0).fillna(0.0)
 
     spatial_info_real = {}
     for cell in df_firing_freq.columns:
-        info = spatial_information(df_firing_freq[cell].values, occupancy.values)
-        spatial_info_real[cell] = info
+        spatial_info_real[cell] = spatial_information(df_firing_freq[cell].values, occupancy.values)
+
+    return spatial_info_real
 
 
-    nb_place_cells, nb_all_cells = len(place_cells), len(spatial_info_real)
-    print(f'Place cells {nb_place_cells} / {nb_all_cells} ({round((nb_place_cells/nb_all_cells)*100, 1)}%)')
+csv_files = sorted(CSV_FOLDER.glob("*Zost2_YM_final_trim(15m).csv"))
+print(f"Found {len(csv_files)} CSV files")
+rows = []
 
-    percent_place = nb_place_cells / nb_all_cells
+for csv_path in tqdm(csv_files):
+    df = pd.read_csv(csv_path)
 
-    return spatial_info_real, spatial_info_shuffled, place_cells, p_values, percent_place
+    # mean spikeprob per cell (over frames)
+    cell_cols = [c for c in df.columns if isinstance(c, str) and c.endswith("_spikeprob")]
+    per_cell_mean = df[cell_cols].mean(axis=0)
 
+    # compute SI from your YM binning
+    df_binned, place_df = bin_cellspikes_prob_YM(df)
+    si_map = compute_spatial_info_only(df_binned, place_df)
+
+    # write one row per cell
+    for cell in cell_cols:
+        rows.append({
+            "file": csv_path.stem,
+            "cell": cell,
+            "mean_spikeprob": float(per_cell_mean[cell])*10,
+            "SI": float(si_map.get(cell, np.nan))
+        })
+
+out_df = pd.DataFrame(rows)
+out_df.to_csv(OUT_CSV, index=False)
+
+print("Saved:", OUT_CSV)
+print("Rows (cells):", len(out_df))
+print("Missing SI:", out_df["SI"].isna().sum())

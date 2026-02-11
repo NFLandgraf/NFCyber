@@ -1,6 +1,8 @@
 #%%
 '''
+You need a csv file (from Excel file) with the cropping parameters for each video
 Checks the csv file and according to this, changes the dimensions of the mp4 in a folder if name in there
+Keeps everything else the same
 '''
 import os
 import cv2

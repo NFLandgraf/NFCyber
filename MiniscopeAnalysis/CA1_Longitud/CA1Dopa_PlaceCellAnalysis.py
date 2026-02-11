@@ -20,8 +20,7 @@ from pathlib import Path
 
 
 
-path = r"D:\CA1Dopa_Miniscope\live"
-file_useless_string = ['CA1Dopa_Longitud_', '_main_filtered']
+path = r"D:\Analy_Post2"
 
 
 def manage_filename(file):
@@ -44,7 +43,7 @@ def get_files(path, common_name):
     print('\n')
 
     return files
-files = get_files(path, 'YMaze')
+files = get_files(path, 'YM')
 
 
 
