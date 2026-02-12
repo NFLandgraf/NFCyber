@@ -10,13 +10,45 @@ import matplotlib.pyplot as plt
 from scipy import stats
 
 
-CSV_FOLDER     = Path(r"D:\10_ALL_MERGE")
-OUT_CSV        = Path(r"D:\speed_vs_spikeprob_all_cells.csv")
+CSV_FOLDER     = Path(r"C:\Users\landgrafn\Desktop\a\Master_11_trim(15m)")
+OUT_CSV        = Path(r"C:\Users\landgrafn\Desktop\a\spikerate.csv")
+df_QC = pd.read_csv(r"C:\Users\landgrafn\Desktop\a\df_QC_FINAL_pass.csv", index_col='cell_ID')
 fps            = 10.0        # frames per second
 bin_size_s     = 1           # seconds per bin
 
-def process_csv(csv_path, fps, bin_size_s):
+def drop_cells_QC(main_df, df_QC):
+
+    # do QC according to pass True or False
+    cols_to_keep = []
+    for col in main_df.columns:
+
+        # you want to keep all non-neuron columns like xy coordinates
+        if "_C" not in col:
+            cols_to_keep.append(col)
+            continue
+
+        # extract cell name 
+        name = col.rsplit("_", 1)[0]
+
+        # if the name is not in pass_df, be conservative and drop
+        if name not in df_QC.index:
+            print('name not in pass_df')
+            continue
+
+        # keep only if pass == True
+        if df_QC.loc[name, "pass"]:
+            cols_to_keep.append(col)
+    
+    # drop columns that didnt pass the QC
+    cells_dropped = int((len(main_df.columns) - len(cols_to_keep)) /3)
+    main_df = main_df[cols_to_keep]
+    #print(f'{cells_dropped} cells dropped due to QC -> now {int(len(cols_to_keep)/3)} cells')
+
+    return main_df
+
+def process_csv(csv_path, df_QC, fps, bin_size_s):
     df = pd.read_csv(csv_path)
+    df = drop_cells_QC(df, df_QC)
 
     # identify cell columns
     cell_cols = [c for c in df.columns if 'spikeprob'  in c]
@@ -57,7 +89,7 @@ csv_files = sorted(CSV_FOLDER.glob("*OF_final.csv"))
 print(f"Found {len(csv_files)} CSV files")
 
 for csv in tqdm(csv_files):
-    res = process_csv(csv, fps=fps, bin_size_s=bin_size_s)
+    res = process_csv(csv, df_QC, fps=fps, bin_size_s=bin_size_s)
     if res is not None:
         all_results.append(res)
 

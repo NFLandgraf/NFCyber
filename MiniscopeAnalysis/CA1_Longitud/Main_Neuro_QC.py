@@ -1,4 +1,8 @@
 #%%
+'''
+This is the Quality Control, CaImAn is needed
+does spatial and temporal QC and according to parameters, let the cells pass or not
+'''
 import os
 from pathlib import Path
 import pandas as pd
@@ -18,11 +22,11 @@ from caiman.source_extraction.cnmf.deconvolution import GetSn
 folder_motcor       = Path(r"D:\Nico\CaImAn\test\motcor")
 folder_traces       = Path(r"D:\Nico\CaImAn\test\traces")
 folder_footprints   = Path(r"D:\Nico\CaImAn\test\footprints")
-folder_out          = Path(r"D:\Nico\CaImAn\test\out")
+folder_out          =      r"D:\Nico\CaImAn\test\out"
 
 # Matching patterns, given movie base name BASE:
-TRACES_PATTERN = "{base}*.csv"
-FOOTPRINTS_PATTERN = "{base}*.tif*"
+pattern_traces       = "{base}*.csv"
+pattern_footprints  = "{base}*.tif*"
 
 framerate = 10.0
 round_to = 4
@@ -79,7 +83,7 @@ def QC_spat_compute_shapemetrics(mask):
             "major_axis_length": np.nan,
             "minor_axis_length": np.nan,
             "axis_ratio": np.nan,
-            "n_components": 0,
+            "n_comps": 0,
         }
 
     # area and perimeter
@@ -110,6 +114,46 @@ def QC_spat_compute_shapemetrics(mask):
         "n_comps": n_comp,
     }
 
+def QC_spat_main(footprint_files, base):
+    '''
+    This gets all footprint files from a CNMFe output, it loops over each footprint and masks (what is considered a neuron)
+    Then, according to this mask, it calculates shape metrics and saves everything in a df (all cells from all recordings as rows, metrics as columns)
+    Use it to accept/reject cells according to their footprint
+    '''
+
+    print(f'{base} QC_spat start')
+    files_n = len(footprint_files)
+    print(f'found {files_n} footprints')
+
+    rows = []
+    maxproj = None
+
+    # loop over every file and comp spatial things
+    # one row per cell (index = filename stem) and columns containing metrics
+    for tif_path in footprint_files:
+
+        img = QC_spat_load_tif(tif_path)
+        mask = QC_spat_segment_footprint(img)
+        metrics = QC_spat_compute_shapemetrics(mask)
+
+        row = {"cell_ID": tif_path.stem, **metrics}
+        rows.append(row)
+
+        # for creating a maxproj image from all footprints
+        maxproj = mask.copy() if maxproj is None else (maxproj | mask)
+    maxproj_u8 = (maxproj.astype(np.uint8) * 255)
+    io.imsave(f"{folder_out}\\{base}_maxproj.jpg", maxproj_u8)
+
+    # clean QC_spatial df
+    df_QC_spat = pd.DataFrame(rows).set_index("cell_ID")
+    col_order = ["file", "area_px", "circul", "solid", "eccentr", "axis_ratio", "n_comps", "maj_axis_len", "min_axis_len", "perim_px"]
+    df_QC_spat = df_QC_spat[[c for c in col_order if c in df_QC_spat.columns] + [c for c in df_QC_spat.columns if c not in col_order]]
+    numeric_cols = df_QC_spat.select_dtypes(include=["number"]).columns
+    df_QC_spat[numeric_cols] = df_QC_spat[numeric_cols].round(round_to)
+    df_QC_spat.index = df_QC_spat.index.str.replace(replace_what, replace_with, regex=False)
+
+    print(f'{base} QC_spat done')
+    return df_QC_spat
 
 # QC_temp functions
 def QC_temp_get_motcorr_movies(folder_motcor, folder_out):
@@ -185,7 +229,7 @@ def QC_temp_load_inscopix_traces_csv(traces_csv):
     traces = traces.T  # transpose -> shape [neurons K, timepoints T]
     return traces, time_orig, cell_names
 
-def QC_temp_load_footprints(footprints: list[Path], dims_hw: tuple[int, int]):
+def QC_temp_load_footprints(footprints, dims_hw):
     
     
     footprint_names = []
@@ -223,55 +267,12 @@ def QC_temp_compute_noise(C):
 
     return noise
 
-
-# main functions
-def QC_spat_main(footprint_files, base):
-    '''
-    This gets all footprint files from a CNMFe output, it loops over each footprint and masks (what is considered a neuron)
-    Then, according to this mask, it calculates shape metrics and saves everything in a df (all cells from all recordings as rows, metrics as columns)
-    Use it to accept/reject cells according to their footprint
-    '''
-
-    print(f'{base} QC_spat start')
-    files_n = len(footprint_files)
-    print(f'found {files_n} footprints')
-
-    rows = []
-    maxproj = None
-
-    # loop over every file and comp spatial things
-    # one row per cell (index = filename stem) and columns containing metrics
-    for tif_path in footprint_files:
-
-        img = QC_spat_load_tif(tif_path)
-        mask = QC_spat_segment_footprint(img)
-        metrics = QC_spat_compute_shapemetrics(mask)
-
-        row = {"cell_ID": tif_path.stem, **metrics}
-        rows.append(row)
-
-        # for creating a maxproj image from all footprints
-        maxproj = mask.copy() if maxproj is None else (maxproj | mask)
-    maxproj_u8 = (maxproj.astype(np.uint8) * 255)
-    io.imsave(f"{folder_out}\\{base}_maxproj.jpg", maxproj_u8)
-
-    # clean QC_spatial df
-    df_QC_spat = pd.DataFrame(rows).set_index("cell_ID")
-    col_order = ["file", "area_px", "circul", "solid", "eccentr", "axis_ratio", "n_comps", "maj_axis_len", "min_axis_len", "perim_px"]
-    df_QC_spat = df_QC_spat[[c for c in col_order if c in df_QC_spat.columns] + [c for c in df_QC_spat.columns if c not in col_order]]
-    numeric_cols = df_QC_spat.select_dtypes(include=["number"]).columns
-    df_QC_spat[numeric_cols] = df_QC_spat[numeric_cols].round(round_to)
-    df_QC_spat.index = df_QC_spat.index.str.replace(replace_what, replace_with, regex=False)
-
-    print(f'{base} QC_spat done')
-    return df_QC_spat
-
 def QC_temp_main(movie_path, footprint_files, mmap_dir, base):
     
     print(f'{base} QC_temp start')
 
     # Find matching traces CSV and load them
-    traces_csv = QC_temp_pick_single_match(folder_traces, TRACES_PATTERN.format(base=base))
+    traces_csv = QC_temp_pick_single_match(folder_traces, pattern_traces.format(base=base))
     if traces_csv == None:
         return None
     traces, time_orig, traces_cell_names = QC_temp_load_inscopix_traces_csv(traces_csv)
@@ -320,14 +321,36 @@ def QC_temp_main(movie_path, footprint_files, mmap_dir, base):
     print(f'{base} QC_temp done')
     return df_QC_temp
 
+# pass function
+def QC_pass(df):
+    # parameters that are accepting a cell when inside boundaries
+    qc_params = {
+        "area_px":    (50, None),
+        "circul":     (0.4, None),
+        "axis_ratio": (None, 5),
+        "perim_px":   (20, None),
+        "fit_delta":  (None, -6),
+        "fit_raw":    (None, -40),
+        "n_comps":    (1, 1)}
 
+    pass_mask = pd.Series(True, index=df.index)
+    for col, (lo, hi) in qc_params.items():
+        if lo is not None and hi is not None:
+            pass_mask &= df[col].between(lo, hi)
+        elif lo is not None:
+            pass_mask &= df[col] >= lo
+        elif hi is not None:
+            pass_mask &= df[col] <= hi
 
-# gets the motcor_videos, only use their filename to find the foorprints
-motcor_paths, mmap_dir = QC_temp_get_motcorr_movies(folder_motcor, folder_out)
+    df["pass"] = pass_mask
+
+    return df
+
 
 # store all dfs in the list to collapse them all into one big df in the end
 df_all_QC_spat = []
 df_all_QC_temp = []
+motcor_paths, mmap_dir = QC_temp_get_motcorr_movies(folder_motcor, folder_out)
 
 for motcor in motcor_paths:
 
@@ -335,12 +358,11 @@ for motcor in motcor_paths:
     print(f'\n\n-------{base}-------')
 
     # Find matching footprints
-    footprint_files = sorted(folder_footprints.glob(FOOTPRINTS_PATTERN.format(base=base)))
+    footprint_files = sorted(folder_footprints.glob(pattern_footprints.format(base=base)))
     if len(footprint_files) == 0:
         print(f"XXX No footprint tifs for base '{base}' in {folder_footprints}")
         continue
     
-
     # do QC_spat
     df_QC_spat = QC_spat_main(footprint_files, base)
     if df_QC_spat is None or df_QC_spat.empty:
@@ -354,21 +376,78 @@ for motcor in motcor_paths:
     df_all_QC_temp.append(df_QC_temp)
 
 
+df_QC_spat_final    = pd.concat(df_all_QC_spat, axis=0)
+df_QC_temp_final    = pd.concat(df_all_QC_temp, axis=0)
+df_QC_final         = pd.concat([df_QC_spat_final, df_QC_temp_final], axis=1)
 
-# save QC_spat_final
-df_QC_spat_final = pd.concat(df_all_QC_spat, axis=0)
-df_QC_spat_final.to_csv(f"{folder_out}\\df_QC_spat_final.csv")
-print('\n\nQC_spat_final saved')
+df_QC_final_pass = QC_pass(df_QC_final)
+df_QC_final_pass.to_csv(folder_out + '\\QC_FINAL_pass.csv')
 
-# save QC_temp_final
-df_QC_temp_final = pd.concat(df_all_QC_temp, axis=0)
-df_QC_temp_final.to_csv(f"{folder_out}\\df_QC_temp_final.csv")
-print('QC_temp_final saved')
-
-# combine both QC
-df_QC_final = pd.concat([df_QC_spat_final, df_QC_temp_final], axis=1)
-df_QC_final.to_csv(f'{folder_out}\\df_QC_final.csv')
-print('QC_final saved')
+#df_QC_spat_final.to_csv(f"{folder_out}\\df_QC_spat_final.csv")
+#df_QC_temp_final.to_csv(f"{folder_out}\\df_QC_temp_final.csv")
+#df_QC_final.to_csv(f'{folder_out}\\df_QC_final.csv')
 
 
+#%%
+'''
+check the QC parameters
+'''
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+from pathlib import Path
+from random import shuffle
 
+df = pd.read_csv(r"D:\df_QC_FINAL.csv", index_col='cell_ID')
+
+x = 'area_px'
+y = 'fit_raw'
+low = 250
+high = 1000
+
+plt.figure()
+plt.scatter(df[x], df[y], alpha=0.05)
+plt.xlabel(x)
+plt.ylabel(y)
+#plt.xlim(low,high)
+#plt.ylim(-400,0)
+plt.show()
+
+idx = list(df.index[df[x].between(low, high)])
+shuffle(idx)
+folder_in = r"D:\10_ALL_MERGE"
+if True:
+    for i, cell in enumerate(idx):
+        if i > 10:
+            break
+        # split name
+        parts = cell.split("_")
+        
+        # file base name (everything except the last part, which is Cxxx)
+        file_base = "_".join(parts[:-1])          # e.g. 32_Zost2_YM
+        cell_id = parts[-1]                        # e.g. C007
+
+        csv_path = Path(f'{folder_in}//{file_base}_final.csv')
+        
+        if not csv_path.exists():
+            print(f"File not found: {csv_path}")
+            continue
+
+        # column name to plot
+        col_name1 = f"{file_base}_{cell_id}_dfovernoise"
+        col_name2 = f"{file_base}_{cell_id}_spikeprob"
+        df = pd.read_csv(csv_path)
+        if col_name1 not in df.columns:
+            print(f"Column not found: {col_name1}")
+            continue
+
+        plt.figure()
+        plt.plot(df[col_name1].values)
+        plt.plot(df[col_name2].values/5, alpha=0.8)
+        plt.title(col_name1)
+        plt.xlabel("frame")
+        plt.ylabel("df / noise")
+        plt.tight_layout()
+        plt.show()
+
+print(len(idx))
