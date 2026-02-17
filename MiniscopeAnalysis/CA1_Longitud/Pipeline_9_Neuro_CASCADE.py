@@ -1,5 +1,8 @@
 #%%
-
+'''
+Takes dfovernoise traces and models the underlying spike probabilities via CASCADE
+CASCADE needs to be installed on PC
+'''
 import os, sys
 os.chdir(r"C:\Users\landgrafn\Cascade-master")
 import pandas as pd
@@ -50,33 +53,33 @@ for trace_file in files:
 
     # calculate
     traces_df, time, cell_names = load_neurons_x_time(trace_file)
-    #traces_z = zscore(traces_df, axis=1)
-    #spikeprob = cascade.predict(model_path, traces_df)
-    noise_levels = plot_noise_level_distribution(traces_df, frame_rate)
+    traces_z = zscore(traces_df, axis=1)
+    spikeprob = cascade.predict(model_path, traces_df)
+    #noise_levels = plot_noise_level_distribution(traces_df, frame_rate)
 
     # renaming all cells
     prefix = trace_file.stem.replace(replace_what, replace_with)
-    #cell_names_dfovernoise = [f"{prefix}_{c.replace(' C', 'C')}_dfovernoise" for c in cell_names]
-    #cell_names_zscore = [f"{prefix}_{c.replace(' C', 'C')}_zscore" for c in cell_names]
-    #cell_names_spikeprob = [f"{prefix}_{c.replace(' C', 'C')}_spikeprob" for c in cell_names]
-    cell_names_QCnoise = [f"{prefix}_{c.replace(' C', 'C')}" for c in cell_names]
+    cell_names_dfovernoise = [f"{prefix}_{c.replace(' C', 'C')}_dfovernoise" for c in cell_names]
+    cell_names_zscore = [f"{prefix}_{c.replace(' C', 'C')}_zscore" for c in cell_names]
+    cell_names_spikeprob = [f"{prefix}_{c.replace(' C', 'C')}_spikeprob" for c in cell_names]
+    #cell_names_QCnoise = [f"{prefix}_{c.replace(' C', 'C')}" for c in cell_names]
 
     # create dfs
-    #df_dfovernoise  = pd.DataFrame(traces_df.T, columns=cell_names_dfovernoise)
-    #df_zscore       = pd.DataFrame(traces_z.T, columns=cell_names_zscore)
-    #df_spikeprob    = pd.DataFrame(spikeprob.T, columns=cell_names_spikeprob)
-    df_QC_noise     = pd.DataFrame({"QC_Cascade_noise": noise_levels}, index=cell_names_QCnoise)
-    df_QC_noise.index.name = "cell_ID"
+    df_dfovernoise  = pd.DataFrame(traces_df.T, columns=cell_names_dfovernoise)
+    df_zscore       = pd.DataFrame(traces_z.T, columns=cell_names_zscore)
+    df_spikeprob    = pd.DataFrame(spikeprob.T, columns=cell_names_spikeprob)
+    #df_QC_noise     = pd.DataFrame({"QC_Cascade_noise": noise_levels}, index=cell_names_QCnoise)
+    #df_QC_noise.index.name = "cell_ID"
 
     # merge and save
-    #df_out = pd.concat([df_spikeprob, df_dfovernoise, df_zscore], axis=1)
-    #df_out.to_csv(f'{folder_out}\\{prefix}_cascade.csv')
-    #print(f'orig: {np.shape(traces_df)}')
-    #print(f'outt: {df_out.shape}')
+    df_out = pd.concat([df_spikeprob, df_dfovernoise, df_zscore], axis=1)
+    df_out.to_csv(f'{folder_out}\\{prefix}_cascade.csv')
+    print(f'orig: {np.shape(traces_df)}')
+    print(f'outt: {df_out.shape}')
 
     # append to global df (row-wise)
-    df_QC_noise_all = pd.concat([df_QC_noise_all, df_QC_noise], axis=0)
+    #df_QC_noise_all = pd.concat([df_QC_noise_all, df_QC_noise], axis=0)
 
-df_QC_noise_all.to_csv(f'{folder_out}\\QC_Cascade_final.csv')
+#df_QC_noise_all.to_csv(f'{folder_out}\\QC_Cascade_final.csv')
         
 

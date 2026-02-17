@@ -1,7 +1,10 @@
 #%%
 '''
-This is the Quality Control, CaImAn is needed
-does spatial and temporal QC and according to parameters, let the cells pass or not
+This is the Quality Control
+Uses the footprints for QC_spatial and the traces for QC_temporal
+According to parameters, let the cells pass or not
+needs PC with CaImAn installed
+Outputs a csv with the per cell parameters and pass/nopass
 '''
 import os
 from pathlib import Path
@@ -10,7 +13,6 @@ import numpy as np
 from skimage import io
 from skimage.measure import label, regionprops
 import re
-
 import tifffile
 import scipy.sparse as sp
 import caiman as cm
@@ -404,6 +406,7 @@ x = 'area_px'
 y = 'fit_raw'
 low = 250
 high = 1000
+
 
 plt.figure()
 plt.scatter(df[x], df[y], alpha=0.05)

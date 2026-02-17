@@ -2,7 +2,7 @@
 # IMPORT
 import pandas as pd
 import numpy as np
-#import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 import cv2
 from tqdm import tqdm
 from scipy.ndimage import gaussian_filter
@@ -23,7 +23,7 @@ from matplotlib.path import Path as MplPath
 from scipy.stats import linregress
 
 
-folder_in = Path(r"C:\Users\landgrafn\Desktop\a\data\real")
+folder_in = Path(r"C:\Users\landgrafn\Desktop\a\data\Master_10_merge\mKate")
 folder_out = r"C:\Users\landgrafn\Desktop\a\Test"
 file_QC = r"C:\Users\landgrafn\Desktop\a\QC_FINAL_pass.csv"
 
@@ -32,6 +32,8 @@ out_spikeprob_summary = folder_out + '\\SpikeRate_Summary.csv'
 out_spikerate_speed   = folder_out + '\\SpikeRate-Speed.csv'
 out_SI_summary = folder_out + '\\SI_Summary.csv'
 out_FFN_summary = folder_out + '\\FFN_Summary.csv'
+
+dist_travelled = []
 
 
 def get_files(path, common_name1, common_name2, suffix=".csv"):
@@ -72,7 +74,8 @@ def clean_df_QC(df, df_QC):
 
     return df
 
-def clean_df_distance(df, start_row=34, maxYMOF=[15,20]):
+def clean_df_distance(df, file, start_row=34, maxYM=20, maxOF=None):
+    global distances
 
     if df is None:
         return None
@@ -82,9 +85,9 @@ def clean_df_distance(df, start_row=34, maxYMOF=[15,20]):
     df = df.iloc[start_row:]
 
     if 'YM' in name:
-        maxdist = maxYMOF[0] * 1000
+        maxdist = maxYM * 1000
     elif 'OF' in name:
-        maxdist = maxYMOF[1] * 1000
+        maxdist = maxOF * 1000
     else:
         print('Zero cells in recording')
         return None
@@ -93,6 +96,7 @@ def clean_df_distance(df, start_row=34, maxYMOF=[15,20]):
     dy = df["head_y"].diff()
     step_dist = np.sqrt(dx**2 + dy**2)
     cum_dist = step_dist.fillna(0).cumsum()
+    dist_travelled.append(cum_dist.values)
 
     # if never reached max distance, just return full df
     reached = cum_dist >= maxdist
@@ -100,7 +104,7 @@ def clean_df_distance(df, start_row=34, maxYMOF=[15,20]):
         return df
     
     cut_label = cum_dist.index[reached.argmax()]  # first index where reached
-    print(f'reached maxdist after {int(cut_label)}s / {int(max(df.index))}s ->trimmed')
+    #print(f'reached maxdist after {int(cut_label)}s / {int(max(df.index))}s ->trimmed')
     df = df.loc[:cut_label].copy()
 
     return df
@@ -208,7 +212,7 @@ def heatmap_cells(df, arena_size=(580, 485), blur_sigma=3.0, cmap="viridis", gam
         fig.savefig(f'{heatmap_folder}\\{cell}.png', dpi=100, bbox_inches="tight", pad_inches=0)
         plt.close(fig)
 
-def heatmap_spikeprob(df, min_frames=32, max_frames=2078, max_cells=251, vmin=0, vmax=0.5, heatmap=None):
+def heatmap_spikeprob(df, min_frames=32, max_frames=1362, max_cells=298, vmin=0, vmax=0.5, heatmap=None, trim_x_axis='Distance'):
 
     def reorder_rows(combined, shuffle=None):
 
@@ -236,7 +240,7 @@ def heatmap_spikeprob(df, min_frames=32, max_frames=2078, max_cells=251, vmin=0,
             plt.xlabel("Time (frames / samples)")
             plt.ylabel("Cells")
             plt.tight_layout()
-            plt.savefig(out_path+'_heatmap.pdf', format='pdf')
+            plt.savefig(out_path + '\\Heatmap.pdf', format='pdf')
             #plt.show()
             plt.close()
 
@@ -263,12 +267,32 @@ def heatmap_spikeprob(df, min_frames=32, max_frames=2078, max_cells=251, vmin=0,
     if heatmap is None:
         cols = [c for c in df.columns if str(c).endswith('spikeprob')]
 
-        # trim recording and create matrix
-        df = df.iloc[min_frames:max_frames]
-        arr = df[cols].to_numpy()
-        mat = arr.T
+        if trim_x_axis == 'Time':
+            # trim recording to a certain max frame
+            df = df.iloc[min_frames:max_frames]
+            arr = df[cols].to_numpy()
+            mat = arr.T
 
-        return mat
+            return mat
+        
+        elif trim_x_axis == 'Distance':
+            # trim recording to a certain distance (e.g. 15m)
+            arr = df[cols].to_numpy()      # (time, cells)
+            mat = arr.T                   # (cells, time)
+            target_frames = 1000           # choose what you want
+
+            n_cells, n_frames = mat.shape
+            if n_frames == target_frames:
+                return mat.copy()
+            old_time = np.linspace(0, 1, n_frames)
+            new_time = np.linspace(0, 1, target_frames)
+            mat_resampled = np.empty((n_cells, target_frames))
+            for i in range(n_cells):
+                mat_resampled[i] = np.interp(new_time, old_time, mat[i])
+            
+            return mat_resampled
+
+
 
     else:
         # create shuffled cells of same number
@@ -277,8 +301,8 @@ def heatmap_spikeprob(df, min_frames=32, max_frames=2078, max_cells=251, vmin=0,
         combined = combined[:max_cells]
         combined = reorder_rows(combined, shuffle=False)
 
-        draw_heatmap_pdf(combined, folder_out + f'\\Heatmap_pdf.pdf', vmin, vmax)
-        draw_heatmap_vec(combined, folder_out + f'\\Heatmap_vec.pdf', vmin, vmax)
+        draw_heatmap_pdf(combined, folder_out, vmin, vmax)
+        #draw_heatmap_vec(combined, folder_out, vmin, vmax)
     
 
 def SpikeProb(df, file):
@@ -287,6 +311,10 @@ def SpikeProb(df, file):
     # identify spikeprob columns
     cell_cols = [c for c in df.columns if "spikeprob" in c]
     n_rows = len(df)
+
+
+    per_cell_sum = df[cell_cols].sum(axis=0)
+    mean_of_cell_sums = per_cell_sum.mean()
 
     # Method 1: Mean per cell
     per_cell_mean = df[cell_cols].mean(axis=0)
@@ -299,6 +327,7 @@ def SpikeProb(df, file):
     median_of_sum_div_rows = per_cell_sum_div_rows.median()
 
     spikeprob_summary = {"file": Path(file).stem,
+                        "spike_sum": mean_of_cell_sums,
                         "mean_of_cell_means": mean_of_cell_means,
                         "median_of_cell_means": median_of_cell_means,
                         "mean_of_cell_sum_div_rows": mean_of_sum_div_rows,
@@ -347,7 +376,7 @@ def SpikeRate_Speed(df, file, fps=10, bin_size_s=10.0):
         mean_speed = grouped_obj["speed_mm_s"].mean()
         spike_sum = grouped_obj[cell].sum()
         grouped = pd.DataFrame({"mean_speed_mm_s": mean_speed,
-                                file.stem: spike_sum}) # change 'cell' to file.stem if you want one big file for overview
+                                'cell': spike_sum}) # change 'cell' to file.stem if you want one big file for overview
         out_rows.append(grouped)
 
     if out_rows:
@@ -362,83 +391,7 @@ def SpikeRate_Speed(df, file, fps=10, bin_size_s=10.0):
         return None
 
 
-def bin_cellspikes_prob_OF(main_df, n_bins=10, xmax=580, ymax=485):
-    """
-    From head position and spike probabilities, compute 'spike mass' per spatial bin.
-    Instead of summing 0/1 spikes, we sum spike probabilities per bin.
-    """
-
-    # grid
-    x_edges = np.linspace(0, xmax, n_bins+1)
-    y_edges = np.linspace(0, ymax, n_bins+1)
-
-    # assign each frame to a spatial bin
-    main_df['x_bin'] = np.clip(np.digitize(main_df['head_x'], bins=x_edges) - 1, 0, n_bins-1)
-    main_df['y_bin'] = np.clip(np.digitize(main_df['head_y'], bins=y_edges) - 1, 0, n_bins-1)
-    main_df['head_bin'] = main_df['y_bin'] * n_bins + main_df['x_bin']
-    main_df = main_df.drop(['x_bin', 'y_bin'], axis=1)
-
-    # choose Cascade probability columns
-    spike_prob_cells = [col for col in main_df.columns if isinstance(col, str) and col.endswith('_spikeprob')]
-
-    place_map = {}
-    for cell in spike_prob_cells:
-        # sum of spike_prob in each bin = expected spike count in that bin
-        bin_probs = main_df.groupby('head_bin')[cell].sum()
-        place_map[cell] = bin_probs
-
-    place_df = pd.DataFrame(place_map).fillna(0.0)   # keep as float, not int
-    place_df = place_df.sort_index()
-
-    return main_df, place_df
-
-def bin_cellspikes_prob_YM(main_df):
-    """
-    From head position and spike probabilities, compute 'spike mass' per spatial bin.
-    Instead of summing 0/1 spikes, we sum spike probabilities per bin.
-    """
-    df = main_df.copy()
-    x_max, y_max = 1000, 1000
-
-    # bin coordinates
-    left_corner = (250, 280)
-    middle_corner = (290, 340)
-    right_corner = (330, 280)
-
-    top_left = (0, 0)
-    top_right = (x_max, 0)
-    bottom_right = (x_max, y_max)
-    bottom_left = (0, y_max)
-    wall_bottom = (middle_corner[0], y_max)
-    poly_center = np.array([left_corner, middle_corner, right_corner])
-    poly_arm_left = np.array([left_corner, middle_corner, wall_bottom, bottom_left, top_left])
-    poly_arm_right = np.array([right_corner, middle_corner, wall_bottom, bottom_right, top_right])
-    poly_arm_middle = np.array([left_corner, right_corner, top_right, top_left])
-    paths = {"center":MplPath(poly_center), "arm_left":MplPath(poly_arm_left), "arm_right":MplPath(poly_arm_right), "arm_middle":MplPath(poly_arm_middle)}
-    bin_order = ["center", "arm_left", "arm_right", "arm_middle"]
-    bin_ids   = {"center":0, "arm_left":1, "arm_right":2, "arm_middle":3}
-
-    # head in which bin
-    pts = df[["head_x", "head_y"]].to_numpy(dtype=float)
-    head_bin = np.full(len(df), -1, dtype=int)  # -1 = not in any polygon
-    for name in bin_order:
-        inside = paths[name].contains_points(pts)
-        head_bin[(head_bin == -1) & inside] = bin_ids[name]
-    df["head_bin"] = head_bin
-
-    # sum spike probabilities
-    spike_prob_cells = [c for c in df.columns if isinstance(c, str) and c.endswith("_spikeprob")]
-    place_map = {}
-    for cell in spike_prob_cells:
-        # sum of spike probability in each bin = expected spike count in that bin
-        bin_probs = df.groupby("head_bin")[cell].sum()
-        place_map[cell] = bin_probs
-
-    place_df = pd.DataFrame(place_map).fillna(0.0).sort_index()
-    return df, place_df
-
-
-def SI(df, place_df, file_in, fps=10, draw_cells=False, do_shuffle=False, n_shuffles=1, significance_level=0.001):
+def SI(df, file_in, fps=10, draw_cells=False, do_shuffle=False, n_shuffles=1, significance_level=0.001):
     
     # real spatial info
     # assumes place_df entries are sums of spike probabilities (expected spike counts)
@@ -461,6 +414,84 @@ def SI(df, place_df, file_in, fps=10, draw_cells=False, do_shuffle=False, n_shuf
                 info += p * ratio * np.log2(ratio)
         return info
 
+    def bin_cellspikes_prob_OF(main_df, n_bins=10, xmax=580, ymax=485):
+        """
+        From head position and spike probabilities, compute 'spike mass' per spatial bin.
+        Instead of summing 0/1 spikes, we sum spike probabilities per bin.
+        """
+
+        # grid
+        x_edges = np.linspace(0, xmax, n_bins+1)
+        y_edges = np.linspace(0, ymax, n_bins+1)
+
+        # assign each frame to a spatial bin
+        main_df['x_bin'] = np.clip(np.digitize(main_df['head_x'], bins=x_edges) - 1, 0, n_bins-1)
+        main_df['y_bin'] = np.clip(np.digitize(main_df['head_y'], bins=y_edges) - 1, 0, n_bins-1)
+        main_df['head_bin'] = main_df['y_bin'] * n_bins + main_df['x_bin']
+        main_df = main_df.drop(['x_bin', 'y_bin'], axis=1)
+
+        # choose Cascade probability columns
+        spike_prob_cells = [col for col in main_df.columns if isinstance(col, str) and col.endswith('_spikeprob')]
+
+        place_map = {}
+        for cell in spike_prob_cells:
+            # sum of spike_prob in each bin = expected spike count in that bin
+            bin_probs = main_df.groupby('head_bin')[cell].sum()
+            place_map[cell] = bin_probs
+
+        place_df = pd.DataFrame(place_map).fillna(0.0)   # keep as float, not int
+        place_df = place_df.sort_index()
+
+        return main_df, place_df
+
+    def bin_cellspikes_prob_YM(main_df):
+        """
+        From head position and spike probabilities, compute 'spike mass' per spatial bin.
+        Instead of summing 0/1 spikes, we sum spike probabilities per bin.
+        """
+        df = main_df.copy()
+        x_max, y_max = 1000, 1000
+
+        # bin coordinates
+        left_corner = (250, 280)
+        middle_corner = (290, 340)
+        right_corner = (330, 280)
+
+        top_left = (0, 0)
+        top_right = (x_max, 0)
+        bottom_right = (x_max, y_max)
+        bottom_left = (0, y_max)
+        wall_bottom = (middle_corner[0], y_max)
+        poly_center = np.array([left_corner, middle_corner, right_corner])
+        poly_arm_left = np.array([left_corner, middle_corner, wall_bottom, bottom_left, top_left])
+        poly_arm_right = np.array([right_corner, middle_corner, wall_bottom, bottom_right, top_right])
+        poly_arm_middle = np.array([left_corner, right_corner, top_right, top_left])
+        paths = {"center":MplPath(poly_center), "arm_left":MplPath(poly_arm_left), "arm_right":MplPath(poly_arm_right), "arm_middle":MplPath(poly_arm_middle)}
+        bin_order = ["center", "arm_left", "arm_right", "arm_middle"]
+        bin_ids   = {"center":0, "arm_left":1, "arm_right":2, "arm_middle":3}
+
+        # head in which bin
+        pts = df[["head_x", "head_y"]].to_numpy(dtype=float)
+        head_bin = np.full(len(df), -1, dtype=int)  # -1 = not in any polygon
+        for name in bin_order:
+            inside = paths[name].contains_points(pts)
+            head_bin[(head_bin == -1) & inside] = bin_ids[name]
+        df["head_bin"] = head_bin
+
+        # sum spike probabilities
+        spike_prob_cells = [c for c in df.columns if isinstance(c, str) and c.endswith("_spikeprob")]
+        place_map = {}
+        for cell in spike_prob_cells:
+            # sum of spike probability in each bin = expected spike count in that bin
+            bin_probs = df.groupby("head_bin")[cell].sum()
+            place_map[cell] = bin_probs
+
+        place_df = pd.DataFrame(place_map).fillna(0.0).sort_index()
+        return df, place_df
+
+
+    main_df, place_df = bin_cellspikes_prob_OF(main_df)
+
     occupancy = df.groupby('head_bin').size() # how many frames did animal spend in each bin
     occupancy = occupancy.reindex(place_df.index, fill_value=0) # no idea
     occupancy_sec = occupancy / fps 
@@ -478,7 +509,7 @@ def SI(df, place_df, file_in, fps=10, draw_cells=False, do_shuffle=False, n_shuf
             heatmap_cells(df, cell)
 
     # save each SI values of the file individually
-    SI_individ_folder = Path(folder_out + "SI_Individ")
+    SI_individ_folder = Path(folder_out + "\\SI_Individ")
     SI_individ_folder.mkdir(parents=True, exist_ok=True)
     df_SI_individ = pd.DataFrame(SI_real_cells)
     df_SI_individ.to_csv(f'{SI_individ_folder}\\{file_in.stem}.csv', index=False)
@@ -779,13 +810,6 @@ def FFN(df, cells, file_in, n_cells=10, n_repeats_rand_cells=1, draw=False):
 
 
 
-    
-
-
-    
-
-
-
 df_QC = pd.read_csv(file_QC, index_col='cell_ID')
 
 large_heatmap = []
@@ -809,34 +833,35 @@ for anim in animals:
         
         main_df = pd.read_csv(file, index_col='Mastertime [s]')
         main_df = clean_df_QC(main_df, df_QC)
-        #main_df = clean_df_distance(main_df)
+        main_df = clean_df_distance(main_df, file)
 
         # drawing
         #heatmap_occupancy(main_df)
         #heatmap_cells(main_df)
-        #large_heatmap.append(heatmap_spikeprob(main_df))
+        large_heatmap.append(heatmap_spikeprob(main_df))
 
-        if main_df is None:
-            continue
         
         # Spike Probability
-        spikeprob_summary, df_spikeprob_individ = SpikeProb(main_df, file)
-        df_all_individ_spikeprob = pd.concat([df_all_individ_spikeprob, df_spikeprob_individ], ignore_index=True)
-        all_summary_spikeprob.append(spikeprob_summary)
+        if True and main_df is not None:
+            spikeprob_summary, df_spikeprob_individ = SpikeProb(main_df, file)
+            df_all_individ_spikeprob = pd.concat([df_all_individ_spikeprob, df_spikeprob_individ], ignore_index=True)
+            all_summary_spikeprob.append(spikeprob_summary)
 
         # Correlation SpikeRate-AnimalSpeed
-        spikespeed = SpikeRate_Speed(main_df, file)
-        spikerate_speed = pd.concat([spikerate_speed, spikespeed], ignore_index=True)
+        if False and main_df is not None:
+            spikespeed = SpikeRate_Speed(main_df, file)
+            spikerate_speed = pd.concat([spikerate_speed, spikespeed], ignore_index=True)
 
         # Spatial Information
-        main_df, place_df = bin_cellspikes_prob_OF(main_df)
-        SI_summary, place_cells = SI(main_df, place_df, file)
-        all_summary_SI.append(SI_summary)
+        if False and main_df is not None:
+            SI_summary, place_cells = SI(main_df, place_df, file)
+            all_summary_SI.append(SI_summary)
 
         # FFN
-        #cells_to_use = [c for c in main_df.columns if "spikeprob" in c] # or place_cells, whatever is needed
-        #FFN_summary = FFN(main_df, cells_to_use, file)
-        #all_summary_FFN.append(FFN_summary)
+        if False and main_df is not None:
+            cells_to_use = [c for c in main_df.columns if "spikeprob" in c] # or place_cells, whatever is needed
+            FFN_summary = FFN(main_df, cells_to_use, file)
+            all_summary_FFN.append(FFN_summary)
             
 
 # save all the data
@@ -853,6 +878,13 @@ df_all_SI_summary.to_csv(out_SI_summary, index=False)
 #df_all_FFN_summary.to_csv(out_FFN_summary, index=False)
 
 # drawing
-#heatmap_spikeprob(main_df, heatmap=large_heatmap)
+heatmap_spikeprob(main_df, heatmap=large_heatmap)
 
-
+padded = []
+max_len = max(len(x) for x in dist_travelled)
+for arr in dist_travelled:
+    pad_width = max_len - len(arr)
+    padded_arr = np.pad(arr, (0, pad_width), constant_values=np.nan)
+    padded.append(padded_arr)
+df_export = pd.DataFrame(padded).T
+df_export.to_csv("distances.csv", index=False)
