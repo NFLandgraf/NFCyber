@@ -383,11 +383,9 @@ df_QC_temp_final    = pd.concat(df_all_QC_temp, axis=0)
 df_QC_final         = pd.concat([df_QC_spat_final, df_QC_temp_final], axis=1)
 
 df_QC_final_pass = QC_pass(df_QC_final)
-df_QC_final_pass.to_csv(folder_out + '\\QC_FINAL_pass.csv')
+df_QC_final_pass.to_csv(folder_out + '\\QC_FINAL.csv')
 
-#df_QC_spat_final.to_csv(f"{folder_out}\\df_QC_spat_final.csv")
-#df_QC_temp_final.to_csv(f"{folder_out}\\df_QC_temp_final.csv")
-#df_QC_final.to_csv(f'{folder_out}\\df_QC_final.csv')
+
 
 
 #%%
