@@ -10,10 +10,13 @@ from scipy import signal, optimize, stats
 from pathlib import Path
 import os
 from scipy.ndimage import gaussian_filter1d
+from matplotlib.animation import FuncAnimation, FFMpegWriter
 
-path = r"E:\FF-DA_YM"
-file_useless_strings = ['2024-11-19_FF-Weilin_YMaze_']
 
+path = r"E:\FF-DA_YM\a"
+file_useless_strings = ['CA1Dopa_FF_GRABNE_2025-08-07_']
+
+binn = 4.5
 
 def manage_filename(file):
     name = Path(file).stem
@@ -212,12 +215,9 @@ def get_DLC(file_DLC, dist_bp='head', DLC_mm_per_px = 0.12, fps=30):
     
     df = cleaning_raw_df(file_DLC)
     
-    x = df[f'{dist_bp}_x'].to_numpy()
-    y = df[f'{dist_bp}_y'].to_numpy()
-
-    dx = np.diff(x)
-    dy = np.diff(y)
-
+    # takes boypart and calculates everything from that
+    dx = np.diff(df[f'{dist_bp}_x'].to_numpy())
+    dy = np.diff(df[f'{dist_bp}_y'].to_numpy())
     dist = np.sqrt(dx*dx + dy*dy)              # length = n_frames - 1
     dist = np.r_[0.0, dist]                    # prepend 0 for first frame (align length)
     dist = dist * DLC_mm_per_px
@@ -247,17 +247,10 @@ def merge_signal_DLC(df_trace, df_DLC, io_hightimes):
     df_trace_crop = df_trace_crop.sort_index()
     df_trace_crop = df_trace_crop.loc[(df_trace_crop.index >= window_start) & (df_trace_crop.index <= window_end)]
 
-    # Prepare for merge_asof
-    trace_tmp = df_trace_crop.reset_index()
-    dlc_tmp   = df_DLC.reset_index()
-    trace_tmp = trace_tmp.sort_values("time")
-    dlc_tmp   = dlc_tmp.sort_values("time")
+    dlc_num = df_DLC.select_dtypes(include=[np.number]).copy()
+    dlc_on_trace = (dlc_num.reindex(dlc_num.index.union(df_trace_crop.index)).sort_index().interpolate(method="index").reindex(df_trace_crop.index))
 
-    merged_tmp = pd.merge_asof(trace_tmp, dlc_tmp, on="time", direction="nearest")
-
-    # Put back the original index style
-    merged_tmp = merged_tmp.set_index("time")
-    df_merged = merged_tmp
+    df_merged = df_trace_crop.join(dlc_on_trace, how="left")
 
     return df_merged
 
@@ -319,11 +312,98 @@ def correlate_Speed_Signal(df, file, bin_size_sec=4.5):
     r, p = stats.pearsonr(binned["Speed"], binned["zscore"])
     slope, intercept, *_ = stats.linregress(binned["Speed"], binned["zscore"])
     
-    draw_correlation(binned, r, p, slope, intercept, file)
+    #draw_correlation(binned, r, p, slope, intercept, file)
     return r, p
 
+def delta_speed(df, delta_thresh=30):
 
+    def ignore_consecutive_events(event_idxs, interframe_interval_s=0.1):
+        diffs = np.diff(event_idxs)
+        keep_mask = np.insert(diffs > (interframe_interval_s + 1e-6), 0, True)
+        return event_idxs[keep_mask]
+
+    df['Accel'] = (df['Speed'].diff() / (1/30)).to_numpy()
+    accel_idx = df.index[df["Accel"] > delta_thresh].to_numpy()
+    decel_idx = df.index[df["Accel"] < -delta_thresh].to_numpy()
+
+    accel_idx = ignore_consecutive_events(accel_idx)
+    decel_idx = ignore_consecutive_events(decel_idx)
+
+    return df, accel_idx, decel_idx
+
+def speed_binning(df, rest=(0,0.7), move=(5,15), midd=(0.7,5)):
+
+    rest_low, rest_high = rest
+    move_low, move_high = move
+    midd_low, midd_high = midd
+
+    rest_mask = (df["Speed"] >= rest_low) & (df["Speed"] < rest_high)
+    move_mask = (df["Speed"] >= move_low) & (df["Speed"] < move_high)
+    midd_mask = (df["Speed"] >= midd_low) & (df["Speed"] < midd_high)
+
+    rest_zmean = df['zscore'].loc[rest_mask].mean()
+    move_zmean = df['zscore'].loc[move_mask].mean()
+    midd_zmean = df['zscore'].loc[midd_mask].mean()
+
+    return rest_zmean, move_zmean, midd_zmean
+
+
+def create_video(df, z_window=5, flip_x=True):
+    '''
+    Creates a video that shows the DLC animals and the FF zscore signal 
+    '''
+    bps_all =  ['nose', 'left_ear', 'right_ear', 'left_ear_tip', 'right_ear_tip', 'left_eye', 'right_eye', 'head_midpoint', 
+                'neck', 'mid_back', 'mouse_center', 'mid_backend', 'mid_backend2', 'mid_backend3', 
+                'tail_base', 'tail1', 'tail2', 'tail3', 'tail4', 'tail5', 'tail_end',
+                'left_shoulder', 'left_midside', 'left_hip', 'right_shoulder', 'right_midside', 'right_hip']
     
+    df = df.iloc[::10]
+    time = df.index.to_numpy()
+    n_frames = len(time)
+    
+    # get bodypart coordinates
+    x_cols, y_cols = [], []
+    for bp in bps_all:
+        xcol, ycol = f'{bp}_x', f'{bp}_y'
+        x_cols.append(xcol)
+        y_cols.append(ycol)
+    
+    # get values
+    X = df[x_cols].to_numpy(dtype=float)
+    Y = df[y_cols].to_numpy(dtype=float)
+    Z = df['zscore'].to_numpy(dtype=float)
+
+    if flip_x:
+        xmin = np.nanmin(X)
+        xmax = np.nanmax(X)
+        X = xmin + xmax - X
+
+    # intitiate plot
+    fig, ax = plt.subplots(figsize=(6, 6))
+    ax.set_xlim(np.nanmin(X), np.nanmax(X))
+    ax.set_ylim(np.nanmin(Y), np.nanmax(Y))
+    scat = ax.scatter([], [], s=10)
+
+    # inset for signal
+    inset = ax.inset_axes([0.6, 0.7, 0.35, 0.25])
+    inset.plot(time, Z, linewidth=0.7, color='black')
+    vline = inset.axvline(time[0], linewidth=1)
+    inset.set_ylim(np.nanmin(Z), np.nanmax(Z))
+    inset.tick_params(axis='x', which='both', bottom=False, top=False, labelbottom=False)
+
+    def update(i):
+        pts = np.column_stack([X[i], Y[i]])
+        scat.set_offsets(pts)
+        current_time = time[i]
+        inset.set_xlim(current_time - z_window, current_time + z_window)
+        vline.set_xdata([current_time, current_time])
+        return scat, vline
+
+    anim = FuncAnimation(fig, update, frames=n_frames, interval=1000/30, blit=True)
+    writer = FFMpegWriter(fps=30)
+    anim.save('sicko.mp4', writer=writer)
+    plt.close(fig)
+
 
 
 
@@ -339,7 +419,7 @@ for i, file_doric in enumerate(files):
     file_short = manage_filename(file_doric)
     print(f'----- {file_short} -----')
 
-
+    # extract data
     df_signal, df_io, io_hightimes  = get_signals_1IO(file_doric)
     df_DLC                          = get_DLC(file_DLC)
     main_df = merge_signal_DLC(df_signal, df_DLC, io_hightimes)
@@ -348,13 +428,25 @@ for i, file_doric in enumerate(files):
     # calc stuff
     total_dist = main_df['Distance'].sum()
     mean_speed = main_df['Speed'].mean()
-    r, p = correlate_Speed_Signal(main_df, file_short)
-
+    r, p = correlate_Speed_Signal(main_df, file_short, bin_size_sec=binn)
+    main_df = delta_speed(main_df)
+    z_rest, z_move, z_midd = speed_binning(main_df)
 
     # add stuff to results table
     group = next((g for g in groups if g in file_short), "Other")
-    results.append({"file":file_short, "group":group, "r":r, "p":p, 'Dist':total_dist, 'MeanSpeed':mean_speed})
+    results.append({'file':file_short, 
+                    'group':group, 
+                    'r':r, 
+                    'p':p, 
+                    'Dist':total_dist, 
+                    'MeanSpeed':mean_speed, 
+                    'z_rest':z_rest, 
+                    'z_move':z_move,
+                    'z_midd': z_midd})
     distance_cum_df[file_short] = main_df["Distance_cum"].reset_index(drop=True)
+
+    break
+
 
 
 results_df = pd.DataFrame(results)
@@ -363,8 +455,11 @@ results_df = results_df.sort_values(["group"], ascending=True)
 #distance_cum_df.to_csv('Distance_cum.csv')
 #results_df.to_csv('results_df.csv')
 
-#plot_groups_columns(results_df, 'r', 'Pearson r (Speed vs zscore)', 'FF-DA')
-#plot_groups_columns(results_df, 'Dist', 'Distance')
+#plot_groups_columns(results_df, 'r', 'Pearson r (Speed vs zscore)', f'FF-NE_{binn}')
+#plot_groups_columns(results_df, 'z_rest', 'mean zscore', 'mean zcore rest')
+#plot_groups_columns(results_df, 'z_move', 'mean zscore', 'mean zcore move')
+#plot_groups_columns(results_df, 'z_midd', 'mean zscore', 'mean zcore midd')
+
 
 
 
