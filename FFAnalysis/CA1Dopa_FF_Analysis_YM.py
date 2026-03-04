@@ -13,10 +13,9 @@ from scipy.ndimage import gaussian_filter1d
 from matplotlib.animation import FuncAnimation, FFMpegWriter
 
 
-path = r"E:\FF-DA_YM\a"
-file_useless_strings = ['CA1Dopa_FF_GRABNE_2025-08-07_']
+path = r"E:\FF-DA_YM"
+file_useless_strings = ['2024-11-19_FF-Weilin_YMaze_']
 
-binn = 4.5
 
 def manage_filename(file):
     name = Path(file).stem
@@ -108,7 +107,7 @@ def get_signals_1IO(file_doric):
 
     return df_signal, df_io, io_hightimes
 
-def dff(df, bleaching_correct=True, del_values=False):
+def dff(df, filename, bleaching_correct=True, del_values=True):
     # for the FootShock stuff, dont use bleaching_correction
 
     time_sec = df.index.to_numpy(dtype=float)
@@ -165,9 +164,18 @@ def dff(df, bleaching_correct=True, del_values=False):
     fluo_zscore = (fluo_dff - baseline) / (st_dev if st_dev > 0 else np.nan)
     df['zscore'] = fluo_zscore
 
+    if del_values:
+        # for times where it is clear that the values are wrong
+        if '691' in filename:
+            df.loc[111.00 : 112.50, ["dff","zscore"]] = np.nan
+        if '701' in filename:
+            df.loc[130.3 : 130.5, ["dff","zscore"]] = np.nan
+        if '407' in filename:
+            df.loc[41.4 : 41.6, ["dff","zscore"]] = np.nan
+
     return df
 
-def get_DLC(file_DLC, dist_bp='head', DLC_mm_per_px = 0.12, fps=30):
+def get_DLC(file_DLC, dist_bp='head', DLC_mm_per_px = 0.12, fps_Cam=30):
     # calculates the distance and speed between frames
     
     def cleaning_raw_df(file_DLC):
@@ -222,7 +230,7 @@ def get_DLC(file_DLC, dist_bp='head', DLC_mm_per_px = 0.12, fps=30):
     dist = np.r_[0.0, dist]                    # prepend 0 for first frame (align length)
     dist = dist * DLC_mm_per_px
     df['Distance'] = dist
-    df['Speed'] = dist * fps
+    df['Speed'] = dist * fps_Cam
     df["Distance_cum"] = df["Distance"].cumsum()
         
     return df
@@ -286,6 +294,15 @@ def plot_groups_columns(results_df, column, y_title, title):
     plt.tight_layout()
     plt.show()
 
+def plot_xy(df):
+    # plt.plot(df['Speed'], linewidth=0.5)
+    # plt.plot(df['rest_mask']*3, linewidth=1)
+    # plt.plot(df['move_mask'], linewidth=1)
+    plt.plot(df['dff'])
+    #plt.vlines(idx, 0, 100, colors='red', linewidth=0.5)
+    plt.xlim(41,42)
+    #plt.ylim(-1,2)
+    plt.show()
 
 def correlate_Speed_Signal(df, file, bin_size_sec=4.5):
 
@@ -315,9 +332,9 @@ def correlate_Speed_Signal(df, file, bin_size_sec=4.5):
     #draw_correlation(binned, r, p, slope, intercept, file)
     return r, p
 
-def delta_speed(df, delta_thresh=30):
+def delta_speed_accel(df, delta_thresh=30):
 
-    def ignore_consecutive_events(event_idxs, interframe_interval_s=0.1):
+    def _ignore_consecutive_events(event_idxs, interframe_interval_s=0.1):
         diffs = np.diff(event_idxs)
         keep_mask = np.insert(diffs > (interframe_interval_s + 1e-6), 0, True)
         return event_idxs[keep_mask]
@@ -326,26 +343,166 @@ def delta_speed(df, delta_thresh=30):
     accel_idx = df.index[df["Accel"] > delta_thresh].to_numpy()
     decel_idx = df.index[df["Accel"] < -delta_thresh].to_numpy()
 
-    accel_idx = ignore_consecutive_events(accel_idx)
-    decel_idx = ignore_consecutive_events(decel_idx)
+    accel_idx = _ignore_consecutive_events(accel_idx)
+    decel_idx = _ignore_consecutive_events(decel_idx)
 
     return df, accel_idx, decel_idx
 
-def speed_binning(df, rest=(0,0.7), move=(5,15), midd=(0.7,5)):
+def speed_binning(df, rest=(0,0.7), move=(5,15), slow=(0.7,5), fast=(15,200)):
 
     rest_low, rest_high = rest
+    slow_low, slow_high = slow
     move_low, move_high = move
-    midd_low, midd_high = midd
+    fast_low, fast_high = fast
 
     rest_mask = (df["Speed"] >= rest_low) & (df["Speed"] < rest_high)
+    slow_mask = (df["Speed"] >= slow_low) & (df["Speed"] < slow_high)
     move_mask = (df["Speed"] >= move_low) & (df["Speed"] < move_high)
-    midd_mask = (df["Speed"] >= midd_low) & (df["Speed"] < midd_high)
-
+    fast_mask = (df["Speed"] >= fast_low) & (df["Speed"] < fast_high)
+    
+    
     rest_zmean = df['zscore'].loc[rest_mask].mean()
+    slow_zmean = df['zscore'].loc[slow_mask].mean()
     move_zmean = df['zscore'].loc[move_mask].mean()
-    midd_zmean = df['zscore'].loc[midd_mask].mean()
+    fast_zmean = df['zscore'].loc[fast_mask].mean()
 
-    return rest_zmean, move_zmean, midd_zmean
+    # add them to the main_df
+    df['rest_mask'] = rest_mask
+    df['slow_mask'] = slow_mask
+    df['move_mask'] = move_mask
+    df['fast_mask'] = fast_mask
+
+    return df, rest_zmean, slow_zmean, move_zmean, fast_zmean
+
+
+def speed_border_crossings(df, border=1.0, pre_min_s=0.1, post_min_s=0.5, fps=100, max_gap_fr=1, post_peak_speed=10, peak_window_s=1):
+
+    def _runs_from_bool(mask):
+        # Find continuous True segments ("runs") in a boolean series (positional indices 0..n-1)
+        m = mask.fillna(False).to_numpy(dtype=bool); n = len(m)
+        if n == 0: return pd.DataFrame(columns=["start_pos","end_pos","length"])
+        # pad with False so we can detect edges: False->True (start) and True->False (end)
+        padded = np.r_[False, m, False]
+        starts = np.flatnonzero(padded[1:] & ~padded[:-1])                 # True starts where prev was False
+        ends = np.flatnonzero(~padded[1:] & padded[:-1]) - 1              # True ends where next is False (inclusive)
+        return pd.DataFrame({"start_pos":starts,"end_pos":ends,"length":ends-starts+1})
+
+    speed = df["Speed"]; dt = 1/float(fps)
+    pree_min_len = int(np.ceil(pre_min_s/dt))
+    post_min_len = int(np.ceil(post_min_s/dt))
+    peak_window_len = None if peak_window_s is None else int(np.ceil(peak_window_s/dt))
+
+    pree_mask = speed < border
+    post_mask = speed >= border
+
+    # Convert masks into runs and keep only long-enough runs
+    pree_runs = _runs_from_bool(pree_mask)
+    post_runs = _runs_from_bool(post_mask)
+    pree_runs = pree_runs[pree_runs["length"] >= pree_min_len].reset_index(drop=True)
+    post_runs = post_runs[post_runs["length"] >= post_min_len].reset_index(drop=True)
+
+    transitions = []
+    post_ptr = 0
+
+    # For each qualifying pre-run, find the first qualifying post-run that starts after it ends
+    for i in range(len(pree_runs)):
+        pree_start = int(pree_runs.loc[i,"start_pos"])
+        pree_end = int(pree_runs.loc[i,"end_pos"])
+
+        # advance post pointer until post_start is after pre_end (so it is a "following" run)
+        while post_ptr < len(post_runs) and int(post_runs.loc[post_ptr,"start_pos"]) <= pree_end: 
+            post_ptr += 1
+        if post_ptr >= len(post_runs):
+            break
+
+        post_start = int(post_runs.loc[post_ptr,"start_pos"])
+        post_end = int(post_runs.loc[post_ptr,"end_pos"])
+
+        # gap (frames) between the runs; if you want "almost immediate crossing", keep this small
+        gap = post_start - pree_end - 1
+        if max_gap_fr is not None and gap > max_gap_fr:
+            continue
+
+        # Optional peak criterion: during the post period, speed must reach post_peak_speed (otherwise ignore)
+        # You can check either: full post-run OR only first peak_window_s seconds of the post-run
+        if post_peak_speed is not None:
+            window_end = post_end if peak_window_len is None else post_end + peak_window_len
+            peak = speed.iloc[post_start:window_end+1].max()
+            if not np.isfinite(peak) or peak < post_peak_speed: 
+                post_ptr += 1
+                continue
+
+        transitions.append({
+            "pre_start": pree_start, 
+            "pre_end": pree_end, 
+            "post_start": post_start, 
+            "post_end": post_end,
+            "transit_pos": post_start, 
+            "gap_fr": gap,
+            "pre_duration_s": (pree_end-pree_start+1)*dt, 
+            "post_duration_s": (post_end-post_start+1)*dt,
+            "border": border, 
+        })
+
+        # consume this post-run so it can’t be reused for the next pre-run (same behavior as your code)
+        post_ptr += 1
+
+    df_transit = pd.DataFrame(transitions)
+    if df_transit.empty: 
+        return [], df_transit
+
+    # Map positional indices back to df.index values (frame numbers or timestamps)
+    df_transit["transition_index"] = df.index[df_transit["transit_pos"].to_numpy()]
+    transit_idx = list(df_transit["transition_index"])
+    return transit_idx, df_transit
+
+def peri_event(df, transit_idx, pre_s=2.0, post_s=5.0, fps=100, baseline=(-1,0)):
+
+    def _plot_aligned_windows(t, perievents, perievents_mean):
+
+        plt.figure()
+        for i in range(perievents.shape[0]): 
+            plt.plot(t, perievents[i], alpha=0.25, linewidth=1, color='gray')
+        plt.plot(t, perievents_mean.values, linewidth=2, color='black')
+        plt.axvline(0, linestyle="-", linewidth=1)
+        plt.axhline(0, linestyle="-", linewidth=1)
+        plt.xlabel("Time from crossing (s)")
+        plt.ylabel("zscore")
+        plt.tight_layout()
+        plt.show()
+
+    n = len(df)
+    pre = int(round(pre_s*fps))
+    post = int(round(post_s*fps))
+    win_samples = pre + post + 1
+
+    positions = df.index.get_indexer(np.array(transit_idx))
+    zscore = df['zscore'].to_numpy()
+
+    perievents = np.full((len(positions), win_samples), np.nan, dtype=float)
+    for i, posi in enumerate(positions):
+
+        # get window start and stopp
+        start = posi - pre
+        stopp = posi + post + 1
+        if start < 0 or stopp > n:
+            continue
+        
+        # add the window
+        perievents[i, 0:stopp-start] = zscore[start:stopp]
+
+    t = (np.arange(win_samples) - pre) / float(fps)
+    perievents_mean = pd.Series(np.nanmean(perievents, axis=0), t)
+
+    # baseline correction
+    if baseline is not None:
+        base_start, base_end = baseline
+        base_mask = (t >= float(base_start)) & (t <= float(base_end))
+        base_value = np.nanmean(perievents_mean[base_mask])
+        perievents_mean = perievents_mean - base_value
+
+    #_plot_aligned_windows(t, perievents, perievents_mean)
+    return t, perievents_mean
 
 
 def create_video(df, z_window=5, flip_x=True):
@@ -410,7 +567,8 @@ def create_video(df, z_window=5, flip_x=True):
 files = get_files(path, '.doric')
 groups = ["mKate", "A53T", "GFP"]
 results = []
-distance_cum_df = pd.DataFrame()
+df_distance_cum = pd.DataFrame()
+df_perievents = pd.DataFrame()
 
 
 for i, file_doric in enumerate(files):
@@ -420,17 +578,19 @@ for i, file_doric in enumerate(files):
     print(f'----- {file_short} -----')
 
     # extract data
-    df_signal, df_io, io_hightimes  = get_signals_1IO(file_doric)
-    df_DLC                          = get_DLC(file_DLC)
+    df_signal, df_io, io_hightimes = get_signals_1IO(file_doric)
+    df_DLC = get_DLC(file_DLC)
     main_df = merge_signal_DLC(df_signal, df_DLC, io_hightimes)
-    main_df = dff(main_df)
+    main_df = dff(main_df, file_short)
 
     # calc stuff
     total_dist = main_df['Distance'].sum()
     mean_speed = main_df['Speed'].mean()
-    r, p = correlate_Speed_Signal(main_df, file_short, bin_size_sec=binn)
-    main_df = delta_speed(main_df)
-    z_rest, z_move, z_midd = speed_binning(main_df)
+    r, p = correlate_Speed_Signal(main_df, file_short)
+    main_df, accel_idx, decel_idx = delta_speed_accel(main_df)
+    main_df, z_rest, z_slow, z_move, z_fast = speed_binning(main_df)
+    transit_idx, df_transit = speed_border_crossings(main_df)
+    t, perievents_mean = peri_event(main_df, transit_idx)
 
     # add stuff to results table
     group = next((g for g in groups if g in file_short), "Other")
@@ -439,26 +599,36 @@ for i, file_doric in enumerate(files):
                     'r':r, 
                     'p':p, 
                     'Dist':total_dist, 
-                    'MeanSpeed':mean_speed, 
+                    'MeanSpeed':mean_speed,
                     'z_rest':z_rest, 
+                    'z_slow':z_slow,
                     'z_move':z_move,
-                    'z_midd': z_midd})
-    distance_cum_df[file_short] = main_df["Distance_cum"].reset_index(drop=True)
+                    'z_fast':z_fast,
+                    'duration_rest': main_df['rest_mask'].sum()/100,
+                    'duration_slow': main_df['slow_mask'].sum()/100,
+                    'duration_move': main_df['move_mask'].sum()/100,
+                    'duration_fast': main_df['fast_mask'].sum()/100})
+    df_distance_cum[file_short] = main_df["Distance_cum"].reset_index(drop=True)
+    df_perievents[file_short] = perievents_mean
 
-    break
+    #plot_xy(main_df)
+
+    #break
 
 
 
 results_df = pd.DataFrame(results)
 results_df = results_df.sort_values(["group"], ascending=True)
 
-#distance_cum_df.to_csv('Distance_cum.csv')
-#results_df.to_csv('results_df.csv')
+# results_df.to_csv('results_df.csv')
+# df_distance_cum.to_csv('Distance_cum.csv')
+df_perievents.to_csv('Perievents.csv')
 
-#plot_groups_columns(results_df, 'r', 'Pearson r (Speed vs zscore)', f'FF-NE_{binn}')
-#plot_groups_columns(results_df, 'z_rest', 'mean zscore', 'mean zcore rest')
-#plot_groups_columns(results_df, 'z_move', 'mean zscore', 'mean zcore move')
-#plot_groups_columns(results_df, 'z_midd', 'mean zscore', 'mean zcore midd')
+# plot_groups_columns(results_df, 'r', 'Pearson r (Speed vs zscore)', f'FF-NE')
+# plot_groups_columns(results_df, 'z_rest', 'mean zscore', 'mean zcore rest')
+# plot_groups_columns(results_df, 'z_slow', 'mean zscore', 'mean zcore slow')
+# plot_groups_columns(results_df, 'z_move', 'mean zscore', 'mean zcore move')
+# plot_groups_columns(results_df, 'z_fast', 'mean zscore', 'mean zcore fast')
 
 
 
