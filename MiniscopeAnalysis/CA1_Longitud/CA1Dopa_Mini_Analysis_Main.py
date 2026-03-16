@@ -1,31 +1,31 @@
 #%%
 # IMPORT
+import os
+from pathlib import Path
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.path import Path as MplPath
+
 import cv2
 from tqdm import tqdm
-from scipy.ndimage import gaussian_filter
-from scipy.interpolate import interp1d
+
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from torch.utils.data import TensorDataset, DataLoader
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import csv
-from pathlib import Path
-import os
-from scipy.stats import zscore
-from scipy.ndimage import gaussian_filter1d
+
+from scipy import stats, ndimage, interpolate
 from shapely.geometry import Polygon
-from matplotlib.path import Path as MplPath
-from scipy.stats import linregress
+
+plot_once = True
 
 
-folder_in = Path(r"C:\Users\landgrafn\Desktop\a\data\Master_10_merge\mKate")
-folder_out = r"C:\Users\landgrafn\Desktop\a\Test"
-file_QC = r"C:\Users\landgrafn\Desktop\a\QC_FINAL_pass.csv"
+folder_in = Path(r"E:\Miniscope\data_all")
+folder_out = "E:\Miniscope\out"
+file_QC = r"E:\Miniscope\df_QC_FINAL_pass.csv"
 
 out_spikeprob_individ = folder_out + '\\SpikeRate_Individ.csv'
 out_spikeprob_summary = folder_out + '\\SpikeRate_Summary.csv'
@@ -138,7 +138,7 @@ def heatmap_occupancy(df, arena_size=(580, 485), blur_sigma=4.0, cmap="Blues", g
 
     # optional blur
     if blur_sigma and blur_sigma > 0:
-        heat = gaussian_filter(heat, sigma=blur_sigma)
+        heat = ndimage.gaussian_filter(heat, sigma=blur_sigma)
 
     # normalize for visualization
     if heat.max() > 0:
@@ -192,7 +192,7 @@ def heatmap_cells(df, arena_size=(580, 485), blur_sigma=3.0, cmap="viridis", gam
 
         # blur once at end (much faster than stamping per row)
         if blur_sigma and blur_sigma > 0:
-            heat = gaussian_filter(heat, sigma=blur_sigma)
+            heat = ndimage.gaussian_filter(heat, sigma=blur_sigma)
 
         # normalize for display
         if heat.max() > 0:
@@ -303,7 +303,39 @@ def heatmap_spikeprob(df, min_frames=32, max_frames=1362, max_cells=298, vmin=0,
 
         draw_heatmap_pdf(combined, folder_out, vmin, vmax)
         #draw_heatmap_vec(combined, folder_out, vmin, vmax)
-    
+
+def plot_groups_columns(results_df, column, y_title, title):
+
+    groups = ['mKate', 'A53T']
+
+    plt.figure()
+
+    for gi, group in enumerate(groups):
+        sub = results_df[results_df["file"].str.contains(group, na=False)][column].dropna()
+
+        # mean ± SEM overlay
+        mean = sub.mean()
+        sem = sub.sem()
+        plt.errorbar(gi, mean, yerr=sem, fmt="-", capsize=10)
+        plt.hlines(mean, gi-0.1, gi+0.1, colors="black", linewidth=4)
+
+        # scatter
+        plt.scatter([gi]*len(sub), sub)
+
+    plt.xticks(range(len(groups)), groups)
+    plt.ylabel(y_title)
+
+    # t-test
+    a = results_df.loc[results_df["file"].str.contains("mKate", regex=False, na=False), column].dropna().to_numpy()
+    b = results_df.loc[results_df["file"].str.contains("A53T", regex=False, na=False), column].dropna().to_numpy()
+    t_stat, p_val = stats.ttest_ind(a, b, equal_var=True)
+    ax = plt.gca()
+    ax.text(0.02, 0.98, f'p = {round(p_val, 3)}', transform=ax.transAxes, va="top")
+
+    plt.title(title)
+    plt.tight_layout()
+    plt.show()
+
 
 def SpikeProb(df, file):
     # looks at the frequency of spike probabilities
@@ -383,7 +415,7 @@ def SpikeRate_Speed(df, file, fps=10, bin_size_s=10.0):
         # out = pd.concat(out_rows, ignore_index=True)
         # x = out['mean_speed_mm_s']
         # y = out['cell']
-        # result = linregress(x, y)
+        # result = stats.linregress(x, y)
         # print(result.slope)
         return pd.concat(out_rows, ignore_index=True)
 
@@ -391,29 +423,10 @@ def SpikeRate_Speed(df, file, fps=10, bin_size_s=10.0):
         return None
 
 
-def SI(df, file_in, fps=10, draw_cells=False, do_shuffle=False, n_shuffles=1, significance_level=0.001):
+def SI(df, file_in, fps=10, draw_cells=False, do_shuffle=False, n_shuffles=1, significance_level=0.001, min_occup_s=0.2):
     
     # real spatial info
     # assumes place_df entries are sums of spike probabilities (expected spike counts)
-    def spatial_information(firing_freq, occupancy):
-
-        # occupancy: number of frames per bin
-        occupancy_probability = occupancy / occupancy.sum()
-
-        # overall mean rate
-        avrg_firing_rate = np.dot(firing_freq, occupancy_probability)
-        #print(avrg_firing_rate)
-
-        if avrg_firing_rate == 0:
-            return 0.0
-
-        info = 0.0
-        for r, p in zip(firing_freq, occupancy_probability):
-            if r > 0 and p > 0:
-                ratio = r / avrg_firing_rate
-                info += p * ratio * np.log2(ratio)
-        return info
-
     def bin_cellspikes_prob_OF(main_df, n_bins=10, xmax=580, ymax=485):
         """
         From head position and spike probabilities, compute 'spike mass' per spatial bin.
@@ -444,39 +457,134 @@ def SI(df, file_in, fps=10, draw_cells=False, do_shuffle=False, n_shuffles=1, si
 
         return main_df, place_df
 
-    def bin_cellspikes_prob_YM(main_df):
-        """
-        From head position and spike probabilities, compute 'spike mass' per spatial bin.
-        Instead of summing 0/1 spikes, we sum spike probabilities per bin.
-        """
-        df = main_df.copy()
-        x_max, y_max = 1000, 1000
+    def bin_cellspikes_prob_YM(df, head_direction=True):
 
-        # bin coordinates
-        left_corner = (250, 280)
-        middle_corner = (290, 340)
-        right_corner = (330, 280)
+        def get_arena_bins(df):
+            global plot_once
+            
+            def midpoint(a, b, t=0.5):
+                # for getting middle points: (0.0-0.5 closer to a), (0.5-1.0 closer to b)
+                return (a[0] + t*(b[0]-a[0]), a[1] + t*(b[1]-a[1]))
 
-        top_left = (0, 0)
-        top_right = (x_max, 0)
-        bottom_right = (x_max, y_max)
-        bottom_left = (0, y_max)
-        wall_bottom = (middle_corner[0], y_max)
-        poly_center = np.array([left_corner, middle_corner, right_corner])
-        poly_arm_left = np.array([left_corner, middle_corner, wall_bottom, bottom_left, top_left])
-        poly_arm_right = np.array([right_corner, middle_corner, wall_bottom, bottom_right, top_right])
-        poly_arm_middle = np.array([left_corner, right_corner, top_right, top_left])
-        paths = {"center":MplPath(poly_center), "arm_left":MplPath(poly_arm_left), "arm_right":MplPath(poly_arm_right), "arm_middle":MplPath(poly_arm_middle)}
-        bin_order = ["center", "arm_left", "arm_right", "arm_middle"]
-        bin_ids   = {"center":0, "arm_left":1, "arm_right":2, "arm_middle":3}
+            # ci=corner_innen, ca=corner_außen, h=half_arms
+            ci1  = (265, 275)
+            ci2  = (295, 335)
+            ci3  = (325, 275)
+            caL1 = (0,442)
+            caL2 = (25,480)
+            caM1 = (265,0)
+            caM2 = (325,0)
+            caR1 = (560,480)
+            caR2 = (585,440)
+            hL1  = midpoint(ci1,caL1)
+            hL2  = midpoint(ci2,caL2)
+            hM1  = midpoint(ci1,caM1)
+            hM2  = midpoint(ci3,caM2)
+            hR1  = midpoint(ci2,caR1)
+            hR2  = midpoint(ci3,caR2)
 
-        # head in which bin
+            # endpoints of all arms for calculating head direction
+            end_C = np.mean(np.array([ci1, ci2, ci3], dtype=float), axis=0)
+            end_L = np.mean(np.array([caL1, caL2], dtype=float), axis=0)
+            end_M = np.mean(np.array([caM1, caM2], dtype=float), axis=0)
+            end_R = np.mean(np.array([caR1, caR2], dtype=float), axis=0)
+            end_points = {"L": end_L-end_C, "M": end_M-end_M, "R": end_R-end_C}
+            for k in end_points: 
+                n = np.linalg.norm(end_points[k]) 
+                if n > 0: 
+                    end_points[k] = end_points[k] / n
+
+            # big arms and center
+            poly_big_L = np.array([caL1, caL2, ci2, ci1])
+            poly_big_M = np.array([caM1, ci1, ci3, caM2])
+            poly_big_R = np.array([ci2, caR1, caR2, ci3])
+            poly_big_C = np.array([ci1, ci2, ci3])
+            poly_big = {"L":MplPath(poly_big_L), "M":MplPath(poly_big_M), "R":MplPath(poly_big_R), "C":MplPath(poly_big_C)}
+
+            # middle arms
+            poly_mid_La = np.array([caL1, caL2, hL2, hL1])
+            poly_mid_Li = np.array([ci1, hL1, hL2, ci2])
+            poly_mid_Ma = np.array([caM1, hM1, hM2, caM2])
+            poly_mid_Mi = np.array([hM1, ci1, ci3, hM2])
+            poly_mid_Ra = np.array([hR1, caR1, caR2, hR2])
+            poly_mid_Ri = np.array([ci2, hR1, hR2, ci3])
+            poly_mid = {"poly_mid_La":MplPath(poly_mid_La), "poly_mid_Li":MplPath(poly_mid_Li), "poly_mid_Ma":MplPath(poly_mid_Ma), "poly_mid_Mi":MplPath(poly_mid_Mi), "poly_mid_Ra":MplPath(poly_mid_Ra), "poly_mid_Ri":MplPath(poly_mid_Ri)}
+
+            if plot_once:
+                fig, ax = plt.subplots(figsize=(8, 8))
+                xcol = "head_x"
+                ycol = "head_y"
+                if xcol in df.columns and ycol in df.columns:
+                    valid = df[[xcol, ycol]].dropna()
+                    ax.scatter(valid[xcol], valid[ycol])
+                for name, poly in poly_big.items():
+                    verts = poly.vertices
+                    verts = np.vstack([verts, verts[0]])
+                    plt.plot(verts[:,0], verts[:,1])
+                    plt.scatter(verts[:,0], verts[:,1])
+                a = [end_C, end_L, end_M, end_R]
+                for x,y in a:
+                    plt.scatter(x,y, color='black')
+                ax.set_xlim(-20, 600)
+                ax.set_ylim(-20, 500)
+                ax.set_aspect("equal")
+                plt.tight_layout()
+                plt.show()
+                plot_once = False
+            
+            return poly_big, poly_mid, end_points
+
+        # from head position and spike probabilities, compute 'spike mass' per spatial bin.
+        # instead of summing 0/1 spikes, we sum spike probabilities per bin.
+        
+        df = df.copy()
+        poly_big, poly_mid, end_points = get_arena_bins(df)
+        bin_to_use = poly_big
+
+
+        # head in which bin, add that to coarse_bin
         pts = df[["head_x", "head_y"]].to_numpy(dtype=float)
-        head_bin = np.full(len(df), -1, dtype=int)  # -1 = not in any polygon
-        for name in bin_order:
-            inside = paths[name].contains_points(pts)
-            head_bin[(head_bin == -1) & inside] = bin_ids[name]
-        df["head_bin"] = head_bin
+        coarse_bin = np.full(len(df), '', dtype=object)
+        for name, poly in bin_to_use.items():
+            inside = poly.contains_points(pts)
+            coarse_bin[(coarse_bin == '') & inside] = name
+        
+        # head in which direction, add that to coarse_bin
+        head_x = df["head_x"].to_numpy(dtype=float)
+        head_y = df["head_y"].to_numpy(dtype=float)
+        post_x = df["postbody_x"].to_numpy(dtype=float)
+        post_y = df["postbody_y"].to_numpy(dtype=float)
+        body_dir = np.column_stack([head_x - post_x, head_y - post_y])
+
+        # normalize body direction ??
+        norms = np.linalg.norm(body_dir, axis=1)
+        valid_dir = norms > 0
+        body_dir_unit = np.full_like(body_dir, np.nan, dtype=float)
+        body_dir_unit[valid_dir] = body_dir[valid_dir] / norms[valid_dir][:, None]
+
+        # final bin with inward/outward split
+        final_bin = np.full(len(df), -1, dtype=int)
+        bin_ids = {"L_in":0, "L_out":1, "M_in":2, "M_out":3, "R_in":4, "R_out":5, "C":6}
+
+        for i in range(len(df)):
+            arm = coarse_bin[i]
+            if arm == "C":
+                final_bin[i] = bin_ids["C"]
+                continue
+            if arm not in ["L", "M", "R"]:
+                continue
+            if not valid_dir[i]:
+                continue
+
+            dp = np.dot(body_dir_unit[i], end_points[arm])
+
+            if dp >= 0:
+                final_bin[i] = bin_ids[f"{arm}_out"]
+            else:
+                final_bin[i] = bin_ids[f"{arm}_in"]
+        
+        df["head_bin"] = final_bin
+
 
         # sum spike probabilities
         spike_prob_cells = [c for c in df.columns if isinstance(c, str) and c.endswith("_spikeprob")]
@@ -489,12 +597,36 @@ def SI(df, file_in, fps=10, draw_cells=False, do_shuffle=False, n_shuffles=1, si
         place_df = pd.DataFrame(place_map).fillna(0.0).sort_index()
         return df, place_df
 
+    def spatial_information(firing_freq, occupancy):
 
-    main_df, place_df = bin_cellspikes_prob_OF(main_df)
+        # occupancy: number of frames per bin
+        occupancy_probability = occupancy / occupancy.sum()
+
+        # overall mean rate
+        avrg_firing_rate = np.dot(firing_freq, occupancy_probability)
+        if avrg_firing_rate == 0:
+            return 0.0
+
+        info = 0.0
+        for r, p in zip(firing_freq, occupancy_probability):
+            if r > 0 and p > 0:
+                ratio = r / avrg_firing_rate
+                info += p * ratio * np.log2(ratio)
+        return info
+
+
+    df, place_df = bin_cellspikes_prob_YM(df)
 
     occupancy = df.groupby('head_bin').size() # how many frames did animal spend in each bin
-    occupancy = occupancy.reindex(place_df.index, fill_value=0) # no idea
+    occupancy = occupancy.reindex(place_df.index, fill_value=0) # aligns occupancy and firing-rate rows
     occupancy_sec = occupancy / fps 
+
+    # set threshold for occupancy in bins, if not visited, ignore the bin
+    valid_bins = occupancy_sec >= min_occup_s
+    occupancy = occupancy[valid_bins]
+    occupancy_sec = occupancy_sec[valid_bins]
+    place_df = place_df.loc[valid_bins]
+
     occ_nonzero = occupancy_sec.replace(0, np.nan)  # replacing 0 with nan
     df_firing_freq = place_df.div(occ_nonzero, axis=0).fillna(0.0)  # what was fring frequency in each bin
 
@@ -808,8 +940,6 @@ def FFN(df, cells, file_in, n_cells=10, n_repeats_rand_cells=1, draw=False):
     return FFN_summary
 
 
-
-
 df_QC = pd.read_csv(file_QC, index_col='cell_ID')
 
 large_heatmap = []
@@ -822,14 +952,14 @@ all_summary_FFN = []
 
 
 animals = ['48', '51', '56', '66', '72', '77']
-animals = ['_']
+
 for anim in animals:
 
-    files = get_files(folder_in, anim, 'YM')
+    files = get_files(folder_in, anim, 'Zost2_YM')
     for i, file in enumerate(files):
 
         file = Path(file)
-        print(f'\n------- {file.stem} -------')
+        #print(f'------- {file.stem} -------')
         
         main_df = pd.read_csv(file, index_col='Mastertime [s]')
         main_df = clean_df_QC(main_df, df_QC)
@@ -838,11 +968,11 @@ for anim in animals:
         # drawing
         #heatmap_occupancy(main_df)
         #heatmap_cells(main_df)
-        large_heatmap.append(heatmap_spikeprob(main_df))
+        #large_heatmap.append(heatmap_spikeprob(main_df))
 
         
         # Spike Probability
-        if True and main_df is not None:
+        if False and main_df is not None:
             spikeprob_summary, df_spikeprob_individ = SpikeProb(main_df, file)
             df_all_individ_spikeprob = pd.concat([df_all_individ_spikeprob, df_spikeprob_individ], ignore_index=True)
             all_summary_spikeprob.append(spikeprob_summary)
@@ -853,8 +983,8 @@ for anim in animals:
             spikerate_speed = pd.concat([spikerate_speed, spikespeed], ignore_index=True)
 
         # Spatial Information
-        if False and main_df is not None:
-            SI_summary, place_cells = SI(main_df, place_df, file)
+        if True and main_df is not None:
+            SI_summary, place_cells = SI(main_df, file)
             all_summary_SI.append(SI_summary)
 
         # FFN
@@ -865,26 +995,19 @@ for anim in animals:
             
 
 # save all the data
-df_all_individ_spikeprob.to_csv(out_spikeprob_individ, index=False)
-spikerate_speed.to_csv(out_spikerate_speed, index=False)
+#df_all_individ_spikeprob.to_csv(out_spikeprob_individ, index=False)
+#spikerate_speed.to_csv(out_spikerate_speed, index=False)
 
-df_all_spikeprob_summary = pd.DataFrame(all_summary_spikeprob)
-df_all_spikeprob_summary.to_csv(out_spikeprob_summary, index=False)
+#df_all_spikeprob_summary = pd.DataFrame(all_summary_spikeprob)
+#df_all_spikeprob_summary.to_csv(out_spikeprob_summary, index=False)
 
 df_all_SI_summary = pd.DataFrame(all_summary_SI) 
 df_all_SI_summary.to_csv(out_SI_summary, index=False)
+plot_groups_columns(df_all_SI_summary, 'SI_mean', 'mean SI', 'SI')
 
 #df_all_FFN_summary = pd.DataFrame(all_summary_FFN)
 #df_all_FFN_summary.to_csv(out_FFN_summary, index=False)
 
 # drawing
-heatmap_spikeprob(main_df, heatmap=large_heatmap)
+#heatmap_spikeprob(main_df, heatmap=large_heatmap)
 
-padded = []
-max_len = max(len(x) for x in dist_travelled)
-for arr in dist_travelled:
-    pad_width = max_len - len(arr)
-    padded_arr = np.pad(arr, (0, pad_width), constant_values=np.nan)
-    padded.append(padded_arr)
-df_export = pd.DataFrame(padded).T
-df_export.to_csv("distances.csv", index=False)

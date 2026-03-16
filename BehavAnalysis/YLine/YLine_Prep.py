@@ -9,7 +9,7 @@ import numpy as np
 from pathlib import Path
 
 
-path = 'C:\\Users\\nicol\\Desktop\\Y maze Katerina\\'
+path = r"E:\Weilin_DLC\all\b"
 
 def get_files(path):
     # get all file names in directory into list
@@ -47,6 +47,12 @@ def adapt(x, y):
         adapt_y = height
 
     return (adapt_x, adapt_y)
+
+files = get_files(path)
+width, height = get_xmax_ymax(files[0])
+
+
+#%%
 def check_areas(files):
 
     def print_info(file):
@@ -110,19 +116,12 @@ def check_areas(files):
                 plt.fill_between(x, y, alpha=0.5)
 
         plt.imshow(frame)
-
-    file = files[0]
-    print_info(file)
+    i=0
+    print_info(files[i])
     areas, coords_no_mask = get_areas()
-    write_and_draw(file, areas)
+    write_and_draw(files[i], areas)
 
     return coords_no_mask
-
-files = get_files(path)
-width, height = get_xmax_ymax(files[0])
-
-
-#%%
 
 # USER INPUT
 dx = 0      # if you want to shift the whole thing horizontally 
@@ -131,21 +130,21 @@ dz = 1      # if you want to change the size of the whole thing
 # use width and height as the maximum of the x- and y-axis
 
 # corners
-left_corner = adapt(308, 250)
-middle_corner = adapt(345, 180)
-right_corner = adapt(385, 250)
+left_corner = adapt(195, 175)
+middle_corner = adapt(220, 130)
+right_corner = adapt(240, 180)
 
 # left arm
-left_arm_end_lefter = adapt(0, 80)
-left_arm_end_righter = adapt(40, 0)
+left_arm_end_lefter = adapt(0, 55)
+left_arm_end_righter = adapt(25, 0)
 
 # right arm
-right_arm_end_righter = adapt(width, 70)
-right_arm_end_lefter = adapt(640, 0)
+right_arm_end_righter = adapt(550, 75)
+right_arm_end_lefter = adapt(425, 30)
 
 # middle_arm
-middle_arm_end_lefter = adapt(300, height)
-middle_arm_end_righter = adapt(390, height)
+middle_arm_end_lefter = adapt(175, height)
+middle_arm_end_righter = adapt(230, height)
 
 
 coords_no_mask = check_areas(files)

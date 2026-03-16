@@ -13,7 +13,7 @@ from scipy.ndimage import gaussian_filter1d
 from matplotlib.animation import FuncAnimation, FFMpegWriter
 
 
-path = r"E:\FF-DA_YM"
+path = r"E:\FF-DA_YM\a"
 file_useless_strings = ['2024-11-19_FF-Weilin_YMaze_']
 
 
@@ -236,28 +236,27 @@ def get_DLC(file_DLC, dist_bp='head', DLC_mm_per_px = 0.12, fps_Cam=30):
     return df
 
 def merge_signal_DLC(df_trace, df_DLC, io_hightimes):
-    
-    # trim hightimes or DLC
-    hightimes = [i[0] for i in io_hightimes]
-    n = min(len(hightimes), len(df_DLC))
-    hightimes = np.array(hightimes[:n])
-    df_DLC = df_DLC.iloc[:n].copy()
-    
-    # make TTL hightimes the index of DLC and merge
-    df_DLC.index = np.array(hightimes)
-    df_DLC.index.name = 'time'
-    window_start = float(df_DLC.index.min())
-    window_end   = float(df_DLC.index.max())
 
-    # crop trace to DLC window
+    # set the correct index for df_trace
+    hightimes = np.array([i[0] for i in io_hightimes])
     df_trace_crop = df_trace.copy()
     df_trace_crop.index = pd.Index(pd.to_numeric(df_trace_crop.index), name="time")
     df_trace_crop = df_trace_crop.sort_index()
-    df_trace_crop = df_trace_crop.loc[(df_trace_crop.index >= window_start) & (df_trace_crop.index <= window_end)]
 
+    # trim hightimes or DLC
+    n = min(len(hightimes), len(df_DLC))
+    hightimes = hightimes[:n]
+    df_DLC = df_DLC.iloc[:n].copy()
+    
+    # make TTL hightimes the index of DLC and merge
+    df_DLC.index = hightimes
+    df_DLC.index.name = 'time'
+    window_start, window_end = float(df_DLC.index.min()), float(df_DLC.index.max())
+
+    # crop trace to DLC window
+    df_trace_crop = df_trace_crop.loc[(df_trace_crop.index >= window_start) & (df_trace_crop.index <= window_end)]
     dlc_num = df_DLC.select_dtypes(include=[np.number]).copy()
     dlc_on_trace = (dlc_num.reindex(dlc_num.index.union(df_trace_crop.index)).sort_index().interpolate(method="index").reindex(df_trace_crop.index))
-
     df_merged = df_trace_crop.join(dlc_on_trace, how="left")
 
     return df_merged
@@ -295,13 +294,13 @@ def plot_groups_columns(results_df, column, y_title, title):
     plt.show()
 
 def plot_xy(df):
-    # plt.plot(df['Speed'], linewidth=0.5)
-    # plt.plot(df['rest_mask']*3, linewidth=1)
-    # plt.plot(df['move_mask'], linewidth=1)
-    plt.plot(df['dff'])
+    plt.plot(df['Speed'], linewidth=1, color='purple')
+    plt.plot(df['rest_mask']*-3, linewidth=1, color='green')
+    plt.plot(df['move_mask']*-1, linewidth=1, color='orange')
+    plt.plot(df['zscore']+15, linewidth=1.0, color='turquoise')
     #plt.vlines(idx, 0, 100, colors='red', linewidth=0.5)
-    plt.xlim(41,42)
-    #plt.ylim(-1,2)
+    plt.xlim(70,90)
+    plt.ylim(-2,20)
     plt.show()
 
 def correlate_Speed_Signal(df, file, bin_size_sec=4.5):
@@ -611,9 +610,9 @@ for i, file_doric in enumerate(files):
     df_distance_cum[file_short] = main_df["Distance_cum"].reset_index(drop=True)
     df_perievents[file_short] = perievents_mean
 
-    #plot_xy(main_df)
+    plot_xy(main_df)
 
-    #break
+    break
 
 
 

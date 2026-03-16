@@ -1,10 +1,11 @@
 // data must be in folder called 'data'
 
-curPath = "D:\\";
+curPath = "E:\\hTauxAPP2(6m)_PFC\\";
 // C1-NET, C2-Iba1, C3-Ab, C4-DAPI
 //channel = "C1-";
 channel = "c:3/4 - ";
-channel_name = "NET";
+channel_name = "NET"
+;
 
 // create folders and define paths
 //File.makeDirectory(curPath + "results_" + channel_name);
@@ -16,7 +17,6 @@ dataPath = curPath + "data\\";
 // create csv file to store results in
 csvFilePath = resultPath + "area_percent.csv";
 File.saveString("file,%Area\n", csvFilePath);  // write header
-print(csvFilePath);
 
 // let's go
 file_list = getFileList(dataPath);
@@ -26,16 +26,17 @@ for(i = 0;i<file_list.length;i++){
 	run("Bio-Formats Importer", "open=" + dataPath + file_list[i] + " autoscale color_mode=Default view=Hyperstack stack_order=XYCZT");
 	selectImage(file_list[i]);
 	run("Stack Splitter", "number=4");
-	selectImage(channel + file_list[i] + " #1");
+	print(channel + file_list[i]);
+	selectImage(channel + file_list[i]);
 		
 	// Brightness/Contrast
-	//run("8-bit");
-	//setMinAndMax(100, 600);
-	//run("Apply LUT");
+	run("8-bit");
+	setMinAndMax(20, 70);
+	run("Apply LUT");
 		
 	// Threshold
 	setAutoThreshold("Default dark no-reset");
-	setThreshold(300, 65535, "raw");
+	setThreshold(90, 255, "raw");
 	setOption("BlackBackground", true);
 	run("Convert to Mask");
 		
@@ -61,4 +62,3 @@ for(i = 0;i<file_list.length;i++){
 	close("Results");
 	close("Original Metadata - " + file_list[i]);
 }
-

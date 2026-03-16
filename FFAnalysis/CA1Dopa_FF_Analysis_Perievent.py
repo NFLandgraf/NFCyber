@@ -12,8 +12,8 @@ import os
 from scipy.ndimage import gaussian_filter1d
 
 
-path = r"E:\FF-DA_FS_Nomipre"
-file_useless_string = ['CA1Dopa_FF_GRABNE_2025-08-07_', '_FS']
+path = r"E:\FF-DA_FS"
+file_useless_string = ['2024-11-20_FF-Weilin_FS_', '_pre']
 
 def manage_filename(file):
 
@@ -206,7 +206,14 @@ def dff(df, bleaching_correct=False, del_values=False):
     # merge dff and zscore into one df
     trace = pd.DataFrame({"dff":fluo_dff, "zscore":fluo_zscore}, index=time_sec)
 
-    all_animals_dff[file_name_short] = fluo_dff
+    # trim animal trace if longer than the summary df
+    if len(all_animals_dff) > 5:
+        target_len = len(all_animals_dff.index)
+        if len(fluo_dff) > target_len:
+            fluo_dff = fluo_dff[:target_len]
+            fluo_zscore = fluo_zscore[:target_len]
+
+    #all_animals_dff[file_name_short] = fluo_dff
 
     return trace
 
@@ -274,15 +281,16 @@ def draw_perievent_groups(all_animals_event_mean, title):
 
     plt.figure(figsize=(8,5))
     x = mean_df.index
-
-    for g in groups:
+    col = ['gray', 'green', 'red']
+    for i, g in enumerate(groups):
         mean_trace = mean_df[f"{g}_Mean"]
         sem_trace  = sem_df[f"{g}_SEM"]
-        plt.plot(x, mean_trace, label=f"{g} Mean")
-        plt.fill_between(x, mean_trace-sem_trace, mean_trace+sem_trace, alpha=0.3)
+        plt.plot(x, mean_trace, label=f"{g} Mean", color=col[i])
+        plt.fill_between(x, mean_trace-sem_trace, mean_trace+sem_trace, alpha=0.3, color=col[i])
     plt.xlabel("Time [s]")
     plt.ylabel("df/f")
     plt.title(title)
+    plt.ylim(-0.5, 2.0)
     plt.legend()
     plt.tight_layout()
     plt.show()
@@ -308,7 +316,7 @@ for file_doric in files:
     #perievent_move(main_df, file_name_short)
 
 
-draw_perievent_groups(all_animals_event_mean, 'FF-NE_FS')
+draw_perievent_groups(all_animals_event_mean, 'FF-DA_FS1')
 
 all_animals_dff.to_csv(path + '\\all_animals_dff.csv')
 all_animals_ind_events.to_csv(path + '\\all_animals_ind_events.csv')

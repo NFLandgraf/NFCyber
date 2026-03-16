@@ -2,12 +2,12 @@
 # IMPORT
 
 import cv2
-import ffmpeg
+#import ffmpeg
 from tqdm import tqdm
 import os
 import numpy as np
 
-path = 'D:\\SimBA\\Rambo\\project_folder\\videos\\'
+path = "C:\\Users\\landgrafn\\Desktop\\weilin\\dlc\\cc\\"
 common_name = 'mp4'
 file_format = '.mp4'
 
@@ -28,14 +28,7 @@ def get_data():
         width = int(vid.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
         nframes = int(vid.get(cv2.CAP_PROP_FRAME_COUNT))
-        fps = int(vid.get(cv2.CAP_PROP_FPS))
-        duration = nframes / fps
-
-        print(f'{file}\n'
-                f'dimensions: {width} x {height} px\n'
-                f'nframes: {nframes}\n'
-                f'fps: {fps}\n'
-                f'duration: {duration} s\n')
+        
     
     return files
 files = get_data()
@@ -51,106 +44,92 @@ x1, y1 = 12, 10   # top left corner of future cropped image
 x2, y2 = 595, 590    # bottom right corner of future cropped image
 
 # BRIGHTNESS & CONTRAST
-alpha = 1.5     # contrast: 1-unchanged, <1-lower contrast, >1-higher contrast
-beta = 0        # brightness: brightness that is added/taken to/from every pixel (-255 to +255)
+alpha = 3.0     # contrast: 1-unchanged, <1-lower contrast, >1-higher contrast
+beta = -10        # brightness: brightness that is added/taken to/from every pixel (-255 to +255)
 
 # TRIM
 start_frame = 1
 stop_s = 609
 
-ioo = 0
 
 
-def bin_frame(frame, binning_factor):
-    # bin the frame horizontally and vertically by the binning_factor
-    # each binning operation sums up pixel values in non-overlapping regions
 
-    height, width = frame.shape[:2]
-    new_height = height // binning_factor
-    new_width = width // binning_factor
 
-    # Resize the frame by summing over binning_factor x binning_factor regions
-    binned_frame = frame[:new_height * binning_factor, :new_width * binning_factor]
-    binned_frame = binned_frame.reshape(new_height, binning_factor, new_width, binning_factor, -1)
-    binned_frame = binned_frame.sum(axis=(1, 3))  # Sum over binning regions
 
-    # Normalize pixel values for an 8-bit image
-    binned_frame = (binned_frame / (binning_factor**2)).astype(frame.dtype)
-
-    return binned_frame
 
 def adjust_video(input_file, output_file, new_width, new_height, fps, nframes):
-    global ioo
+
+    def bin_frame(frame, binning_factor):
+        # bin the frame horizontally and vertically by the binning_factor
+        # each binning operation sums up pixel values in non-overlapping regions
+
+        height, width = frame.shape[:2]
+        new_height = height // binning_factor
+        new_width = width // binning_factor
+
+        # Resize the frame by summing over binning_factor x binning_factor regions
+        binned_frame = frame[:new_height * binning_factor, :new_width * binning_factor]
+        binned_frame = binned_frame.reshape(new_height, binning_factor, new_width, binning_factor, -1)
+        binned_frame = binned_frame.sum(axis=(1, 3))  # Sum over binning regions
+
+        # Normalize pixel values for an 8-bit image
+        binned_frame = (binned_frame / (binning_factor**2)).astype(frame.dtype)
+
+        return binned_frame
 
     cap = cv2.VideoCapture(input_file)
-    #cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
-
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    video = cv2.VideoWriter(output_file, fourcc, fps, (new_width, new_height)) 
-
-    #first_frame = input_file.replace(file_format, '') + '_firstFrame.png'
+    video = cv2.VideoWriter(output_file, fourcc, 30, (new_width, new_height)) 
 
     for curr_frame in tqdm(range(nframes)):    # stop_frame, nframes or 1
     
         ret, frame = cap.read()
-
         if not ret:
             print(f"Warning: Failed to read frame {curr_frame}")
             break  
-
         
+        # BINNING
         #frame = bin_frame(frame, binning_factor=2)
 
         # BRIGHTNESS & CONTRAST
-        #frame = cv2.convertScaleAbs(frame, alpha=alpha, beta=beta)
+        frame = cv2.convertScaleAbs(frame, alpha=alpha, beta=beta)
 
         # CROP
         #frame = cv2.resize(frame, (new_width, new_height))  # must be the same dimensions as in video = cv2.VideoWriter() 
-        if curr_frame >= 1:
-            ioo += 1
-            video.write(frame)
-
-        # when you had range(1) to only check the first frame, write first frame. Delete it if >0
-        # if curr_frame == start_frame:
-        #     cv2.imwrite(first_frame, frame)
-        # elif curr_frame == start_frame+1:
-        #     os.remove(first_frame)
-
         
+        if curr_frame >= 1:
+            video.write(frame)
 
     cap.release()
     video.release()
+    print(f'Done! input: {nframes} frames\n')
 
-    print(f'Done! input: {nframes} frames, output: {ioo} frames\n\n')
+for file in files:
 
-def main():
-    for file in files:
+    input_file = path + file
+    output_file = input_file.replace(file_format, '') + '_edit' + file_format
+    print(input_file)
 
-        input_file = path + file
-        output_file = input_file.replace(file_format, '') + '_edit' + file_format
-        print(input_file)
+    # original video parameters
+    vid = cv2.VideoCapture(input_file)
+    width = int(vid.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    nframes = int(vid.get(cv2.CAP_PROP_FRAME_COUNT))
+    fps = int(vid.get(cv2.CAP_PROP_FPS))
 
-        # original video parameters
-        vid = cv2.VideoCapture(input_file)
-        width = int(vid.get(cv2.CAP_PROP_FRAME_WIDTH))
-        height = int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        nframes = int(vid.get(cv2.CAP_PROP_FRAME_COUNT))
-        fps = int(vid.get(cv2.CAP_PROP_FPS))
-        print(nframes)
+    # trim
+    #start_frame, stop_frame = start_s * fps, stop_s * fps     # USE THIS WHEN TRIM
+    #start_frame, stop_frame = 0, nframes                      # USE THIS WHEN NOT TRIM
 
-        # trim
-        #start_frame, stop_frame = start_s * fps, stop_s * fps     # USE THIS WHEN TRIM
-        #start_frame, stop_frame = 0, nframes                      # USE THIS WHEN NOT TRIM
+    #new_width, new_height = x2-x1, y2-y1                        # USE THIS WHEN     CROP     & NOT REDUCE QUALITY
+    #new_width, new_height = int((x2-x1)*2/3), int((y2-y1)*2/3)  # USE THIS WHEN     CROP     &     REDUCE QUALITY
+    #new_width, new_height = int(width/2), int(height/2)         # USE THIS WHEN NOT CROP     &     REDUCE QUALITY
+    new_width, new_height = width, height                        # USE THIS WHEN NOT CROP     & NOT REDUCE QUALITY
 
-        #new_width, new_height = x2-x1, y2-y1                        # USE THIS WHEN     CROP     & NOT REDUCE QUALITY
-        #new_width, new_height = int((x2-x1)*2/3), int((y2-y1)*2/3)  # USE THIS WHEN     CROP     &     REDUCE QUALITY
-        #new_width, new_height = int(width/2), int(height/2)         # USE THIS WHEN NOT CROP     &     REDUCE QUALITY
-        new_width, new_height = width, height                        # USE THIS WHEN NOT CROP     & NOT REDUCE QUALITY
-
-        #adjust_video(input_file, output_file, new_width, new_height, fps, nframes)
+    adjust_video(input_file, output_file, new_width, new_height, fps, nframes)
 
 
-main()
+
 
 
 
