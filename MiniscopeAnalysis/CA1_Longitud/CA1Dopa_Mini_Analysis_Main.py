@@ -963,7 +963,7 @@ for anim in animals:
         
         main_df = pd.read_csv(file, index_col='Mastertime [s]')
         main_df = clean_df_QC(main_df, df_QC)
-        main_df = clean_df_distance(main_df, file)
+        #main_df = clean_df_distance(main_df, file)
 
         # drawing
         #heatmap_occupancy(main_df)

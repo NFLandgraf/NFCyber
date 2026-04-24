@@ -8,8 +8,8 @@ import cv2
 from pathlib import Path
 
 '''''
-into area: front 80% (mind. 15 non-nans including tail_base) are in arm 
-exit out of area: no bp of front 80% in current area AND any bp of front 80% is in other area than current
+into area: bps_entry (mind. 15 non-nans including tail_base) are in arm 
+exit out of area: no bp of bps_exit in current area AND any bp of bps_entry is in other area than current
 folder with the csv files and for each csv file, copy the corresponding video (best case with DLC annotations) into that folder
 '''''
 
@@ -74,7 +74,7 @@ def define_bodyparts():
                 'left_shoulder', 'left_midside', 'left_hip', 'right_shoulder', 'right_midside', 'right_hip']
     
     bps_exit = ['nose', 'left_ear', 'right_ear', 'left_ear_tip', 'right_ear_tip', 'left_eye', 'right_eye', 'head_midpoint', 
-                'neck', 'mid_back', 'mouse_center', 'mid_backend',
+                'neck', 'mid_back', 'mouse_center', 'mid_backend', 'mid_backend2',
                 'left_shoulder', 'left_midside', 'left_hip', 'right_shoulder', 'right_midside', 'right_hip']
 
     return bps_all, bps_entry, bps_exit

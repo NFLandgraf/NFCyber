@@ -1,10 +1,10 @@
 #%%
 import os
 
-folder_path = r"W:\_proj_CA1Dopa\CA1Dopa_Longitud\Analysis_FINAL\Neuro_7_CNMFe\accepted cell maps"
+folder_path = r"C:\Users\landgrafn\Desktop\FINAL\BehavAll_Own"
 
-old_text = "s_accepted-cells-map"
-new_text = ""
+old_text = "551Behav_done"
+new_text = "sleap"
 
 for filename in os.listdir(folder_path):
 
