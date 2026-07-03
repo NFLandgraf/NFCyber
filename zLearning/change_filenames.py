@@ -1,10 +1,10 @@
 #%%
 import os
 
-folder_path = r"C:\Users\landgrafn\Desktop\FINAL\BehavAll_Own"
+folder_path = r"C:\Users\landgrafn\Desktop\2025-03-14_hTau2(6m)_RI3"
 
-old_text = "551Behav_done"
-new_text = "sleap"
+old_text = "_trim"
+new_text = "_edit"
 
 for filename in os.listdir(folder_path):
 

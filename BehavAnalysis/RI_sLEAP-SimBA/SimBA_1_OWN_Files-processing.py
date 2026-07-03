@@ -7,7 +7,7 @@ It also changes the column order so that SimBA uses the correct bodyparts.
 import pandas as pd
 import os
 
-path = r"C:\Users\landgrafn\Desktop\FINAL\Own_Pose_DLCStyle"
+path = r"C:\Users\landgrafn\Desktop\sLEAP_done"
 file_format = ".csv"
 
 # names as they exist in the original sLEAP csv

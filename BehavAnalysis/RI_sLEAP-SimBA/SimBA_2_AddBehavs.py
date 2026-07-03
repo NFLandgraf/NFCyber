@@ -7,7 +7,7 @@ import pandas as pd
 import os
 import csv
 
-path = r"D:"
+path = r"C:\Users\landgrafn\Desktop\SIMBA\SimBA_Model_TailRattle\SimBA_Model_TailRattle_NicoPC\project_folder\csv\targets_inserted"
 
 behaviors = [
     'Investigate',
@@ -23,7 +23,7 @@ behaviors = [
     'Attack'
 ]
 
-behaviors = ['Attack']
+behaviors = ['Tail_Rattle']
 count = 0
 files = [f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f)) and f.lower().endswith('.csv')]
 

@@ -2,12 +2,12 @@
 # IMPORT
 
 import cv2
-#import ffmpeg
+import ffmpeg
 from tqdm import tqdm
 import os
 import numpy as np
 
-path = "C:\\Users\\landgrafn\\Desktop\\weilin\\dlc\\cc\\"
+path = r"C:\Users\landgrafn\Desktop\2025-03-14_hTau2(6m)_RI3"
 common_name = 'mp4'
 file_format = '.mp4'
 
@@ -49,11 +49,8 @@ beta = -10        # brightness: brightness that is added/taken to/from every pix
 
 # TRIM
 start_frame = 1
+start_s = 6
 stop_s = 609
-
-
-
-
 
 
 
@@ -118,7 +115,7 @@ for file in files:
     fps = int(vid.get(cv2.CAP_PROP_FPS))
 
     # trim
-    #start_frame, stop_frame = start_s * fps, stop_s * fps     # USE THIS WHEN TRIM
+    start_frame, stop_frame = start_s * fps, stop_s * fps     # USE THIS WHEN TRIM
     #start_frame, stop_frame = 0, nframes                      # USE THIS WHEN NOT TRIM
 
     #new_width, new_height = x2-x1, y2-y1                        # USE THIS WHEN     CROP     & NOT REDUCE QUALITY
@@ -135,16 +132,34 @@ for file in files:
 
 
 
-#%%####################################################################################################################
+#%%
 # TRIM VIDEO
-def trim_video():
+def trim_video(file, start_s, trim=False, change_fps=True):
+    input_file = path + '//' + file
+    output_file = input_file.replace(file_format, '') + '_fps' + file_format
 
-    input_file = path + files[0]
-    output_file = input_file.replace(file_format, '') + '_trim' + file_format
+    # original video parameters
+    vid = cv2.VideoCapture(input_file)
+    width = int(vid.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    nframes = int(vid.get(cv2.CAP_PROP_FRAME_COUNT))
+    fps = int(vid.get(cv2.CAP_PROP_FPS))
+    #print(nframes)
 
-    # trim video according to frames
-    output = ffmpeg.output(ffmpeg.input(input_file).trim(start_frame=0, end_frame=10), output_file)
-    ffmpeg.run(output)
+    # trim the video
+    if trim:
+        stream = ffmpeg.input(input_file, ss=start_s)
+        stream = ffmpeg.output(stream, output_file)
+        ffmpeg.run(stream, overwrite_output=True)
+    
+    # change the fps
+    if change_fps:
+        stream = ffmpeg.input(input_file)
+        stream = stream.filter('select', 'not(mod(n,2))')
+        stream = stream.filter('setpts', 'N/30/TB')
+        stream = ffmpeg.output(stream, output_file, r=30)
+        ffmpeg.run(stream, overwrite_output=True)
 
-trim_video()
+for file in files:
+    trim_video(file, start_s=6)
 

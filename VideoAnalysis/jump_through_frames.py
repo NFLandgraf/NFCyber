@@ -1,7 +1,7 @@
 #%%
 import cv2
 
-video_path = r"Y:\_proj_Nico\AGG_Behav\Solomon\Training\2025-02-12_hTauxAPP1(3m)_RI3_m251_Test_edit_fps_solomon.avi"
+video_path = r"Y:\_proj_Nico\AGG_Behav\Videos\3_RI_Test_edit_30fps\2025-03-13_hTau2(6m)_RI2_m120_Test_edit_fps.mp4"
 
 
 cap = cv2.VideoCapture(video_path)

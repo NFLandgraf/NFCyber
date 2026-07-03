@@ -5,7 +5,7 @@ from tqdm import tqdm
 import os
 import numpy as np
 
-file_path = 'C:\\Users\\landgrafn\\Desktop\\ooh\\'
+file_path = r"C:\Users\landgrafn\Desktop\FF_RI"
 common_name = ''
 file_format = '.mp4'
 
@@ -45,12 +45,11 @@ files = get_data()
 
 #%%
 
-start_list = [5,5,7,6,7,8,9,6,7,6,8,6,7,6,6,6,6,4,5,5,6]
 file_list = files
 
 
 fps = 58.82
-wanted_frames = 35292
+wanted_frames = 3529200000
 
  
 
@@ -72,8 +71,7 @@ def trim_video(file_path, file_name, start_sec):
 for i, file_name in enumerate(file_list):
 
     print(i)
-    start_sec = start_list[i]
-    trim_video(file_path, file_name, start_sec)
+    trim_video(file_path, file_name, 160)
 
 
 
@@ -162,3 +160,36 @@ def make_video_more_transparent(input_path, output_path, alpha=0.8, background_c
 make_video_more_transparent('C:\\Users\\landgrafn\\Desktop\\ohh\\2024-10-31-16-52-47_CA1-m90_OF_DLC_trim.mp4', 'transparent_video.mp4')
 
 
+#%%
+import cv2
+
+input_video = r"C:\Users\landgrafn\Desktop\ExampleVideos\RI_Example_combine.mp4"
+output_video = r"C:\Users\landgrafn\Desktop\ExampleVideos\RI_Example_combine_trim.mp4"
+
+start_sec = 140
+end_sec = 220
+
+cap = cv2.VideoCapture(input_video)
+
+fps = cap.get(cv2.CAP_PROP_FPS)
+start_frame = int(start_sec * fps)
+end_frame = int(end_sec * fps)
+
+width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+out = cv2.VideoWriter(output_video, fourcc, fps, (width, height))
+
+cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
+
+current = start_frame
+while current < end_frame:
+    ret, frame = cap.read()
+    if not ret:
+        break
+    out.write(frame)
+    current += 1
+
+cap.release()
+out.release()

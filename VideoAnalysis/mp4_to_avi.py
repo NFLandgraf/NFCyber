@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 from tqdm import tqdm
 
-path = 'D:\\'
+path = "C:\\Users\\landgrafn\\Desktop\\Test_Vids\\"
 file_format = '.mp4'
 
 def get_data():
