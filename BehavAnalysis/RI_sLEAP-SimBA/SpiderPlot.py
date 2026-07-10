@@ -53,9 +53,10 @@ def spider_plot_from_csv(csv_file, group_col="Group", groups=None):
     ax.grid(True, alpha=0.4)
 
     plt.tight_layout()
+    plt.savefig('agg.pdf')
     plt.show()
 
 
-file = r"C:\Users\landgrafn\Desktop\Pyth.csv"
+file = r"C:\Users\landgrafn\Desktop\hTauxAPP1(3m)_MEAN-Behav.csv"
 
 spider_plot_from_csv(csv_file=file, group_col="Group", groups=["WT", "TG"])

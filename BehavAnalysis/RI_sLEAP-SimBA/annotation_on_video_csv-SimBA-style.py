@@ -4,9 +4,9 @@ import pandas as pd
 
 print('go')
 
-csv_path = r"Y:\Neuronal Networks\SimBA\pretrained_Mouse_RI\Escape\CSDS01306.csv"
-video_path = r"C:\Users\landgrafn\Desktop\SimBA\try\b\2025-02-12_hTauxAPP1(3m)_RI3_m222_Test_edit_fps_sleap.avi"
-output_path = r"C:\Users\landgrafn\Desktop\SimBA\try\b\2025-02-12_hTauxAPP1(3m)_RI3_m222_Test_edit_fps_sleap_SimBA.avi"
+csv_path = r"E:\AGG-FF\test\2026_06-08_AGG-GRABNE_RI1_01_fps_sLEAP_DLC.csv"
+video_path = r"E:\AGG-FF\test\2026_06-08_AGG-GRABNE_RI1_01_fps.mp4"
+output_path = r"E:\AGG-FF\test\2026_06-08_AGG-GRABNE_RI1_01_fps_DLC.mp4"
 
 score_threshold = 0.0
 dot_radius = 4
@@ -123,6 +123,6 @@ while True:
 
 cap.release()
 writer.release()
-cv2.destroyAllWindows()
+#cv2.destroyAllWindows()
 
 print(f"Saved annotated video to: {output_path}")
