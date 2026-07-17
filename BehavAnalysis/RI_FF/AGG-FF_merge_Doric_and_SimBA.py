@@ -35,7 +35,7 @@ def get_files(path, common_name):
     return files
 
 
-def get_doric_1IO(file_doric):
+def get_Doric_1IO(file_doric):
     # do this when you have 1 IO-TTLs, e.g. IO2-Cam_TTL
 
     def h5print(item, leading=''):
@@ -109,7 +109,7 @@ def get_doric_1IO(file_doric):
 
     return df_signal, df_io, io_hightimes
 
-def get_DLC(file_DLC, dist_bp='Center', DLC_mm_per_px = 0.12, fps_Cam=30, thresh_likelihood=0.5):
+def get_SimBA(file_DLC, dist_bp='Center', DLC_mm_per_px = 0.12, fps_Cam=30, thresh_likelihood=0.5):
     
     def cleaning_raw_df(file_DLC):
 
@@ -175,7 +175,7 @@ def get_DLC(file_DLC, dist_bp='Center', DLC_mm_per_px = 0.12, fps_Cam=30, thresh
 
     return df
 
-def merge_doric_DLC(df_trace, df_DLC, io_hightimes, closest_trace_values=3):
+def merge_Doric_SimBA(df_trace, df_DLC, io_hightimes, closest_trace_values=3):
 
     # set the correct index for df_trace
     hightimes = np.array([i[0] for i in io_hightimes])
@@ -293,9 +293,9 @@ for i, file_doric in enumerate(files):
     print(f'----- {file_short} -----')
 
     # extract data
-    df_signal, df_io, io_hightimes = get_doric_1IO(file_doric)
-    df_DLC = get_DLC(file_DLC)
-    main_df = merge_doric_DLC(df_signal, df_DLC, io_hightimes)
+    df_signal, df_io, io_hightimes = get_Doric_1IO(file_doric)
+    df_DLC = get_SimBA(file_DLC)
+    main_df = merge_Doric_SimBA(df_signal, df_DLC, io_hightimes)
     main_df = get_dff(main_df, file_short)
 
     main_df.to_csv(f"E:\\AGG-FF\\Videos_Raw_fps_sLEAP_check_DLC_SimBA_Doric\\{file_short}_fps_sLEAP_check_DLC_SimBA_Doric.csv")
