@@ -24,58 +24,32 @@ files = glob.glob(os.path.join(path, "*.csv"))
 
 def get_Intr_timepoints(df):
 
-    def correct_Intr_occurence(df, min_block=60, valid_Intr_range=(8100, 27900)):
-        frame_col="behav_idx"
-        fps=30
-        first_valid_Intr_frame, last_valid_Intr_frame = valid_Intr_range
+    def correct_Intr_occurence(df, min_block_s=2, valid_Intr_range_s=(270, 930), frame_col='behav_idx', fps=30):
+
+        min_block_frames = int(min_block_s * fps)
+        first_exp_Intr_frame, last_exp_Intr_frame = (int(point * fps) for point in valid_Intr_range_s)
         df_out = df.copy()
 
-        intr_present = df_out["Intr_Center_x"].notna()
+        # get all columns where all Intr_bodyparts are available
+        intr_x_cols = [col for col in df_out.columns if col.startswith("Intr_") and col.endswith("_x")]
+        intr_present = df_out[intr_x_cols].notna().all(axis=1)
 
-        intr_frames = (
-            df_out.loc[intr_present, frame_col]
-            .dropna()
-            .astype(int)
-            .sort_values()
-        )
-
-        if intr_frames.empty:
-            print("\nNo Intr frames found.")
-            return df_out
+        intr_frames = (df_out.loc[intr_present, frame_col].dropna().astype(int).sort_values())
 
         block_id = intr_frames.diff().ne(1).cumsum()
-
-        valid_blocks = [
-            block for _, block in intr_frames.groupby(block_id)
-            if len(block) >= min_block
-            and block.iloc[0] >= first_valid_Intr_frame
-            and block.iloc[-1] <= last_valid_Intr_frame
-        ]
+        valid_blocks = [block for _, block in intr_frames.groupby(block_id) if len(block) >= min_block_frames and block.iloc[0] >= first_exp_Intr_frame and block.iloc[-1] <= last_exp_Intr_frame]
 
         if len(valid_blocks) == 0:
             print("\nNo valid Intr block found.")
             print(f"Found Intr frames from {intr_frames.min()} to {intr_frames.max()}")
             return df_out
 
-        first_Intr_frame = valid_blocks[0].iloc[0]
-        last_Intr_frame = valid_blocks[-1].iloc[-1]
+        first_valid_Intr_frame = valid_blocks[0].iloc[0]
+        last_valid_Intr_frame = valid_blocks[-1].iloc[-1]
 
-        outside_intr = (
-            (df_out[frame_col] < first_Intr_frame) |
-            (df_out[frame_col] > last_Intr_frame)
-        )
-
-        intr_cols = [
-            c for c in df_out.columns
-            if c.startswith("Intr_") and (c.endswith("_x") or c.endswith("_y"))
-        ]
-
+        outside_intr = ((df_out[frame_col] < first_valid_Intr_frame) | (df_out[frame_col] > last_valid_Intr_frame))
+        intr_cols = [c for c in df_out.columns if c.startswith("Intr_") and (c.endswith("_x") or c.endswith("_y"))]
         df_out.loc[outside_intr, intr_cols] = np.nan
-
-        # print("\nIntr occurrence")
-        # print(f"Set Intr coordinates to NaN outside valid range.")
-        # print(f"Intr block First: {round(first_Intr_frame / fps / 60, 2)} min")
-        # print(f"Intr block Last : {round(last_Intr_frame / fps / 60, 2)} min")
 
         return df_out
 
