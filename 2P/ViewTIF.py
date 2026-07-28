@@ -1,5 +1,4 @@
 #%%
-# TIFF VIEWER
 %matplotlib qt
 import os
 import tifffile
