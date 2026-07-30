@@ -1,7 +1,4 @@
 #%%
-'''
-Takes the raw .doric files, and via trimming, event-based, dff it does an peri-event analysis
-'''
 import h5py
 import numpy as np
 import pandas as pd
@@ -11,9 +8,18 @@ from pathlib import Path
 import os
 from scipy.ndimage import gaussian_filter1d
 
+'''
+This code looks at the FF signal and DLC for Peri-event responses
+1. From the .doric files, get Fluo, Isos, Shock-Times and Cam-Times
+2. From the DLC files, get the distances travelled
+3. Merge the dfs according to the Cam-Times
+4. Trim the resulting df before the first and after the last Shock-Time
+5. Calculate the df/f from the trimmed time series
+6. Do Peri-event analysis around each Shock, then average them for each animal and save it
+'''
 
-path = r"E:\FF-DA_FS"
-file_useless_string = ['2024-11-20_FF-Weilin_FS_', '_pre']
+path = r"Y:\_proj_CA1Dopa\CA1Dopa_FF-NE\CA1Dopa_FF-NE(3m)_2025-08-07_FS\CA1Dopa_FF-NE(3m)_2025-08-07_FS_Data_Doric"
+file_useless_string = ['CA1Dopa_FF-NE(3m)_2025-08-07_FS_', '']
 
 def manage_filename(file):
 
@@ -37,7 +43,7 @@ def get_files(path, common_name):
     return files
 
 
-def extract_signals_2IO(file_doric):
+def get_Doric_2IO(file_doric):
     # do this when you have 2 IO-TTLs, e.g. IO2-Cam_TTL and IO3-FCbox
 
     def h5print(item, leading=''):
@@ -87,12 +93,12 @@ def extract_signals_2IO(file_doric):
         sig_fluo  = np.array(f[path + 'LockInAOUT02/AIN01'])
         sig_time  = np.array(f[path + 'LockInAOUT01/Time'])
 
-        digi_Cam    = np.array(f[path + 'DigitalIO/DIO02']).astype(int)
-        digi_Shock  = np.array(f[path + 'DigitalIO/DIO03']).astype(int)
+        digi_Cam    = np.array(f[path + 'DigitalIO/DIO05']).astype(int)
+        digi_Shock  = np.array(f[path + 'DigitalIO/DIO06']).astype(int)
         digi_time   = np.array(f[path + 'DigitalIO/Time'])
 
     # get signal parameters
-    sig_time = np.round(sig_time, 2)
+    sig_time = np.round(sig_time, 3)
     duration = max(sig_time)
     sig_sampling_rate = int(len(sig_isos) / duration)
 
@@ -123,15 +129,127 @@ def extract_signals_2IO(file_doric):
     #         f'digi_Cam: {len(events_digi_Cam)}x {[ev[0] for ev in events_digi_Cam]}\n'
     #         f'digi_Shock: {len(events_digi_Shock)}x {[ev[0] for ev in events_digi_Shock]}')
     
-    return df, events_digi_Cam, events_digi_Shock
+    return df, events_digi_Shock, events_digi_Cam
+
+def get_DLC(file_DLC, mm_per_px=1, bps_position='mid_backend', min_distance=0.001, likelihood=0.2):
+
+    # calculates the distance travelled between frames
+    def cleaning_raw_df(csv_file):
+
+        df = pd.read_csv(csv_file, header=None, low_memory=False)
+
+        # create new column names from first two rows
+        new_columns = [f"{col[0]}_{col[1]}" for col in zip(df.iloc[1], df.iloc[2])]
+        df.columns = new_columns
+        df = df.drop(labels=[0, 1, 2], axis="index")
+
+        # set index and convert to numeric
+        df.set_index('bodyparts_coords', inplace=True)
+        df.index.names = ['frames']
+        df = df.astype(float)
+        df.index = df.index.astype(int)
+
+        bps_all = ['nose', 'left_ear', 'right_ear', 'left_ear_tip', 'right_ear_tip', 'left_eye', 'right_eye', 'head_midpoint', 
+                 'neck', 'mid_back', 'mouse_center', 'mid_backend', 'mid_backend2', 'mid_backend3', 
+                 'tail_base', 'tail1', 'tail2', 'tail3', 'tail4', 'tail5', 'tail_end',
+                 'left_shoulder', 'left_midside', 'left_hip', 'right_shoulder', 'right_midside', 'right_hip']
+
+        # remove low-confidence points
+        for bodypart in bps_all:
+            filter = df[f'{bodypart}_likelihood'] <= likelihood
+            df.loc[filter, f'{bodypart}_x'] = np.nan
+            df.loc[filter, f'{bodypart}_y'] = np.nan
+            df = df.drop(columns=f'{bodypart}_likelihood')
+
+        return df
+    
+    def euclidian_dist(point1x, point1y, point2x, point2y):
+        # calculates distance between 2 points in carthesic coordinate system
+        return np.sqrt((point1x - point2x) ** 2 + (point1y - point2y) ** 2)
+
+    df = cleaning_raw_df(file_DLC)
+
+    x_col, y_col = f'{bps_position}_x', f'{bps_position}_y'
+    
+    # creates a full index range (to include missing frames), fill Series with NaNs
+    full_index = np.arange(df.index.min(), df.index.max() + 1)
+    dist_series = pd.Series(index=full_index, dtype=float)
+
+    # goes though all frames/rows and calcs distance between the frames with values (not NaN)
+    last_valid_idx = None
+    for i in df.index:
+        if not np.isnan(df.at[i, x_col]) and not np.isnan(df.at[i, y_col]):
+            if last_valid_idx is not None:
+                dist = euclidian_dist(df.at[last_valid_idx, x_col], df.at[last_valid_idx, y_col], df.at[i, x_col], df.at[i, y_col])
+                dist_series[i] = dist if dist >= min_distance else np.nan  
+            last_valid_idx = i
+    dist_travelled = round(dist_series.sum(), 1)
+
+    # goes through the frames and distributes the distance evenly across NaNs
+    nan_indices = np.where(dist_series.isna())[0]
+    if len(nan_indices) > 0:
+        last_valid_idx = None
+        for i in range(len(dist_series)):
+            if not np.isnan(dist_series[i]):  
+                if last_valid_idx is not None:
+                    num_missing = i - last_valid_idx - 1  # Frames between valid distances
+                    if num_missing > 0:
+                        total_dist = dist_series[i]  # Distance to be spread
+                        per_frame_dist = total_dist / (num_missing + 1)
+                        for j in range(1, num_missing + 2):
+                            dist_series[last_valid_idx + j] = per_frame_dist
+                last_valid_idx = i
+    dist_series[0] = 0.0
+    dist_travelled_distr = round(dist_series.sum(), 1)
+
+    # sanity check
+    if dist_travelled != dist_travelled_distr:
+        print(f'Error: different distances calculated: {dist_travelled} vs {dist_travelled_distr}')
+    
+    # convert to mm and to DataFrame
+    dist_series = dist_series * mm_per_px
+    dist_df = dist_series.to_frame(name='Distances')
+
+    return dist_df
+
+def merge_Doric_DLC(df_trace, df_DLC):
+
+    df_merged = df_trace.copy()
+
+    # Ensure the trace index is numeric and sorted
+    df_merged.index = pd.Index(pd.to_numeric(df_merged.index), name=df_merged.index.name)
+    df_merged = df_merged.sort_index()
+
+    # Create empty Distances column
+    df_merged["Distances"] = np.nan
+
+    # Rows corresponding to DLC frames
+    cam_mask = df_merged["digi_Cam"].eq(1)
+    cam_indices = df_merged.index[cam_mask]
+
+    # Distance values from DLC
+    distances = df_DLC["Distances"].to_numpy()
+
+    # Only use the number of values available in both DataFrames
+    n = min(len(cam_indices), len(distances))
+
+    # Assign DLC distances to the corresponding camera rows
+    df_merged.loc[cam_indices[:n], "Distances"] = distances[:n]
+
+    return df_merged
+
 
 def trim_trace(df, events, time_passed_pre=30, time_passed_post=30):
 
-    # we have different amounts of time passed before the first event onset and after the last event onset. 
-    # Therefore, delete anything time_passed_post s after last event and subtract time_passed_pre s before first event
-    # time_passed_pre/_post is the number of seconds before/after the first/last event (do not take more than available)
-    skip_time_pre   = round(events[0] - time_passed_pre, 2)
-    skip_time_post  = round(events[-1] + time_passed_post, 2)
+    # checks that the events are correct
+    if len(events) != 5:
+        print(f"Warning: expected 5 shocks, detected {len(events)}")
+    if not np.allclose(np.diff(events), np.diff(events)[0], atol=0.1):
+        print(f"Warning: Shock intervals are not constant: {np.diff(events)}")
+
+    # trims the recording to time_passed_pre before event[0] and time_passed_post after event[-1]
+    skip_time_pre   = round(events[0] - time_passed_pre, 3)
+    skip_time_post  = round(events[-1] + time_passed_post, 3)
 
     # delete last
     df = df.loc[:skip_time_post]
@@ -139,13 +257,16 @@ def trim_trace(df, events, time_passed_pre=30, time_passed_post=30):
     # delete first
     df.index = df.index - skip_time_pre
     df = df.loc[0:]
-    df.index = df.index.round(2)
+    df.index = df.index.round(3)
 
-    return df
+    # subtract the skip_time_pre from the events to have the events correctly
+    events = [round(ev - skip_time_pre, 3) for ev in events]
 
-def dff(df, bleaching_correct=False, del_values=False):
+    return df, events
+
+def dff(df, bleaching_correct=False, del_values=False, move=False):
+
     # for the FootShock stuff, dont use bleaching_correction
-
     time_sec = df.index.to_numpy(dtype=float)
     fluo_raw = df['Fluo'].to_numpy(dtype=float)
     isos_raw = df['Isos'].to_numpy(dtype=float)
@@ -203,75 +324,77 @@ def dff(df, bleaching_correct=False, del_values=False):
     st_dev = np.std(fluo_dff, ddof=1)
     fluo_zscore = (fluo_dff - baseline) / (st_dev if st_dev > 0 else np.nan)
 
-    # merge dff and zscore into one df
-    trace = pd.DataFrame({"dff":fluo_dff, "zscore":fluo_zscore}, index=time_sec)
+    # merge dff and zscore and distances into one df
+    if move:
+        trace = pd.DataFrame({"dff":fluo_dff, "zscore":fluo_zscore, 'Distances':df['Distances'].to_numpy(dtype=float)}, index=time_sec)
+    else:
+        trace = pd.DataFrame({"dff":fluo_dff, "zscore":fluo_zscore}, index=time_sec)
 
     # trim animal trace if longer than the summary df
-    if len(all_animals_dff) > 5:
-        target_len = len(all_animals_dff.index)
-        if len(fluo_dff) > target_len:
-            fluo_dff = fluo_dff[:target_len]
-            fluo_zscore = fluo_zscore[:target_len]
-
-    #all_animals_dff[file_name_short] = fluo_dff
+    # if len(all_animals_dff) >= 0:
+    #     target_len = len(all_animals_dff.index)
+    #     print(target_len)
+    #     if len(fluo_dff) > target_len:
+    #         print('yo')
+    #         fluo_dff = fluo_dff[:target_len]
+    #         fluo_zscore = fluo_zscore[:target_len]
+    # all_animals_dff[file_name_short] = fluo_dff
 
     return trace
 
-def perievent(df_trace, file_name_short):
+def perievent(df, events, file_name_short, trace_window=(-5, 10), baseline_window=(-1, -0.1), move=False):
 
-    df_dff = df_trace['dff']
+    # takes one event at a time, gets the window around it and subtracts the bsas
+    df_dff = df['dff']
+    animal_trials = []
+    event_maxima = []
+    event_aucs = []
 
-    # takes one event at a time and gets the window around it
-    # we take hardcoded events, because we trimmed around the actual events before
-    in_recording_all_events = pd.DataFrame()
-    events = [30,60,90,120,150]
-    for ev in events:
-        df_event = df_dff.copy()
+    if move:
+        df_move = df['Distances']
 
-        # reindex so the event is 0
-        df_event.index = df_event.index - ev
-        df_event.index = df_event.index.round(2)
+    for event_number, event_time in enumerate(events):
 
-        # crop the recording to the area around the event
-        window = df_event.loc[-5 : 20]
-        baseline = df_event.loc[-1 : -0.1]
-        baseline_mean = baseline.mean()
+        # everything for the FF signal
+        relative_time = df_dff.index.to_numpy() - event_time
+        trial = pd.Series(df_dff.to_numpy(), index=relative_time, name=f"trial_{event_number}")
 
-        # normalize everything to the baseline_mean
-        window_norm = window - baseline_mean
-        all_animals_ind_events[f'{file_name_short}_{ev}'] = window_norm
-        in_recording_all_events[f'{ev}'] = window_norm
-    
-    all_animals_event_mean[file_name_short] = in_recording_all_events.mean(axis=1)
+        trial = trial.loc[trace_window[0]:trace_window[1]]
+        baseline = trial.loc[baseline_window[0]:baseline_window[1]]
 
-def perievent_move(main_df, file_name_short, window=(-5, 20)):
+        trial_normalized = trial - baseline.mean()
+        trial_normalized.index = trial_normalized.index.round(3)
 
-    move = main_df['Distances']
-    move = move.dropna()
-    move.to_csv(f'{path}\{file_name_short}.csv')
+        # add trace to the summary
+        all_animals_ind_events[f"{file_name_short}_FS_{event_number}"] = trial_normalized
+        animal_trials.append(trial_normalized)
 
+        # event maximum
+        response = trial_normalized.loc[0:10]
+        event_max = response.max(skipna=True)
+        event_maxima.append(event_max)
 
+        # positive AUC
+        response_positive = response.clip(lower=0)
+        event_auc = np.trapezoid(response_positive.values, response_positive.index.values)
+        event_aucs.append(event_auc)
 
 
-    # print(move)
-    # arr = np.arange(0.0, 180.0, 0.1)
-    # move.index = arr
-    # print(move)
+        # everything for the DLC signal
+        if move:
+            relative_time = df_move.index.to_numpy() - event_time
+            trial = pd.Series(df_move.to_numpy(), index=relative_time, name=f"trial_{event_number}")
+            trial = trial.loc[trace_window[0]:trace_window[1]]
+            trial.index = trial.index.round(3)
+            all_animals_ind_event_moves[f"{file_name_short}_FS_{event_number}"] = trial
 
-    # # takes one event at a time and gets the window around it
-    # events = [30, 60, 90, 120, 150]
-    # win_start, win_end = window
-    # in_recording_all_event_moves = pd.DataFrame()
-    
 
-    # # for each event, reindex so the event is 0 and crop around event
-    # for ev in events:
-    #     event_move = move.copy()
-    #     event_move.index = (event_move.index - ev).round(1)
-    #     window = event_move.loc[win_start : win_end]   
+    animal_trials_df = pd.concat(animal_trials, axis=1)
+    all_animals_event_mean[file_name_short] = (animal_trials_df.mean(axis=1))
 
-    #     in_recording_all_event_moves[f'{ev}'] = window
-    all_animals_ind_event_moves[f'{file_name_short}'] = move
+    # mean event maximum and positive AUC
+    all_animals_event_max_auc.loc[file_name_short] = {"file": file_name_short, "mean_event_max": np.mean(event_maxima), "mean_event_auc": np.mean(event_aucs)}
+
 
 def draw_perievent_groups(all_animals_event_mean, title):
 
@@ -296,30 +419,37 @@ def draw_perievent_groups(all_animals_event_mean, title):
     plt.show()
 
 
-
 files = get_files(path, '.doric')
 
 all_animals_dff = pd.DataFrame()
 all_animals_ind_events = pd.DataFrame()
 all_animals_event_mean = pd.DataFrame()
 all_animals_ind_event_moves = pd.DataFrame()
+all_animals_event_max_auc = pd.DataFrame(columns=["file", "mean_event_max", "mean_event_auc"])
 
 for file_doric in files:
 
+    # get the filenames
+    file_DLC = str(file_doric).replace('.doric', '_DLC.csv')
     file_name_short = manage_filename(file_doric)
     print(f'----- {file_name_short} -----')
 
-    main_df, events_IO2, events_IO3 = extract_signals_2IO(file_doric)
-    main_df = trim_trace(main_df, events_IO3)  
-    main_df = dff(main_df)
-    perievent(main_df, file_name_short)
-    #perievent_move(main_df, file_name_short)
+    # Main
+    main_df, events_shock, events_cam   = get_Doric_2IO(file_doric)
+    #df_DLC                              = get_DLC(file_DLC)
+    #main_df                             = merge_Doric_DLC(main_df, df_DLC)
+    
+    main_df, events_shock               = trim_trace(main_df, events_shock) 
+    main_df                             = dff(main_df)
+    perievent(main_df, events_shock, file_name_short)
 
 
 draw_perievent_groups(all_animals_event_mean, 'FF-DA_FS1')
 
-all_animals_dff.to_csv(path + '\\all_animals_dff.csv')
-all_animals_ind_events.to_csv(path + '\\all_animals_ind_events.csv')
-all_animals_event_mean.to_csv(path + '\\all_animals_eventmean.csv')
-all_animals_ind_event_moves.to_csv(path + '\\all_animals_ind_event_moves.csv')
+if True:
+    all_animals_dff.to_csv(path + '\\AllAnimalsDff.csv')
+    all_animals_ind_events.to_csv(path + '\\AllAnimalsIndEvents.csv')
+    all_animals_event_mean.to_csv(path + '\\AllAnimalsEventMean.csv')
+    all_animals_ind_event_moves.to_csv(path + '\\AllAnimalsIndEventMoves.csv')
+    all_animals_event_max_auc.to_csv(path + '\\AllAnimalsEventMaxAUC.csv', index=False)
 
