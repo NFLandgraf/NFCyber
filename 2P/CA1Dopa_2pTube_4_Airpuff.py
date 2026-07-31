@@ -17,13 +17,14 @@ This code looks at the Peri-event response and takes the raw brightness files fr
 7. Saves the mean trace and the max df/f
 '''
 
-fold                                    = Path(r'E:\2pTube')
-file_RawTraces                          = fold / 'Airpuff_RawTraces.csv'
-file_RawTraces_Detrend                  = fold / 'Airpuff_RawTraces_Detrend.csv'
-file_RawTraces_Detrend_Dff              = fold / 'Airpuff_RawTraces_Detrend_Dff.csv'
-fold_RawTraces_Detrend_PeriEvent        = fold / 'Airpuff_RawTraces_Detrend_PeriEvent'
-file_RawTraces_Detrend_PeriEvent_MaxDff = fold / 'Airpuff_RawTraces_Detrend_PeriEvent_MaxDff.txt'
-file_RawTraces_Detrend_PeriEvent_Means  = fold / 'Airpuff_RawTraces_Detrend_PeriEvent_Mean.csv'
+fold                                    = Path(r'E:\CA1Dopa_2pTube')
+file_RawTraces                          = fold / 'CA1Dopa_2pTube_Results_Airpuff_RawTraces.csv'
+file_RawTraces_Detrend                  = fold / 'CA1Dopa_2pTube_Results_Airpuff_RawTraces_Detrend.csv'
+file_RawTraces_Detrend_Dff              = fold / 'CA1Dopa_2pTube_Results_Airpuff_RawTraces_Detrend_Dff.csv'
+fold_RawTraces_Detrend_PeriEvent        = fold / 'CA1Dopa_2pTube_Results_Airpuff_RawTraces_Detrend_PeriEvent'
+file_RawTraces_Detrend_PeriEvent_MaxDff = fold / 'CA1Dopa_2pTube_Results_Airpuff_RawTraces_Detrend_PeriEvent_MaxDff.txt'
+file_RawTraces_Detrend_PeriEvent_Means  = fold / 'CA1Dopa_2pTube_Results_Airpuff_RawTraces_Detrend_PeriEvent_Mean.csv'
+file_RawTraces_Detrend_PeriEvent_Max_AUC= fold / 'CA1Dopa_2pTube_Results_Airpuff_RawTraces_Detrend_PeriEvent_Max_AUC.csv'
 
 def plot(df, ylabel):
     a53t = ['1002', '976', '972']
@@ -93,7 +94,7 @@ def dff(trace, baseline_range=None, eps=1e-6):
     baseline_range: optional (start, stop) frame indices to compute the mean baseline on [start, stop)
                     use None to use the entire trace
     eps: small constant to avoid divide-by-zero
-    Returns: dff (np.ndarray), F0 (float)
+    Returns: dff (np.ndarray)
     """
     trace = np.asarray(trace, dtype=np.float64)
 
@@ -126,10 +127,11 @@ for col in df.columns:
 
 df_detrend.to_csv(file_RawTraces_Detrend)
 df_dff.to_csv(file_RawTraces_Detrend_Dff)
-plot(df_detrend, 'detrend')
-plot(df_dff, 'df/f')
 
-#%%
+#plot(df_detrend, 'detrend')
+#plot(df_dff, 'df/f')
+
+
 '''
 PERI-EVENT
 Detrended fluorescence traces were aligned to each airpuff so that stimulus onsets corresponded to frame 0.
@@ -138,66 +140,78 @@ For each peri-event window, the mean fluorescence during the pre-stimulus period
 The maximum ΔF/F was extracted from each event window and averaged for the recording. 
 Similarly, individual airpuff responses were averaged to receive one recording mean.
 '''
-def peri_event_dff_frames(series, col, fps, event_frames, window_pre=-2, window_post=15, baseline_pre=-2, baseline_post=-0.1):
+def peri_event_dff_frames(series, col, fps, event_frames, window=(-2, 15), baseline=(-2,-0.1), analysis_window=(0,10)):
 
     # to calculate everything in frames
-    window_pre = int(round(window_pre * fps))
-    window_post = int(round(window_post * fps))
-    baseline_pre = int(round(baseline_pre * fps))
-    baseline_post = int(round(baseline_post * fps))
+    window_pre = int(round(window[0] * fps))
+    window_post = int(round(window[1] * fps))
+    baseline_pre = int(round(baseline[0] * fps))
+    baseline_post = int(round(baseline[1] * fps))
+    analysis_pre = int(round(analysis_window[0] * fps))
+    analysis_post = int(round(analysis_window[1] * fps))
 
     rel_index = pd.Index(range(window_pre, window_post), dtype=int)
     df_all_events = pd.DataFrame(index=rel_index)
 
+    event_max_values = []
+    event_auc_values = []
+
     for i, event in enumerate(event_frames):
-        # subtract the event from df.index so that event is at zero
+
+        # move event frame to zero
         shifted = series.copy()
         shifted.index = shifted.index - int(event)
 
         # cuts out the window
-        window = shifted.loc[window_pre:window_post]
-        baseline = shifted.loc[baseline_pre:baseline_post]
+        event_window = shifted.loc[window_pre:window_post]
+        baseline_values = shifted.loc[baseline_pre:baseline_post]
 
         # calc dff
-        f0 = baseline.mean()
+        f0 = baseline_values.mean()
         f0 = max(float(f0), 1e-6)  # numeric safety
-        dff = (window - f0) / f0   # we already divided during the bleaching correction, so this should just be the subtraction
-
-        # write the max dff for this post-event window
-        with open(file_RawTraces_Detrend_PeriEvent_MaxDff, "a") as f:
-            f.write(f'\n{dff.loc[0:].max()}')
-
+        dff = (event_window - f0) / f0   # we already divided during the bleaching correction, so this should just be the subtraction
         df_all_events[f'Air{i}'] = dff.reindex(rel_index)
 
-    # adds row means
-    df_all_events['mean'] = df_all_events.mean(axis=1)
-    df_all_events.to_csv(f'{fold_RawTraces_Detrend_PeriEvent}\\{col}.csv')
+        # get the max and AUC of the trace
+        analysis_trace = dff.loc[analysis_pre:analysis_post].dropna()
+        event_max_values.append(analysis_trace.max())
+        event_auc_values.append(np.trapezoid(analysis_trace.to_numpy(), x=analysis_trace.index.to_numpy()/fps))
 
-    return df_all_events
+    # adds row means
+    mean_trace = df_all_events.mean(axis=1)
+
+    # Average max and AUC across all events
+    mean_max = np.nanmean(event_max_values)
+    mean_auc = np.nanmean(event_auc_values)
+
+    df_event_max_auc.loc[col, "max"] = mean_max
+    df_event_max_auc.loc[col, "auc"] = mean_auc
+
+    return mean_trace
 
 event_frames = [323, 647, 971, 1296, 1620]
 fps = 10.8056
-os.makedirs(fold_RawTraces_Detrend_PeriEvent, exist_ok=True)
-all_means = pd.DataFrame()
+df_event_means = pd.DataFrame()
+df_event_max_auc = pd.DataFrame()
 
-df = pd.read_csv(file_RawTraces)
+df = pd.read_csv(file_RawTraces_Detrend)
 df.index = df['Frames']
 df = df.drop('Frames', axis=1)
 df = df.drop('Time [s]', axis=1)
 
 for col in df:
-    with open(file_RawTraces_Detrend_PeriEvent_MaxDff, "a") as f:
-        f.write(f'\n\n{col}')
-
+    
     # for the first run, add the frame and Time[s] index
-    df_all_events = peri_event_dff_frames(df[col], col, fps, event_frames)
-    if all_means.empty:
-        all_means = pd.DataFrame(index=df_all_events.index)
-        all_means.index.name = 'Frames'
-        all_means['Time [s]'] = all_means.index / fps
+    mean_trace = peri_event_dff_frames(df[col], col, fps, event_frames)
+    if df_event_means.empty:
+        df_event_means = pd.DataFrame(index=mean_trace.index)
+        df_event_means.index.name = 'Frames'
+        df_event_means['Time [s]'] = df_event_means.index / fps
 
-    all_means[col] = df_all_events['mean']
+    df_event_means[col] = mean_trace
     
 
-all_means.to_csv(file_RawTraces_Detrend_PeriEvent_Means)
-plot(all_means, 'df/f')
+df_event_means.to_csv(file_RawTraces_Detrend_PeriEvent_Means)
+df_event_max_auc.to_csv(file_RawTraces_Detrend_PeriEvent_Max_AUC)
+
+plot(df_event_means, 'df/f')
