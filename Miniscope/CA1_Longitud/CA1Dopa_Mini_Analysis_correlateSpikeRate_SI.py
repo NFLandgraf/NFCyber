@@ -6,8 +6,8 @@ from matplotlib.path import Path as MplPath
 import numpy as np
 
 
-CSV_FOLDER = Path(r"D:\Analy_Post2")
-OUT_CSV    = Path(r"D:\Analy_Post2\cells_meanSpikeprob_vs_SI_ALLFILES.csv")
+folder = Path(r"D:\Analy_Post2")
+out    = Path(r"D:\Analy_Post2\cells_meanSpikeprob_vs_SI_ALLFILES.csv")
 fps = 10.0
 
 
@@ -99,12 +99,13 @@ def compute_spatial_info_only(main_df, place_df):
     return spatial_info_real
 
 
-csv_files = sorted(CSV_FOLDER.glob("*Zost2_YM_final_trim(15m).csv"))
+csv_files = sorted(folder.glob("*Zost2_YM_final_trim(15m).csv"))
 print(f"Found {len(csv_files)} CSV files")
+
 rows = []
 
-for csv_path in tqdm(csv_files):
-    df = pd.read_csv(csv_path)
+for csv_file in tqdm(csv_files):
+    df = pd.read_csv(csv_file)
 
     # mean spikeprob per cell (over frames)
     cell_cols = [c for c in df.columns if isinstance(c, str) and c.endswith("_spikeprob")]
@@ -117,15 +118,15 @@ for csv_path in tqdm(csv_files):
     # write one row per cell
     for cell in cell_cols:
         rows.append({
-            "file": csv_path.stem,
+            "file": csv_file.stem,
             "cell": cell,
             "mean_spikeprob": float(per_cell_mean[cell])*10,
             "SI": float(si_map.get(cell, np.nan))
         })
 
 out_df = pd.DataFrame(rows)
-out_df.to_csv(OUT_CSV, index=False)
+out_df.to_csv(out, index=False)
 
-print("Saved:", OUT_CSV)
+print("Saved:", out)
 print("Rows (cells):", len(out_df))
 print("Missing SI:", out_df["SI"].isna().sum())
