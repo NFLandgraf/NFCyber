@@ -1,22 +1,18 @@
 #%%
-# IMPORT
 import os
 from pathlib import Path
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.path import Path as MplPath
-
 import cv2
 from tqdm import tqdm
-
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from torch.utils.data import TensorDataset, DataLoader
 import torch
 import torch.nn as nn
 import torch.optim as optim
-
 from scipy import stats, ndimage, interpolate
 from shapely.geometry import Polygon
 
@@ -27,15 +23,15 @@ folder_in = Path(r"E:\Miniscope\data_all")
 folder_out = "E:\Miniscope\out"
 file_QC = r"E:\Miniscope\df_QC_FINAL_pass.csv"
 
-out_spikeprob_individ = folder_out + '\\SpikeRate_Individ.csv'
-out_spikeprob_summary = folder_out + '\\SpikeRate_Summary.csv'
-out_spikerate_speed   = folder_out + '\\SpikeRate-Speed.csv'
-out_SI_summary = folder_out + '\\SI_Summary.csv'
-out_FFN_summary = folder_out + '\\FFN_Summary.csv'
+out_spikeprob_individ   = folder_out + '\\SpikeRate_Individ.csv'
+out_spikeprob_summary   = folder_out + '\\SpikeRate_Summary.csv'
+out_spikerate_speed     = folder_out + '\\SpikeRate-Speed.csv'
+out_SI_summary          = folder_out + '\\SI_Summary.csv'
+out_FFN_summary         = folder_out + '\\FFN_Summary.csv'
 
 dist_travelled = []
 
-
+# Clean
 def get_files(path, common_name1, common_name2, suffix=".csv"):
     path = Path(path)
     files = sorted([p for p in path.iterdir() if p.is_file() and (common_name1 in p.name) and (common_name2 in p.name) and p.name.endswith(suffix)])
@@ -45,7 +41,9 @@ def get_files(path, common_name1, common_name2, suffix=".csv"):
     #print('\n\n')
     return files
 
-def clean_df_QC(df, df_QC):
+def clean_df_QC(file, df_QC):
+
+    df = pd.read_csv(file, index_col='Mastertime [s]')
 
     if df is None:
         return None
@@ -70,11 +68,11 @@ def clean_df_QC(df, df_QC):
     
     cells_dropped = int((len(df.columns) - len(cols_to_keep)) /3)
     df = df[cols_to_keep]
-    #print(f'{cells_dropped} cells dropped due to QC -> now {int(len(cols_to_keep)/3)} cells')
+    print(f'{cells_dropped} cells dropped due to QC -> now {int(len(cols_to_keep)/3)} cells')
 
     return df
 
-def clean_df_distance(df, file, start_row=34, maxYM=20, maxOF=None):
+def clean_df_distance(df, start_row=34, maxYM=20, maxOF=None):
     global distances
 
     if df is None:
@@ -109,7 +107,7 @@ def clean_df_distance(df, file, start_row=34, maxYM=20, maxOF=None):
 
     return df
 
-
+# Plot
 def heatmap_occupancy(df, arena_size=(580, 485), blur_sigma=4.0, cmap="Blues", gamma=0.8):
     
     # Create an occupancy heatmap (where the animal was) and save as a JPG, Output image size is exactly arena_size (in pixels)
@@ -336,7 +334,7 @@ def plot_groups_columns(results_df, column, y_title, title):
     plt.tight_layout()
     plt.show()
 
-
+# Analyze
 def SpikeProb(df, file):
     # looks at the frequency of spike probabilities
 
@@ -421,7 +419,6 @@ def SpikeRate_Speed(df, file, fps=10, bin_size_s=10.0):
 
     else:
         return None
-
 
 def SI(df, file_in, fps=10, draw_cells=False, do_shuffle=False, n_shuffles=1, significance_level=0.001, min_occup_s=0.2):
     
@@ -612,6 +609,7 @@ def SI(df, file_in, fps=10, draw_cells=False, do_shuffle=False, n_shuffles=1, si
             if r > 0 and p > 0:
                 ratio = r / avrg_firing_rate
                 info += p * ratio * np.log2(ratio)
+
         return info
 
 
@@ -634,8 +632,7 @@ def SI(df, file_in, fps=10, draw_cells=False, do_shuffle=False, n_shuffles=1, si
     SI_real_cells = []
     for cell in df_firing_freq.columns:
         info = spatial_information(df_firing_freq[cell].values, occupancy.values)
-        SI_real_cells.append(   {"cell_ID": cell,
-                                "SI": info})
+        SI_real_cells.append({"cell_ID": cell, "SI": info})
 
         if draw_cells:
             heatmap_cells(df, cell)
@@ -651,8 +648,7 @@ def SI(df, file_in, fps=10, draw_cells=False, do_shuffle=False, n_shuffles=1, si
     SI_summary =    {"file": Path(file_in).stem,
                     "SI_mean": np.mean(SI_real_values),
                     "SI_median": np.median(SI_real_values),
-                    "n_cells": len(SI_real_values)
-                    }
+                    "n_cells": len(SI_real_values)}
 
     place_cells = []
     if do_shuffle:
@@ -698,7 +694,6 @@ def SI(df, file_in, fps=10, draw_cells=False, do_shuffle=False, n_shuffles=1, si
         SI_summary["place_cells_quotient"] = len(place_cells) / len(SI_real_cells)
     
     return SI_summary, place_cells
-    
     
 def FFN(df, cells, file_in, n_cells=10, n_repeats_rand_cells=1, draw=False):
 
@@ -959,10 +954,10 @@ for anim in animals:
     for i, file in enumerate(files):
 
         file = Path(file)
-        #print(f'------- {file.stem} -------')
+        print(f'------- {file.stem} -------')
         
-        main_df = pd.read_csv(file, index_col='Mastertime [s]')
-        main_df = clean_df_QC(main_df, df_QC)
+        
+        main_df = clean_df_QC(file, df_QC)
         #main_df = clean_df_distance(main_df, file)
 
         # drawing
