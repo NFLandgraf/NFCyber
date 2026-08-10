@@ -16,12 +16,9 @@ import torch.optim as optim
 from scipy import stats, ndimage, interpolate
 from shapely.geometry import Polygon
 
-plot_once = True
-
-
-folder_in = Path(r"E:\Miniscope\data_all")
-folder_out = "E:\Miniscope\out"
-file_QC = r"E:\Miniscope\df_QC_FINAL_pass.csv"
+folder_in = Path(r"E:\CA1Dopa_Miniscope\Analysis\a")
+folder_out = "E:\CA1Dopa_Miniscope\Analysis\out"
+file_QC = r"E:\CA1Dopa_Miniscope\Analysis\df_QC_FINAL_pass.csv"
 
 out_spikeprob_individ   = folder_out + '\\SpikeRate_Individ.csv'
 out_spikeprob_summary   = folder_out + '\\SpikeRate_Summary.csv'
@@ -30,6 +27,8 @@ out_SI_summary          = folder_out + '\\SI_Summary.csv'
 out_FFN_summary         = folder_out + '\\FFN_Summary.csv'
 
 dist_travelled = []
+plot_once = False
+col_spikeprob = 'dff_spikeprob'
 
 # Clean
 def get_files(path, common_name1, common_name2, suffix=".csv"):
@@ -57,18 +56,21 @@ def clean_df_QC(file, df_QC):
             continue
 
         # if the name is not in pass_df, be conservative and drop
-        name = col.rsplit("_", 1)[0]
+        name = col
+        for suffix in ["_dff", "_dfon"]:
+            name = name.split(suffix)[0]
+
         if name not in df_QC.index:
-            print('name not in pass_df')
+            print(f'{name} not in pass_df')
             continue
 
         # keep only if pass == True
         if df_QC.loc[name, "pass"]:
             cols_to_keep.append(col)
-    
+
     cells_dropped = int((len(df.columns) - len(cols_to_keep)) /3)
     df = df[cols_to_keep]
-    print(f'{cells_dropped} cells dropped due to QC -> now {int(len(cols_to_keep)/3)} cells')
+    #print(f'{int(cells_dropped/2)} cells dropped due to QC -> now {int(len(cols_to_keep)/3/2)} cells')
 
     return df
 
@@ -166,7 +168,7 @@ def heatmap_cells(df, arena_size=(580, 485), blur_sigma=3.0, cmap="viridis", gam
     x = pd.to_numeric(df['head_x'], errors="coerce").to_numpy()
     y = pd.to_numeric(df['head_y'], errors="coerce").to_numpy()
 
-    cell_cols = [c for c in df.columns if "spikeprob" in c]
+    cell_cols = [c for c in df.columns if col_spikeprob in c]
 
     for cell in cell_cols:
 
@@ -263,7 +265,7 @@ def heatmap_spikeprob(df, min_frames=32, max_frames=1362, max_cells=298, vmin=0,
         plt.close(fig)
 
     if heatmap is None:
-        cols = [c for c in df.columns if str(c).endswith('spikeprob')]
+        cols = [c for c in df.columns if str(c).endswith(col_spikeprob)]
 
         if trim_x_axis == 'Time':
             # trim recording to a certain max frame
@@ -339,7 +341,7 @@ def SpikeProb(df, file):
     # looks at the frequency of spike probabilities
 
     # identify spikeprob columns
-    cell_cols = [c for c in df.columns if "spikeprob" in c]
+    cell_cols = [c for c in df.columns if col_spikeprob in c]
     n_rows = len(df)
 
 
@@ -386,7 +388,7 @@ def SpikeProb(df, file):
 
 def SpikeRate_Speed(df, file, fps=10, bin_size_s=10.0):
 
-    cell_cols = [c for c in df.columns if 'spikeprob'  in c]
+    cell_cols = [c for c in df.columns if col_spikeprob  in c]
 
     # get distance & speed per frame
     dx = df["head_x"].diff()
@@ -441,7 +443,7 @@ def SI(df, file_in, fps=10, draw_cells=False, do_shuffle=False, n_shuffles=1, si
         main_df = main_df.drop(['x_bin', 'y_bin'], axis=1)
 
         # choose Cascade probability columns
-        spike_prob_cells = [col for col in main_df.columns if isinstance(col, str) and col.endswith('_spikeprob')]
+        spike_prob_cells = [col for col in main_df.columns if isinstance(col, str) and col.endswith(col_spikeprob)]
 
         place_map = {}
         for cell in spike_prob_cells:
@@ -458,6 +460,8 @@ def SI(df, file_in, fps=10, draw_cells=False, do_shuffle=False, n_shuffles=1, si
 
         def get_arena_bins(df):
             global plot_once
+
+            # define and return the bins that are inside the YM
             
             def midpoint(a, b, t=0.5):
                 # for getting middle points: (0.0-0.5 closer to a), (0.5-1.0 closer to b)
@@ -485,7 +489,7 @@ def SI(df, file_in, fps=10, draw_cells=False, do_shuffle=False, n_shuffles=1, si
             end_L = np.mean(np.array([caL1, caL2], dtype=float), axis=0)
             end_M = np.mean(np.array([caM1, caM2], dtype=float), axis=0)
             end_R = np.mean(np.array([caR1, caR2], dtype=float), axis=0)
-            end_points = {"L": end_L-end_C, "M": end_M-end_M, "R": end_R-end_C}
+            end_points = {"L": end_L-end_C, "M": end_M-end_C, "R": end_R-end_C}
             for k in end_points: 
                 n = np.linalg.norm(end_points[k]) 
                 if n > 0: 
@@ -505,7 +509,8 @@ def SI(df, file_in, fps=10, draw_cells=False, do_shuffle=False, n_shuffles=1, si
             poly_mid_Mi = np.array([hM1, ci1, ci3, hM2])
             poly_mid_Ra = np.array([hR1, caR1, caR2, hR2])
             poly_mid_Ri = np.array([ci2, hR1, hR2, ci3])
-            poly_mid = {"poly_mid_La":MplPath(poly_mid_La), "poly_mid_Li":MplPath(poly_mid_Li), "poly_mid_Ma":MplPath(poly_mid_Ma), "poly_mid_Mi":MplPath(poly_mid_Mi), "poly_mid_Ra":MplPath(poly_mid_Ra), "poly_mid_Ri":MplPath(poly_mid_Ri)}
+            poly_mid_C  = np.array([ci1, ci2, ci3])
+            poly_mid = {"poly_mid_La":MplPath(poly_mid_La), "poly_mid_Li":MplPath(poly_mid_Li), "poly_mid_Ma":MplPath(poly_mid_Ma), "poly_mid_Mi":MplPath(poly_mid_Mi), "poly_mid_Ra":MplPath(poly_mid_Ra), "poly_mid_Ri":MplPath(poly_mid_Ri), "C":MplPath(poly_mid_C)}
 
             if plot_once:
                 fig, ax = plt.subplots(figsize=(8, 8))
@@ -535,9 +540,9 @@ def SI(df, file_in, fps=10, draw_cells=False, do_shuffle=False, n_shuffles=1, si
         # instead of summing 0/1 spikes, we sum spike probabilities per bin.
         
         df = df.copy()
+        
         poly_big, poly_mid, end_points = get_arena_bins(df)
         bin_to_use = poly_big
-
 
         # head in which bin, add that to coarse_bin
         pts = df[["head_x", "head_y"]].to_numpy(dtype=float)
@@ -555,7 +560,7 @@ def SI(df, file_in, fps=10, draw_cells=False, do_shuffle=False, n_shuffles=1, si
 
         # normalize body direction ??
         norms = np.linalg.norm(body_dir, axis=1)
-        valid_dir = norms > 0
+        valid_dir = np.isfinite(body_dir).all(axis=1) & (norms > 1e-6)
         body_dir_unit = np.full_like(body_dir, np.nan, dtype=float)
         body_dir_unit[valid_dir] = body_dir[valid_dir] / norms[valid_dir][:, None]
 
@@ -579,12 +584,20 @@ def SI(df, file_in, fps=10, draw_cells=False, do_shuffle=False, n_shuffles=1, si
                 final_bin[i] = bin_ids[f"{arm}_out"]
             else:
                 final_bin[i] = bin_ids[f"{arm}_in"]
-        
+
         df["head_bin"] = final_bin
+
+        # animal head is in bin -1 if it is not attributed to another one, we need to remove this as it is considered as trash
+        invalid = df["head_bin"] < 0
+        if np.sum(invalid==True) > 0:
+            print(f"Invalid YM frames where head is not in YM bins: {np.sum(invalid==True)}")
+        df = df.loc[~invalid].copy()
 
 
         # sum spike probabilities
-        spike_prob_cells = [c for c in df.columns if isinstance(c, str) and c.endswith("_spikeprob")]
+        
+        spike_prob_cells = [c for c in df.columns if isinstance(c, str) and c.endswith(col_spikeprob)]
+
         place_map = {}
         for cell in spike_prob_cells:
             # sum of spike probability in each bin = expected spike count in that bin
@@ -614,6 +627,7 @@ def SI(df, file_in, fps=10, draw_cells=False, do_shuffle=False, n_shuffles=1, si
 
 
     df, place_df = bin_cellspikes_prob_YM(df)
+    print(place_df)
 
     occupancy = df.groupby('head_bin').size() # how many frames did animal spend in each bin
     occupancy = occupancy.reindex(place_df.index, fill_value=0) # aligns occupancy and firing-rate rows
@@ -958,6 +972,7 @@ for anim in animals:
         
         
         main_df = clean_df_QC(file, df_QC)
+        
         #main_df = clean_df_distance(main_df, file)
 
         # drawing
@@ -987,7 +1002,8 @@ for anim in animals:
             cells_to_use = [c for c in main_df.columns if "spikeprob" in c] # or place_cells, whatever is needed
             FFN_summary = FFN(main_df, cells_to_use, file)
             all_summary_FFN.append(FFN_summary)
-            
+
+    break
 
 # save all the data
 #df_all_individ_spikeprob.to_csv(out_spikeprob_individ, index=False)
@@ -998,7 +1014,7 @@ for anim in animals:
 
 df_all_SI_summary = pd.DataFrame(all_summary_SI) 
 df_all_SI_summary.to_csv(out_SI_summary, index=False)
-plot_groups_columns(df_all_SI_summary, 'SI_mean', 'mean SI', 'SI')
+#plot_groups_columns(df_all_SI_summary, 'SI_mean', 'mean SI', 'SI')
 
 #df_all_FFN_summary = pd.DataFrame(all_summary_FFN)
 #df_all_FFN_summary.to_csv(out_FFN_summary, index=False)

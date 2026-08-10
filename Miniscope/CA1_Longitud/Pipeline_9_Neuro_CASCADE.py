@@ -15,12 +15,12 @@ Takes traces (best case df/f) and models the underlying spike probabilities via 
 CASCADE needs to be installed on PC
 '''
 
-folder_traces   = Path(r"E:\CA1Dopa_Miniscope\test\Casc")
-folder_out      = Path(r"E:\CA1Dopa_Miniscope\test\Out")
+folder_traces   = Path(r"E:\CA1Dopa_Miniscope\CA1Dopa_Miniscope_Dff")
+folder_out      = Path(r"E:\CA1Dopa_Miniscope\CA1Dopa_Miniscope_Cascade")
 model_path      = Path(r"C:\Users\landgrafn\Cascade-master\Pretrained_models\Global_EXC_10Hz_smoothing100ms")
 frame_rate = 10.0
 
-replace_what = '_motcor_trim_traces'
+replace_what = '_motcor_trim_TracesDff'
 replace_with = ''
 
 def load_neurons_x_time(csv_path):
@@ -62,14 +62,14 @@ for trace_file in files:
     cell_names_dfovernoise = [f"{prefix}_{c.replace(' C', 'C')}_dfovernoise" for c in cell_names]
     cell_names_zscore = [f"{prefix}_{c.replace(' C', 'C')}_zscore" for c in cell_names]
     cell_names_spikeprob = [f"{prefix}_{c.replace(' C', 'C')}_spikeprob" for c in cell_names]
-    #cell_names_QCnoise = [f"{prefix}_{c.replace(' C', 'C')}" for c in cell_names]
+    cell_names_QCnoise = [f"{prefix}_{c.replace(' C', 'C')}" for c in cell_names]
 
     # create dfs
     df_dff          = pd.DataFrame(traces_dff.T, columns=cell_names_dfovernoise)
     df_zscore       = pd.DataFrame(traces_z.T, columns=cell_names_zscore)
     df_spikeprob    = pd.DataFrame(spikeprob.T, columns=cell_names_spikeprob)
-    #df_QC_noise     = pd.DataFrame({"QC_Cascade_noise": noise_levels}, index=cell_names_QCnoise)
-    #df_QC_noise.index.name = "cell_ID"
+    df_QC_noise     = pd.DataFrame({"QC_Cascade_noise": noise_levels}, index=cell_names_QCnoise)
+    df_QC_noise.index.name = "cell_ID"
 
     # merge and save
     df_out = pd.concat([df_spikeprob, df_dff, df_zscore], axis=1)
@@ -78,8 +78,8 @@ for trace_file in files:
     print(f'outt: {df_out.shape}')
 
     # append to global df (row-wise)
-    #df_QC_noise_all = pd.concat([df_QC_noise_all, df_QC_noise], axis=0)
+    df_QC_noise_all = pd.concat([df_QC_noise_all, df_QC_noise], axis=0)
 
-#df_QC_noise_all.to_csv(f'{folder_out}\\QC_Cascade_final.csv')
+df_QC_noise_all.to_csv(f'{folder_out}\\QC_Cascade_final.csv')
         
 

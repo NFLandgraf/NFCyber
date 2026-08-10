@@ -8,13 +8,13 @@ from scipy import stats
 
 fig, ax_left = plt.subplots()
 
-csv_file = r"E:\CA1Dopa_Miniscope\test\Out\66_Zost2_YM_motcor_trim_TracesDff.csv"
-df = pd.read_csv(str(csv_file), skiprows=[1], index_col='Unnamed: 0')
-trace1 = pd.to_numeric(df[' C062'], errors='coerce')
+csv_file = r"E:\CA1Dopa_Miniscope\Analysis\a\66_Zost2_YM_final.csv"
+df = pd.read_csv(str(csv_file), index_col='Mastertime [s]')
+trace1 = pd.to_numeric(df['66_Zost2_YM_C000_dff'], errors='coerce')
 
-csv_file = r"E:\CA1Dopa_Miniscope\test\Out\66_Zost2_YM_motcor_trim_TracesDff_cascade.csv"
-df = pd.read_csv(str(csv_file), index_col='Unnamed: 0')
-trace2 = pd.to_numeric(df['66_Zost2_YM_motcor_trim_TracesDff_C062_spikeprob'], errors='coerce')
+csv_file = r"E:\CA1Dopa_Miniscope\Analysis\a\66_Zost2_YM_final.csv"
+df = pd.read_csv(str(csv_file), index_col='Mastertime [s]')
+trace2 = pd.to_numeric(df['66_Zost2_YM_C000_dff_spikeprob'], errors='coerce')
 trace2.index = trace1.index
 
 # left y-axis
@@ -29,8 +29,8 @@ ax_right.plot(trace2, linewidth=1, color='orange')
 ax_right.set_ylabel("spike probability", color='orange')
 #ax_right.set_ylim(0, 3)
 
-x = 540
-plt.xlim(x,x+20)
+x = 500
+plt.xlim(x,x+100)
 
 plt.tight_layout()
 plt.show()
@@ -77,3 +77,33 @@ trace = pd.to_numeric(df[' C000'], errors='coerce')
 plt.plot(trace, linewidth=1.0, color='black')
 plt.xlim(5,150)
 plt.show()
+
+
+#%%
+from pathlib import Path
+import pandas as pd
+
+folder = Path(r"E:\CA1Dopa_Miniscope\CA1Dopa_Miniscope_Cascade")
+
+replacements = {
+    "spikeprob": "dff_spikeprob",
+    "zscore": "dff_zscore"
+}
+
+for csv_file in folder.glob("*.csv"):
+    df = pd.read_csv(csv_file)
+
+    new_columns = []
+    for col in df.columns:
+        new_col = str(col)
+
+        for old, new in replacements.items():
+            new_col = new_col.replace(old, new)
+
+        new_columns.append(new_col)
+
+    df.columns = new_columns
+
+    df.to_csv(csv_file, index=False)
+
+    print(f"Saved: {csv_file.name}")

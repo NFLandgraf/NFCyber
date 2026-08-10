@@ -7,15 +7,15 @@ The Neuro_9_Cascade traces csv (in there is framewise the spikeprob, dfovernoise
 from pathlib import Path
 import pandas as pd
 
-folder_Master = Path(r"D:\new\6_Master_trim")
-folder_Neuroo = Path(r"D:\new\9_Neuro_Cascade")
-out_folder = Path(r"D:\new\merge")
+folder_Master = Path(r"E:\CA1Dopa_Miniscope\Master_6_trim")
+folder_Neuroo = Path(r"E:\CA1Dopa_Miniscope\Neuro_9_Cascade_NEW")
+out_folder = Path(r"E:\CA1Dopa_Miniscope\Master_10_merge_NEW")
 
 def merge_csvs(files_Neuroo, file_master):
     
     base = file_master.stem
     base = base.replace('_master_trim', '')
-    print(f'------- {base} -------')
+    print(f'\n------- {base} -------')
 
     neuro_candidates = [b for b in files_Neuroo if base in b.name]
     
@@ -77,3 +77,76 @@ print(f"Found {len(files_Master)} files in files_Master and {len(files_Neuroo)} 
 
 for file_master in files_Master:
     merge_csvs(files_Neuroo, file_master)
+
+
+
+#%%
+'''
+Now I have an old and new way to caclulate the spikeprob, add the new columns for dff, dff_zscore and dff_spikeprob into the old Master_merge
+'''
+import pandas as pd
+from pathlib import Path
+
+folder_old = Path(r"E:\CA1Dopa_Miniscope\Master_10_merge_OLD")
+folder_new = Path(r"E:\CA1Dopa_Miniscope\Master_10_merge_NEW")
+output_folder = Path(r"E:\CA1Dopa_Miniscope\Master_10_merge_old+new")
+output_folder.mkdir(parents=True, exist_ok=True)
+
+# Keep columns from CSV_NEW that end with any of these strings
+endings = ("_dff", "_dff_spikeprob", "_dff_zscore")
+
+fold = Path(r"E:\CA1Dopa_Miniscope\Master_10_merge_old+new")
+for old_file in fold.glob("*.csv"):
+
+    if True:
+        df = pd.read_csv(old_file)
+        df.columns = df.columns.str.replace("_dfovernoise", "_dfon", regex=False)
+        df.columns = [col.replace("_spikeprob", "_dfon_spikeprob") if "_dff_spikeprob" not in col else col for col in df.columns]
+        df.columns = [col.replace("_zscore", "_dfon_zscore") if "_dff_zscore" not in col else col for col in df.columns]
+        df.to_csv(old_file, index=False)
+
+    if False:
+        old_stem = old_file.stem
+        matches = [f for f in folder_new.glob("*.csv") if old_stem in f.stem]
+
+        if len(matches) == 0:
+            print(f"No matching file found for: {old_file.name}")
+            continue
+
+        if len(matches) > 1:
+            print(f"Multiple matches found for: {old_file.name}")
+            for m in matches:
+                print("   ", m.name)
+            continue
+
+        new_file = matches[0]
+
+        print(f"\nOLD: {old_file.name}")
+        print(f"NEW: {new_file.name}")
+
+        df_old = pd.read_csv(old_file)
+        df_new = pd.read_csv(new_file)
+
+
+        cols_to_add = [col for col in df_new.columns if str(col).endswith(endings)]
+
+        print(f"Adding {len(cols_to_add)} columns")
+
+        if len(df_old) != len(df_new):
+            raise ValueError(
+                f"Row mismatch:\n"
+                f"{old_file.name}: {len(df_old)} rows\n"
+                f"{new_file.name}: {len(df_new)} rows")
+
+        # Avoid duplicate column names
+        cols_to_add = [col for col in cols_to_add if col not in df_old.columns]
+
+
+        df_combined = pd.concat([df_old.reset_index(drop=True), df_new[cols_to_add].reset_index(drop=True)], axis=1)
+
+        output_path = output_folder / old_file.name
+
+        df_combined.to_csv(output_path, index=False)
+
+    print(f"Saved: {old_file}")
+
