@@ -744,7 +744,7 @@ def SI(df, file, fps=10, binning='mid', head_direction=True, grid_size=73.5, dra
             plot_YM_bins(arena_outline, poly_big, poly_mid, bounds, binning, grid_size)
             plot_once = False
 
-        return df, place_df
+        return place_df, df
 
     def get_occupancy(df, place_df):
 
@@ -762,7 +762,7 @@ def SI(df, file, fps=10, binning='mid', head_direction=True, grid_size=73.5, dra
         occ_nonzero = occupancy_sec.replace(0, np.nan)  # replacing 0 with nan
         df_firing_freq = place_df.div(occ_nonzero, axis=0).fillna(0.0)  # what was fring frequency in each bin
 
-        return df_firing_freq, occupancy, occ_nonzero
+        return place_df, df_firing_freq, occupancy, occ_nonzero
 
     def get_skaggs_spatial_information(firing_freq, occupancy):
 
@@ -848,8 +848,8 @@ def SI(df, file, fps=10, binning='mid', head_direction=True, grid_size=73.5, dra
         return place_cells, SI_summary
 
     
-    df, place_df                            = bin_cellspikes_prob_YM(df, binning, head_direction, grid_size)
-    df_firing_freq, occupancy, occ_nonzero  = get_occupancy(df, place_df)
+    place_df, df                                     = bin_cellspikes_prob_YM(df, binning, head_direction, grid_size)
+    place_df, df_firing_freq, occupancy, occ_nonzero = get_occupancy(df, place_df)
 
     # goes through all cells and gets SI
     SI_real_cells = []
