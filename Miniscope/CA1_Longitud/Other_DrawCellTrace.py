@@ -107,3 +107,98 @@ for csv_file in folder.glob("*.csv"):
     df.to_csv(csv_file, index=False)
 
     print(f"Saved: {csv_file.name}")
+
+#%%
+import os
+import re
+import pandas as pd
+import random
+
+folder = r"E:\CA1Dopa_Miniscope\Analysis\Master_10_merge_dfon+dff"
+
+for file in os.listdir(folder):
+
+
+    path = os.path.join(folder, file)
+    df = pd.read_csv(path)
+
+    # find columns ending in dfon_spikeprob
+    dfon_cols = [col for col in df.columns if col.endswith("dfon_spikeprob")]
+    dff_cols = [col for col in df.columns if "dff" in col]
+    print(dfon_cols[0])
+    print(dff_cols[0])
+
+    if len(dfon_cols) == 0:
+        print(f"{file}: no dfon_spikeprob column found")
+
+    # get C-number digit lengths from dfon columns
+    dfon_lengths = []
+    for col in df.columns:
+        if "dfon" in col:
+            match = re.search(r"_C(\d+)_dfon", col)
+            if match:
+                dfon_lengths.append(len(match.group(1)))
+
+    # get C-number digit lengths from dff columns
+    dff_lengths = []
+    for col in df.columns:
+        if "dff" in col:
+            match = re.search(r"_C(\d+)_dff", col)
+            if match:
+                dff_lengths.append(len(match.group(1)))
+
+    if not dfon_lengths:
+        print(f"{file}: no dfon columns found")
+        continue
+
+    if not dff_lengths:
+        print(f"{file}: no dff columns found")
+        continue
+
+    # check that each type has consistent formatting
+    if len(set(dfon_lengths)) > 1:
+        print(f"{file}: inconsistent dfon digit lengths: {set(dfon_lengths)}")
+        continue
+
+    if len(set(dff_lengths)) > 1:
+        print(f"{file}: inconsistent dff digit lengths: {set(dff_lengths)}")
+        continue
+
+    n_digits_dfon = dfon_lengths[0]
+    n_digits_dff = dff_lengths[0]
+
+    
+    print(f"     dfon: {n_digits_dfon}, dff: {n_digits_dff}")
+
+
+    # only change dff columns if formatting differs
+    if n_digits_dff != n_digits_dfon:
+
+        print(f"  -> changing dff from {n_digits_dff} to {n_digits_dfon} digits")
+
+        new_columns = []
+
+        for col in df.columns:
+
+            if "dff" in col:
+                match = re.search(r"_C(\d+)(?=_dff)", col)
+                if match:
+                    number = int(match.group(1))
+                    new_number = f"{number:0{n_digits_dfon}d}"
+                    col = (col[:match.start(1)] + new_number + col[match.end(1):])
+            new_columns.append(col)
+
+        df.columns = new_columns
+        df.to_csv(path, index=False)
+
+    else:
+        print("  -> digit lengths already match, nothing changed")
+
+    dfon_cols = [col for col in df.columns if col.endswith("dfon_spikeprob")]
+    dff_cols = [col for col in df.columns if "dff" in col]
+    print(dfon_cols[0])
+    print(dff_cols[0])
+
+    print()
+    print()
+
