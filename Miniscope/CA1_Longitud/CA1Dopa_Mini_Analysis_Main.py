@@ -20,7 +20,7 @@ import copy
 
 
 folder_in   = Path(r"E:\CA1Dopa_Miniscope\Analysis\Master_10_merge_dfon+dff")
-folder_out  = Path(r"E:\CA1Dopa_Miniscope\Analysis\out")
+folder_out  = Path(r"E:\CA1Dopa_Miniscope\Analysis\outo")
 QC_file     = Path(r"E:\CA1Dopa_Miniscope\Analysis\df_QC_FINAL_pass.csv")
 
 plot_once = False
@@ -81,16 +81,15 @@ def clean_df_QC(file, QC_file):
 
     return df, QC_summary
 
-def clean_df_distance(df, file, dict_dist_travelled, start_row=34, maxYM=20, maxOF=30):
+def clean_df_distance(df, file, dict_dist_travelled, start_row=34, maxYM=20, maxOF=20, bytime=False):
 
     if df is None:
         return None
 
     # trim main_df according to distance travelled
-    df = df.iloc[start_row:]
+    df = df.iloc[start_row:].copy()
 
     # in meters
-    print(file)
     if 'YM' in file:
         maxdist = maxYM * 1000
     elif 'OF' in file:
@@ -102,27 +101,50 @@ def clean_df_distance(df, file, dict_dist_travelled, start_row=34, maxYM=20, max
     dy = df["head_y"].diff()
     step_dist = np.sqrt(dx**2 + dy**2)
     cum_dist = step_dist.fillna(0).cumsum()
-    dict_dist_travelled[file] = cum_dist.values
-    
-    # if never reached max distance, just return full df
-    reached = cum_dist >= maxdist
-    
-    if reached.any():
-        cut_label = cum_dist.index[reached.argmax()]  # first index where reached
-        #print(f'reached maxdist after {int(cut_label)}s / {int(max(df.index))}s ->trimmed')
-        df = df.loc[:cut_label].copy()
 
-        distance_summary = {"Distance_travelled"   : round(cum_dist.values.max(), 2),
-                            "Distance_Cutoff_dist" : round(maxdist, 2),
-                            "Distance_Cutoff_time" : cut_label}
-
-        return df, distance_summary, dict_dist_travelled
     
+    if bytime:
+        # trim the recording by time, here after 600s
+        start_time = float(df.index[0])
+        target_end_time = start_time + 600
+
+        # Select all frames up to the requested end time
+        keep = df.index <= target_end_time
+        df = df.loc[keep].copy()
+        cum_dist = cum_dist.loc[keep]
+
+        actual_end_time = float(df.index[-1])
+
+        distance_summary = {
+            "Distance_travelled": round(cum_dist.iloc[-1], 2),
+            "Distance_Cutoff_dist": np.nan,
+            "Distance_Cutoff_time": actual_end_time,
+            "Target_duration_s": 600}
+        
     else:
-        distance_summary = {"Distance_travelled"   : round(cum_dist.values.max(), 2),
-                            "Distance_Cutoff_dist" : round(maxdist, 2),
-                            "Distance_Cutoff_time" : df.index.max()}
-        return df, distance_summary, dict_dist_travelled
+        # Find the first frame at which the distance cutoff was reached
+        reached = cum_dist >= maxdist
+
+        if reached.any():
+            cut_label = cum_dist.index[np.flatnonzero(reached.to_numpy())[0]]
+
+            df = df.loc[:cut_label].copy()
+            cum_dist = cum_dist.loc[:cut_label]
+            cutoff_time = cut_label
+
+        else:
+            cutoff_time = df.index[-1]
+
+        distance_summary = {
+            "Distance_travelled": round(cum_dist.iloc[-1], 2),
+            "Distance_Cutoff_dist": round(maxdist, 2),
+            "Distance_Cutoff_time": cutoff_time,
+            "Target_duration_s": np.nan}
+
+
+    dict_dist_travelled[file] = cum_dist.to_numpy()
+
+    return df, distance_summary, dict_dist_travelled
 
 # Plot
 def heatmap_occupancy(df, file, arena_size=(580, 485), blur_sigma=4.0, cmap="Blues", gamma=0.8):
@@ -1019,7 +1041,7 @@ def SI(df, file, fps=10, OF_n_bins=5, YM_bin='mid', YM_head_dir=False, YM_grid_s
 
     return place_cells, SI_summary
 
-def FFN(df, cells, file, bin_size_frames=5, n_cells=50, n_repeats_rand_cells=100, n_train_epochs=200, acc_threshold_mm=50, arena_size=(600,600)):
+def FFN(df, cells, file, bin_size_frames=5, n_cells_YM=103, n_cells_OF=59, n_repeats_rand_cells=100, n_train_epochs=200, acc_threshold_mm=50, arena_size=(600,600)):
 
     # helper definitions
     def prep_data(df, cells, bin_size_frames, arena_scale, fps=10, input_mode="rate"):
@@ -1448,7 +1470,8 @@ def FFN(df, cells, file, bin_size_frames=5, n_cells=50, n_repeats_rand_cells=100
                          "Y_true"       : [],
                          "Y_pred"       : []}}
 
-                        
+    n_cells = n_cells_YM if 'YM' in file else n_cells_OF
+    
     for _ in range(n_repeats_rand_cells):
 
         # skip if there are not enough cells
@@ -1457,8 +1480,8 @@ def FFN(df, cells, file, bin_size_frames=5, n_cells=50, n_repeats_rand_cells=100
                     "FFN_error_mean": np.nan,
                     "n_repeats_rand_cells": np.nan,
                     "n_cells": np.nan}
+        
         sampled_cells = np.random.choice(cells, size=n_cells, replace=False)
-
 
         # prepare X (rows=timebins, columns=neurons) and Y (rows=timebins, columns=x/y)
         X_real, X_shuf, Y_norm = prep_data(df, cells=sampled_cells, bin_size_frames=bin_size_frames, arena_scale=arena_scale)
@@ -1500,7 +1523,6 @@ def FFN(df, cells, file, bin_size_frames=5, n_cells=50, n_repeats_rand_cells=100
     return FFN_summary
 
 
-
 dist_travelled = {}
 large_heatmap  = []
 Main_summary   = []
@@ -1519,22 +1541,23 @@ for anim in animals:
         main_df, QC_summary = clean_df_QC(file, QC_file)
         Summary_ind = Summary_ind | QC_summary
 
-        # Distances
+        # Trim
         main_df, Distance_summary, dist_travelled = clean_df_distance(main_df, file.stem, dist_travelled)
         Summary_ind = Summary_ind | Distance_summary
 
         # drawing
-        heatmap_occupancy(main_df, file.stem)
-        # heatmap_cells(main_df, file.stem)
-        large_heatmap.append(heatmap_spikeprob(main_df, file.stem))
+        if False:
+            heatmap_occupancy(main_df, file.stem)
+            heatmap_cells(main_df, file.stem)
+            large_heatmap.append(heatmap_spikeprob(main_df, file.stem))
 
         # Spike Probability
-        if True and main_df is not None:
+        if False and main_df is not None:
             Spikeprob_summary = SpikeProb(main_df, file)
             Summary_ind = Summary_ind | Spikeprob_summary
 
         # Correlation SpikeRate-AnimalSpeed
-        if True and main_df is not None:
+        if False and main_df is not None:
             regression_summary = SpikeRate_Speed(main_df, file.stem)
             Summary_ind = Summary_ind | regression_summary
 
@@ -1549,7 +1572,7 @@ for anim in animals:
             FFN_summary  = FFN(main_df, cells_to_use, file.stem)
             Summary_ind  = Summary_ind | FFN_summary
 
-    Main_summary.append(Summary_ind)
+        Main_summary.append(Summary_ind)
 
 
 # save the data
@@ -1562,11 +1585,13 @@ dist_travelled_file = folder_out / 'Distance_travelled.csv'
 dist_travelled_df.to_csv(dist_travelled_file, index=False)
 
 # plot summary
-heatmap_spikeprob(main_df, file, heatmap=large_heatmap)
+#heatmap_spikeprob(main_df, file, heatmap=large_heatmap)
 
 
 #%%
-plot_groups_columns(Main_summary_df, column='FFN_real_accuracy_mean', y_title='mean SI', title='')
+plot_groups_columns(Main_summary_df, column='place_cells_quotient', y_title='mean SI', title='')
+
+
 #%%
 
 def plot_groups_columns(results_df, column, y_title, title):
