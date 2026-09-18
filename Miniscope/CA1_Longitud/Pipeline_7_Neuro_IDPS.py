@@ -175,7 +175,7 @@ for i, rec in enumerate(rec_files):
     export_movietime   = export_folder / f"{base}_pp_bp_motcor_time.csv" 
     export_dff         = export_folder / f"{base}_pp_bp_motcor_dff.tif"
     export_maxproj     = export_folder / f"{base}_pp_bp_motcor_dff_maxproj.tif" 
-    export_traces      = export_folder / f"{base}_pp_bp_motcor_CNMFe_traces.csv" 
+    export_traces      = export_folder / f"{base}_pp_bp_motcor_CNMFe_traces_dfon.csv" 
     export_footprints  = export_folder / f"{base}_pp_bp_motcor_CNMFe_footprints.tif"
      
     # do stuff
