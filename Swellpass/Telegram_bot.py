@@ -1,4 +1,4 @@
-from moviepy.editor import (VideoFileClip,ImageClip,TextClip,CompositeVideoClip)
+from moviepy import (VideoFileClip,ImageClip,TextClip,CompositeVideoClip)
 from telegram.ext import ApplicationBuilder, MessageHandler, filters
 from PIL import Image, ImageDraw, ImageFont, ImageColor, ImageOps
 from logging.handlers import RotatingFileHandler
@@ -11,7 +11,8 @@ import json
 import os
 
 
-path = Path(r"C:\Users\landgrafn\NFCyber\Swellpass")
+#path = Path(r"C:\Users\landgrafn\NFCyber\Swellpass")
+path = Path(r"D:\NFCyber\Swellpass")
 token = "8664194994:AAH4Iii3eyWkyIkE-7bAp0p1j7lvNv3aH5M"
 
 
@@ -195,8 +196,8 @@ def create_ticket_v1(user_name, studio, studio_address, date, time):
         draw.text((left_x, line1), "Mitglied", fill="white", font=small)
         draw.text((right_x, line1), "Status", fill="white", font=small)
         draw.text((left_x, line2), user_name, fill="white", font=big)
-        draw.text((left_x, line3), "date", fill="white", font=small)
-        draw.text((right_x, line3), "time", fill="white", font=small)
+        draw.text((left_x, line3), "Datum", fill="white", font=small)
+        draw.text((right_x, line3), "Zeit", fill="white", font=small)
         draw.text((left_x, line4), date, fill="white", font=big)
         draw.text((right_x, line4), time, fill="white", font=big)
 
