@@ -15,8 +15,8 @@ Takes traces (best case df/f) and models the underlying spike probabilities via 
 CASCADE needs to be installed on PC
 '''
 
-folder_traces   = Path(r"E:\CA1Dopa_Miniscope\CA1Dopa_Miniscope_Dff")
-folder_out      = Path(r"E:\CA1Dopa_Miniscope\CA1Dopa_Miniscope_Cascade")
+folder_traces   = Path(r"E:\Minicortex\cascade")
+folder_out      = Path(r"E:\Minicortex\cascade_out")
 model_path      = Path(r"C:\Users\landgrafn\Cascade-master\Pretrained_models\Global_EXC_10Hz_smoothing100ms")
 frame_rate = 10.0
 

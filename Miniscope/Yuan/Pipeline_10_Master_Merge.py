@@ -7,9 +7,9 @@ The Neuro_9_Cascade traces csv (in there is framewise the spikeprob, dfovernoise
 from pathlib import Path
 import pandas as pd
 
-folder_Master = Path(r"E:\CA1Dopa_Miniscope\Master_6_trim")
-folder_Neuroo = Path(r"E:\CA1Dopa_Miniscope\Neuro_9_Cascade_NEW")
-out_folder = Path(r"E:\CA1Dopa_Miniscope\Master_10_merge_NEW")
+folder_Master = Path(r"E:\Minicortex\Master")
+folder_Neuroo = Path(r"E:\Minicortex\Cascade")
+out_folder = Path(r"E:\Minicortex\Figs")
 
 def merge_csvs(files_Neuroo, file_master):
     
