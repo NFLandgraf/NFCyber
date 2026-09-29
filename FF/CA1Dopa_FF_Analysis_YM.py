@@ -20,7 +20,7 @@ This code uses the FF+YM and looks at correlations between speed and the FF-zsco
 7. check the zscore in different speed states
 '''
 
-path = r"E:\zCA1Dopa_FINAL\CA1Dopa_FF-NE(3m)_2025-08-07_YM+FF_Data_Doric"
+path = r"E:\FFNE\CA1Dopa_FF-DA(3m)_2024-11-19_YM+FF_Data_Doric"
 file_useless_strings = ['CA1Dopa_FF-NE(3m)_2025-08-07_YM+FF_']
 
 def manage_filename(file):
@@ -97,7 +97,7 @@ def get_signals_1IO(file_doric):
         sig_fluo  = np.array(f[path + 'LockInAOUT02/AIN01'])
         sig_time  = np.array(f[path + 'LockInAOUT01/Time'])
 
-        digi_Cam    = np.array(f[path + 'DigitalIO/DIO05']).astype(int)
+        digi_Cam    = np.array(f[path + 'DigitalIO/DIO02']).astype(int)
         digi_time   = np.array(f[path + 'DigitalIO/Time'])
 
     # get signal parameters
@@ -271,7 +271,7 @@ def dff(df, filename, bleaching_correct=True, del_values=True):
     return df
 
 
-def calc_correlate_Speed_Signal(df, file, bin_size_sec=5.0, draw=False):
+def calc_correlate_Speed_Signal(df, file, bin_size_sec=5.0, draw=True):
 
     # takes bins of certain lengths and for each bin, takes one datapoint of mean speed and one for mean zscore
 
@@ -285,10 +285,12 @@ def calc_correlate_Speed_Signal(df, file, bin_size_sec=5.0, draw=False):
         y_vals = intercept + slope * x_vals
         plt.plot(x_vals, y_vals)
 
+        plt.xlim(0, 14)
+        plt.ylim(-1.5, 1.5)
         plt.xlabel("Mean Speed (per bin)")
         plt.ylabel("Mean z-score (per bin)")
         plt.title(f"{file}: r={r}, p={p}")
-        plt.savefig(f'{file}.png')
+        plt.savefig(f'{file}.pdf', format='pdf')
         plt.show()
     
     bins = np.floor(df.index / bin_size_sec) * bin_size_sec

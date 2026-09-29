@@ -5,15 +5,15 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.path import Path as MplPath
-#import cv2
+import cv2
 from tqdm import tqdm
-#from sklearn.model_selection import train_test_split
-#from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
 from torch.utils.data import TensorDataset, DataLoader
 import torch
 import torch.nn as nn
 import torch.optim as optim
-#from scipy import stats, ndimage, interpolate
+from scipy import stats, ndimage, interpolate
 from shapely.geometry import Polygon
 from matplotlib.ticker import ScalarFormatter
 import copy
@@ -38,8 +38,8 @@ def get_files(path, common_name1, common_name2, suffix=".csv"):
 
 def clean_df_QC(file, QC_file):
 
-    df_QC   = pd.read_csv(QC_file, index_col='cell_ID')
-    df = pd.read_csv(file, index_col='Mastertime [s]')
+    df_QC = pd.read_csv(QC_file, index_col='cell_ID')
+    df    = pd.read_csv(file, index_col='Mastertime [s]')
 
     if df is None:
         return None
@@ -82,7 +82,7 @@ def clean_df_QC(file, QC_file):
 
     return df, QC_summary
 
-def clean_df_distance(df, file, dict_dist_travelled, start_row=34, maxYM=20, maxOF=20, bytime=False):
+def clean_df_distance(df, file, dict_dist_travelled, start_row=34, maxYM=30, maxOF=30, bytime=False):
 
     if df is None:
         return None
@@ -199,27 +199,27 @@ def heatmap_occupancy(df, file, arena_size=(580, 485), blur_sigma=4.0, cmap="Blu
     fig.savefig(f'{folder_occupancy}\\{file}_OccupancyHeatmap.png', dpi=100, bbox_inches="tight", pad_inches=0)
     plt.close(fig)
 
-def heatmap_cells(df, file, cell, spat_info, arena_size=(580, 485), blur_sigma=3.0, cmap="viridis", gamma=0.9, vmin=0, vmax=0.5):
+def heatmap_cells(df, file, arena_size=(580, 485), blur_sigma=3.0, cmap="viridis", gamma=0.9, vmin=0, vmax=0.5):
     # gamma = <1 brightens, >1 darkens, blur_sigma = set 0 for no blur
 
     heatmap_folder = folder_out / "Heatmaps_Cells"
     heatmap_folder.mkdir(parents=True, exist_ok=True)
 
     width, height = arena_size
-    x = pd.to_numeric(df['head_x'], errors="coerce").to_numpy()
-    y = pd.to_numeric(df['head_y'], errors="coerce").to_numpy()
+    x_all = pd.to_numeric(df['head_x'], errors="coerce").to_numpy()
+    y_all = pd.to_numeric(df['head_y'], errors="coerce").to_numpy()
 
     cell_cols = [c for c in df.columns if col_spikeprob in c]
 
     for cell in cell_cols:
 
         heat = np.zeros((height, width), dtype=np.float32)
+        val_all = pd.to_numeric(df[cell], errors="coerce").to_numpy()
 
-        val = pd.to_numeric(df[cell], errors="coerce").to_numpy()
-        m = np.isfinite(x) & np.isfinite(y) & np.isfinite(val)
-        x = x[m]
-        y = y[m]
-        val = val[m]
+        m = np.isfinite(x_all) & np.isfinite(y_all) & np.isfinite(val_all)
+        x = x_all[m]
+        y = y_all[m]
+        val = val_all[m]
 
         # map coords -> integer pixels (x->col, y->row)
         xi = np.floor(x).astype(np.int32)
@@ -257,8 +257,9 @@ def heatmap_cells(df, file, cell, spat_info, arena_size=(580, 485), blur_sigma=3
         folder_heatmap_cells_file = Path(folder_out / "Heatmaps_Cells" / file)
         folder_heatmap_cells     .mkdir(parents=True, exist_ok=True)
         folder_heatmap_cells_file.mkdir(parents=True, exist_ok=True)
-        fig.savefig(f'{folder_heatmap_cells_file}\\{file}_{cell}_{round(spat_info, 3)}.png', dpi=100, bbox_inches="tight", pad_inches=0)
+        fig.savefig(f'{folder_heatmap_cells_file}\\{file}_{cell}.png', dpi=100, bbox_inches="tight", pad_inches=0)
         plt.close(fig)
+        
 
 def heatmap_spikeprob(df, file, min_frames=32, max_frames=1362, max_cells=298, vmin=0, vmax=0.001, heatmap=None, trim_x_axis='Distance'):
 
@@ -422,7 +423,9 @@ def SpikeProb(df, file):
     n_rows = len(df)
 
     per_cell_sum = df[cell_cols].sum(axis=0)
+    print(per_cell_sum)
     mean_of_cell_sums = per_cell_sum.mean()
+    print(mean_of_cell_sums)
 
     # Method 1: Mean per cell
     per_cell_mean = df[cell_cols].mean(axis=0)
@@ -446,6 +449,7 @@ def SpikeProb(df, file):
     spikeprob_individ_all = []
     for cell in cell_cols:
         spikeprob_individ_all.append({'Cell_ID'              : cell,
+                                      'SpikeSum'             : per_cell_sum[cell],
                                       'SpikeRate'            : per_cell_mean[cell],
                                       'per_cell_sum_div_rows': per_cell_sum_div_rows[cell]})
         
@@ -502,7 +506,7 @@ def SpikeRate_Speed(df, file, fps=10, bin_size_s=1.0):
 
     return regression_summary
 
-def SI(df, file, fps=10, OF_n_bins=5, YM_bin='mid', YM_head_dir=False, YM_grid_size=73.5, draw_cells=False, do_shuffle=True, n_shuffles=1000, sig_level=0.05, min_occup_s=1.0):
+def SI(df, file, fps=10, OF_n_bins=5, YM_bin='mid', YM_head_dir=False, YM_grid_size=73.5, draw_cells=True, do_shuffle=True, n_shuffles=1000, sig_level=0.05, min_occup_s=1.0):
     
     # real spatial info
     # assumes place_df entries are sums of spike probabilities (expected spike counts)
@@ -1032,7 +1036,7 @@ def SI(df, file, fps=10, OF_n_bins=5, YM_bin='mid', YM_head_dir=False, YM_grid_s
         SI_real_cells.append({"cell_ID": cell, "SI": info})
 
         if draw_cells:
-            heatmap_cells(df, file, cell, info)
+            heatmap_cells(df, file)#, cell, info)
 
     # calculate by permutation what are place cells
     SI_summary = save(file, SI_real_cells)
@@ -1547,13 +1551,13 @@ for anim in animals:
         Summary_ind = Summary_ind | Distance_summary
 
         # drawing
-        if False:
+        if True:
             heatmap_occupancy(main_df, file.stem)
-            heatmap_cells(main_df, file.stem)
+            #heatmap_cells(main_df, file.stem)
             large_heatmap.append(heatmap_spikeprob(main_df, file.stem))
 
         # Spike Probability
-        if False and main_df is not None:
+        if True and main_df is not None:
             Spikeprob_summary = SpikeProb(main_df, file)
             Summary_ind = Summary_ind | Spikeprob_summary
 
@@ -1568,7 +1572,7 @@ for anim in animals:
             Summary_ind = Summary_ind | SI_summary
 
         # FFN
-        if True and main_df is not None:
+        if False and main_df is not None:
             cells_to_use = [c for c in main_df.columns if col_spikeprob in c]     # or place_cells, whatever is needed
             FFN_summary  = FFN(main_df, cells_to_use, file.stem)
             Summary_ind  = Summary_ind | FFN_summary
