@@ -271,7 +271,7 @@ def dff(df, filename, bleaching_correct=True, del_values=True):
     return df
 
 
-def calc_correlate_Speed_Signal(df, file, bin_size_sec=5.0, draw=True):
+def calc_correlate_Speed_Signal(df, file, bin_size_sec=5.0, draw=False):
 
     # takes bins of certain lengths and for each bin, takes one datapoint of mean speed and one for mean zscore
 
@@ -613,6 +613,19 @@ for i, file_doric in enumerate(files):
     main_df                 = merge_signal_DLC(df_signal, df_DLC, io_hightimes)
     main_df                 = dff(main_df, file_short)
 
+    if '710' in file_short:
+
+        for a in [100]:
+        
+            plt.plot(main_df.index, main_df['Speed'], color='red')
+            plt.plot(main_df.index, main_df['zscore'], color='blue')
+            plt.xlim(a,a+30)
+            plt.savefig('trace.pdf', format='pdf')
+            plt.show()
+        
+        break
+
+
     # calculate stuff
     total_dist                              = main_df['Distance'].sum()
     mean_speed                              = main_df['Speed'].mean()
@@ -643,7 +656,7 @@ for i, file_doric in enumerate(files):
 
     #plot_xy(main_df)
 
-
+#%%
 
 results_df = pd.DataFrame(results)
 results_df = results_df.sort_values(["group"], ascending=True)
@@ -651,6 +664,8 @@ results_df = results_df.sort_values(["group"], ascending=True)
 results_df.to_csv('results_df.csv')
 df_distance_cum.to_csv('Distance_cum.csv')
 df_perievents.to_csv('Perievents.csv')
+
+
 
 plot_groups_columns(results_df, 'r', 'Pearson r (Speed vs zscore)', f'FF-NE')
 plot_groups_columns(results_df, 'z_rest', 'mean zscore', 'mean zcore rest')

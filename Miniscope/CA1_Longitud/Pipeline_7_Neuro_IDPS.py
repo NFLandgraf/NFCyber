@@ -68,9 +68,7 @@ def spatial_bandpass(file_in, base, tempor_folder, export_file, export=True):
     # Spatial filter (bandpass)
     print('BP')
     file_out = isx.make_output_file_path(file_in, str(tempor_folder), 'BP')
-    isx.spatial_filter(file_in, file_out, 
-                    low_cutoff=0.005, 
-                    high_cutoff=0.500)
+    isx.spatial_filter(file_in, file_out, low_cutoff=0.005, high_cutoff=0.500)
     
     print('BP done')
     return file_out

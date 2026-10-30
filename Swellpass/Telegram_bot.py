@@ -11,9 +11,9 @@ import json
 import os
 
 
-#path = Path(r"C:\Users\landgrafn\NFCyber\Swellpass")
-path = Path(r"D:\NFCyber\Swellpass")
-token = "8664194994:AAH4Iii3eyWkyIkE-7bAp0p1j7lvNv3aH5M"
+path = Path(r"C:\Users\landgrafn\NFCyber\Swellpass")
+#path = Path(r"D:\NFCyber\Swellpass")
+token = "8935415168:AAHQyMM4THSPcgvdKNbmEfN8_SYoLouagXk"
 
 
 def setup_message_logger(path):
