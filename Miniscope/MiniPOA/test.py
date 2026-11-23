@@ -185,6 +185,8 @@ for file in paths:
     file = Path(file)
     clean_temp(file)
 
+
+
 #%%
 # split tiff into 2
 import tifffile
@@ -237,31 +239,40 @@ tifffile.imwrite(output, combined, bigtiff=True)
 print(f"Combined: {combined.shape[0]} frames")
 print(f"Saved: {output}")
 
+
+
+
+
+
+
 #%%
+# plot traces, temp and activity
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
+from matplotlib.ticker import FuncFormatter, MultipleLocator
 
 file = Path(r"E:\MiniPOA\relevant\119\MiniPOA_119_BWCW_Neuro_traces.csv")
 file_temp = Path(r"E:\MiniPOA\relevant\119\MiniPOA_119_BWCW_Temp_sync.csv")
 
+
 # Load calcium traces
 df = pd.read_csv(file, skiprows=[1])
 df.columns = df.columns.str.strip()
-
 time = pd.to_numeric(df.iloc[:, 0])
-
-selected_cells = ['C00', 'C20']
+selected_cells = ['C00', 'C02', 'C13', 'C14', 'C17', 'C19', 'C20', 'C24', 'C27', ]
 traces = df[selected_cells].apply(pd.to_numeric, errors='coerce')
+
 
 # Load temperature and activity
 df_temp = pd.read_csv(file_temp)
 df_temp.columns = df_temp.columns.str.strip()
-
 time_temp = pd.to_numeric(df_temp['Time [s]'])
 temp = pd.to_numeric(df_temp['Temp'], errors='coerce')
 activity = pd.to_numeric(df_temp['Activity'], errors='coerce')
+
+
 
 # Plot settings
 offset = 100
@@ -269,60 +280,88 @@ fig, ax = plt.subplots(figsize=(14, 8))
 
 # Plot calcium traces
 for i, cell in enumerate(traces.columns):
-
     signal = traces[cell].to_numpy()
     signal = signal - np.nanmean(signal)
-
     ax.plot(time, signal + i * offset, lw=0.8, color='black')
+
 
 # Normalize Temp and Activity for stacked visualization
 def normalize(signal, amplitude=60):
     signal = np.asarray(signal, dtype=float)
     min_val = np.nanmin(signal)
     max_val = np.nanmax(signal)
-
     if max_val == min_val:
         return np.zeros_like(signal)
-
     return (signal - min_val) / (max_val - min_val) * amplitude
 
 # Position below calcium traces
 temp_y = -150
 activity_y = -250
 
-temp_filtered = temp.where(temp < 40, np.nan)
-
-ax.plot(time_temp, normalize(temp_filtered) + temp_y, color='darkorange', lw=1, label='Temp')
-
-ax.plot(time_temp, normalize(activity) + activity_y,
-        color='green', lw=1, label='Activity')
-
-# Horizontal lines indicating experimental periods
+# Periods
 duration = 900
-
 periods = [ (0,      duration, 'gray'),
             (959.2,  duration, 'red'),
             (2089.2, duration, 'blue'),
             (3169.2, duration, 'red')]
-
 line_y = -330
-
 for start, duration, color in periods:
     ax.hlines(y=line_y,xmin=start,xmax=start + duration,color=color,linewidth=5)
 
+
+# Set temperature to NaN during experimental periods
+mask = np.zeros(len(time_temp), dtype=bool)
+for start, duration, color in periods:
+    mask |= (time_temp >= start) & (time_temp <= start + duration)
+temp.loc[~mask] = np.nan
+
+
+# Remove sudden temperature spikes via rolling median
+window = 1000          # Rolling median window (number of samples)
+threshold = 0.000001      # Maximum allowed deviation from median (°C)
+temp_median = temp.rolling(window=window,center=True,min_periods=1).median()
+spikes = (temp - temp_median).abs() > threshold
+temp.loc[spikes] = temp_median.loc[spikes]
+
+
+ax.plot(time_temp, normalize(temp) + temp_y, color='darkorange', lw=1, label='Temp')
+ax.plot(time_temp, normalize(activity) + activity_y, color='green', lw=1, label='Activity')
+
+
 # Formatting
 yticks = (list(np.arange(len(selected_cells)) * offset) + [temp_y, activity_y])
-
 ylabels = selected_cells + ['Temp', 'Activity']
-
 ax.set_yticks(yticks)
 ax.set_yticklabels(ylabels)
-
-ax.set_xlabel("Time (s)")
+ax.xaxis.set_major_locator(MultipleLocator(600))
+ax.xaxis.set_major_formatter(FuncFormatter(lambda x, pos: f'{x / 60:g}'))
+ax.set_xlabel("Time (min)")
 ax.set_ylabel("Signal")
 ax.set_ylim(bottom=-370)
-
 ax.spines[['top', 'right']].set_visible(False)
 
+# Temp scale
+temp_min = np.nanmin(temp)
+temp_max = np.nanmax(temp)
+temp_ticks = np.arange(np.ceil(temp_min),np.floor(temp_max) + 1, 1)
+temp_tick_positions = ((temp_ticks - temp_min) / (temp_max - temp_min) * 60 + temp_y)
+ax_temp = ax.twinx()
+ax_temp.set_ylim(ax.get_ylim())
+ax_temp.set_yticks(temp_tick_positions)
+ax_temp.set_yticklabels([f"{t:g}" for t in temp_ticks])
+ax_temp.set_ylabel("Temperature (°C)", color="darkorange")
+ax_temp.tick_params(axis="y", colors="darkorange")
+ax_temp.spines["top"].set_visible(False)
+ax_temp.spines["right"].set_color("darkorange")
+
+# Neuro scale
+scale_dff = 50       # Scale bar height in ΔF/F units
+scale_x = time.max() * 1.1
+scale_y = 10         # Bottom position of scale bar
+ax.plot([scale_x, scale_x],[scale_y, scale_y + scale_dff], color='black',lw=2)
+ax.text(scale_x - time.max() * 0.01,scale_y + scale_dff / 2,f'{scale_dff} ΔF/F',ha='right',va='center',fontsize=10)
+
+
 plt.tight_layout()
+fig.savefig("119_BWCW.pdf", format="pdf",bbox_inches="tight")
 plt.show()
