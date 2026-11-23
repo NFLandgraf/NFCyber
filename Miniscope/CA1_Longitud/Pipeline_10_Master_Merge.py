@@ -7,9 +7,9 @@ The Neuro_9_Cascade traces csv (in there is framewise the spikeprob, dfovernoise
 from pathlib import Path
 import pandas as pd
 
-folder_Master = Path(r"E:\CA1Dopa_Miniscope\Master_6_trim")
-folder_Neuroo = Path(r"E:\CA1Dopa_Miniscope\Neuro_9_Cascade_NEW")
-out_folder = Path(r"E:\CA1Dopa_Miniscope\Master_10_merge_NEW")
+folder_Master = Path(r"E:\CA1Dopa_Miniscope\2026-11-23_NewRound_InvestigatingSmallSpikeprobValues\D_Master_6_trim")
+folder_Neuroo = Path(r"E:\CA1Dopa_Miniscope\2026-11-23_NewRound_InvestigatingSmallSpikeprobValues\C_Neuro_9_Cascade_dff_scale3")
+out_folder = Path(r"E:\CA1Dopa_Miniscope\2026-11-23_NewRound_InvestigatingSmallSpikeprobValues\D_Master_10_merge_scale3")
 
 def merge_csvs(files_Neuroo, file_master):
     
@@ -66,7 +66,7 @@ def merge_csvs(files_Neuroo, file_master):
     cols.insert(2, cols.pop(cols.index('Cam_frames')))
     df_out = df_out[cols]
 
-    df_out.to_csv(f'{out_folder}//{base}_final.csv', index=False)
+    df_out.to_csv(f'{out_folder}//{base}_final_scaleX.csv', index=False)
     print(f"Master: {df_master.shape[0]} rows, {df_master.shape[1]} cols")
     print(f"Neuroo: {df_neuroo.shape[0]} rows, {df_neuroo.shape[1]} cols")
     print(f"FINALE: {df_out.shape[0]} rows, {df_out.shape[1]} cols")

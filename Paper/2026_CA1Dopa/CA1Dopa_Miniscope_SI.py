@@ -19,12 +19,12 @@ from matplotlib.ticker import ScalarFormatter
 import copy
 
 
-folder_in   = Path(r"E:\CA1Dopa_Miniscope\Week8_YM")
-folder_out  = Path(r"E:\CA1Dopa_Miniscope\Week8_YM_out")
+folder_in   = Path(r"E:\CA1Dopa_Miniscope\2026-11-23_NewRound_InvestigatingSmallSpikeprobValues\D_Master_10_merge_scale3")
+folder_out  = Path(r"E:\CA1Dopa_Miniscope\2026-11-23_NewRound_InvestigatingSmallSpikeprobValues\out")
 QC_file     = Path(r"E:\CA1Dopa_Miniscope\QC_pass.csv")
 
 plot_once = False
-col_spikeprob = 'dff_spikeprob'
+col_spikeprob = '_dff_spikeprob'
 
 # Clean
 def get_files(path, common_name1, common_name2, suffix=".csv", printing=False):
@@ -70,10 +70,13 @@ def clean_df_QC(file, QC_file):
 
         if name not in df_QC.index:
             # add a zero after "_C" to check again
-            name_alt = name.replace("_C", "_C0", 1)
+            name_alt     = name.replace("_C", "_C0", 1)
+            name_alt_alt = name.replace("_C", "_C00", 1)
 
             if name_alt in df_QC.index:
                 name = name_alt
+            elif name_alt_alt in df_QC.index:
+                name = name_alt_alt
             else:
                 print(f'{name} and {name_alt} not in pass_df')
                 cells_dropped += 1
@@ -96,7 +99,7 @@ def clean_df_QC(file, QC_file):
 
     return df, QC_summary
 
-def clean_df_distance(df, file, dict_dist_travelled, start_row=34, maxtime=600, maxdist_YM=20, maxdist_OF=20, bytime=False):
+def clean_df_distance(df, file, dict_dist_travelled, start_row=34, maxtime=600, maxdist_YM=20, maxdist_OF=20, bytime=True):
 
     '''
     1. Removes first rows (bc CASCADE starts later)
@@ -396,10 +399,11 @@ def heatmap_spikeprob(df, file, min_frames=32, max_frames=1362, max_cells=298, v
         draw_heatmap_pdf(combined, vmin, vmax, file)
         #draw_heatmap_vec(combined, folder_out, vmin, vmax)
 
-def plot_groups_columns(results_df, column, y_title, title):
+def plot_groups_columns(results_df, column, y_title):
 
     groups = ['mKate', 'A53T']
 
+    title = column
     plt.figure(figsize=(3, 5))
 
     for gi, group in enumerate(groups):
@@ -420,7 +424,7 @@ def plot_groups_columns(results_df, column, y_title, title):
     # t-test
     a = results_df.loc[results_df["file"].str.contains("mKate", regex=False, na=False), column].dropna().to_numpy()
     b = results_df.loc[results_df["file"].str.contains("A53T", regex=False, na=False), column].dropna().to_numpy()
-    t_stat, p_val = stats.ttest_ind(a, b, equal_var=True)
+    t_stat, p_val = stats.ttest_ind(a, b, equal_var=False)
     ax = plt.gca()
     ax.text(0.02, 0.98, f'p = {round(p_val, 3)}', transform=ax.transAxes, va="top")
 
@@ -525,7 +529,7 @@ def SpikeRate_Speed(df, file, fps=10, bin_size_s=1.0):
 
     return regression_summary
 
-def SI(df, file, fps=10, OF_n_bins=5, YM_bin='mid', YM_head_dir=False, YM_grid_size=73.5, draw_cells=False, do_shuffle=False, n_shuffles=1000, sig_level=0.05, min_occup_s=1.0):
+def SI(df, file, fps=10, OF_n_bins=5, YM_bin='mid', YM_head_dir=True, YM_grid_size=73.5, draw_cells=False, do_shuffle=False, n_shuffles=1000, sig_level=0.05, min_occup_s=1.0):
     
     # real spatial info
     # assumes place_df entries are sums of spike probabilities (expected spike counts)
@@ -956,6 +960,11 @@ def SI(df, file, fps=10, OF_n_bins=5, YM_bin='mid', YM_head_dir=False, YM_grid_s
         occ_nonzero = occupancy_sec.replace(0, np.nan)  # replacing 0 with nan
         df_firing_freq = place_df.div(occ_nonzero, axis=0).fillna(0.0)  # what was fring frequency in each bin
 
+        # exclude neurons that do not fire at all
+        active_cells = place_df.columns[place_df.sum(axis=0) > 0]
+        place_df = place_df[active_cells]
+        df_firing_freq = df_firing_freq[active_cells]
+
         return place_df, df_firing_freq, occupancy, occ_nonzero
 
     def get_skaggs_spatial_information(firing_freq, occupancy):
@@ -1048,7 +1057,8 @@ def SI(df, file, fps=10, OF_n_bins=5, YM_bin='mid', YM_head_dir=False, YM_grid_s
     
     place_df, df_firing_freq, occupancy, occ_nonzero = get_occupancy(df, place_df)
 
-    # goes through all cells and gets SI
+
+    # SPATIAL INFO: goes through all cells and gets SI
     SI_real_cells = []
     for cell in df_firing_freq.columns:
         info = get_skaggs_spatial_information(df_firing_freq[cell].values, occupancy.values)
@@ -1057,11 +1067,13 @@ def SI(df, file, fps=10, OF_n_bins=5, YM_bin='mid', YM_head_dir=False, YM_grid_s
         if draw_cells:
             heatmap_cells(df, file, cell, info)
 
-    # calculate by permutation what are place cells
+
+    # PLACE CELLS: calculate by permutation what are place cells
     SI_summary = save(file, SI_real_cells)
     place_cells = []
     if do_shuffle:
         place_cells, SI_summary = shuffle_cells(place_df, place_cells, occupancy, occ_nonzero, SI_real_cells, SI_summary, n_shuffles, sig_level)
+
 
     return place_cells, SI_summary
 
@@ -1554,11 +1566,11 @@ animals        = ['48', '51', '56', '66', '72', '77']
 
 for anim in animals: 
 
-    files = get_files(folder_in, anim, '')
+    files = get_files(folder_in, anim, 'YM')
     for file in files:
         
         file = Path(file)
-        print(f'\n------- {file.stem} -------')
+        #print(f'\n------- {file.stem} -------')
         Summary_ind = {"file": file.stem}
 
         # Clean
@@ -1576,12 +1588,12 @@ for anim in animals:
             large_heatmap.append(heatmap_spikeprob(main_df, file.stem))
 
         # Spike Probability
-        if False and main_df is not None:
+        if True and main_df is not None:
             Spikeprob_summary = SpikeProb(main_df, file)
             Summary_ind = Summary_ind | Spikeprob_summary
 
         # Correlation SpikeRate-AnimalSpeed
-        if False and main_df is not None:
+        if True and main_df is not None:
             regression_summary = SpikeRate_Speed(main_df, file.stem)
             Summary_ind = Summary_ind | regression_summary
 
@@ -1608,10 +1620,14 @@ dist_travelled_df = pd.DataFrame({key: pd.Series(value) for key, value in dist_t
 dist_travelled_file = folder_out / 'Distance_travelled.csv'
 dist_travelled_df.to_csv(dist_travelled_file, index=False)
 
+#print(Main_summary_df.columns)
 
-
-#%%
-plot_groups_columns(Main_summary_df, column='SI_median', y_title='mean SI', title='')
+plot_groups_columns(Main_summary_df, column='SI_median', y_title='')
+plot_groups_columns(Main_summary_df, column='SpikeRate-Speed_R_Mean', y_title='')
+plot_groups_columns(Main_summary_df, column='SpikeRate-Speed_Slope_Mean', y_title='')
+plot_groups_columns(Main_summary_df, column='Distance_Cutoff_time', y_title='')
+plot_groups_columns(Main_summary_df, column='SpikeProb_SpikeSum', y_title='')
+plot_groups_columns(Main_summary_df, column='SpikeProb_Mean_of_cell_means', y_title='')
 
 
 #%%
