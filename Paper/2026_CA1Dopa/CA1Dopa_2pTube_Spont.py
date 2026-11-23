@@ -1,4 +1,4 @@
-#%%
+#%% 1. Import and define
 import os
 from pathlib import Path
 import numpy as np
@@ -52,7 +52,7 @@ def check_group(column):
         return None
 
 
-#%%
+#%% 2. Deconvolution
 '''
 DECONVOLUTION
 F_corr: Slow baseline fluctuations were corrected using the Suite2p maximin baseline method with a 60s baseline window and a smooting parameter of 10.
@@ -194,7 +194,7 @@ F_deconv_all.to_csv(file_RawTraces_Fcorr_Deconv)
 F_dff_all.to_csv(file_RawTraces_dff)
 
 
-#%%
+#%% 3. Trace properties
 '''
 TRACE PROPERTIES
 Takes df/f trace and checks basic trace properties like SD and frame-to-frame changes
@@ -341,7 +341,7 @@ spectra_norm_df.to_csv(file_RawTraces_dff_Spectrum_Norm)
 # plot_group_comparison(results_df, value_column="SD_frame_change")
 # plot_spectra(spectra_df)
 
-#%%
+#%% 4. Histogram
 '''
 HISTOGRAM
 To compare the distribution of deconvolved activity amplitudes across recordings, histograms were generated from the F_deconv traces.
@@ -399,7 +399,7 @@ df_counts.to_csv(file_RawTraces_Fcorr_Deconv_Histo)
 plot(df_counts)
 
 
-#%%
+#%% 5. Curve fit
 '''
 CURVE FIT
 To remove the common exponential decay component of the amplitude distribution, bin counts were averaged across all recordings.
@@ -477,7 +477,7 @@ plot(df, fit_y)
 plot(df_residuals, None)
 
 
-#%%
+#%% 6. Statistics
 '''
 STATISTICS
 Splits the Histogram into several bins and calculates the mean per axon
