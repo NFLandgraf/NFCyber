@@ -4,8 +4,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
+scaling = 3
 
-file = Path(r"E:\CA1Dopa_Miniscope\casc\out\66_Week8_YM_cascade_scale3.csv")
+file = Path(rf"E:\CA1Dopa_Miniscope\2026-11-23_NewRound_InvestigatingSmallSpikeprobValues\D_Master_10_merge_scale{scaling}\A53T_66_Week8_YM_final_scale{scaling}.csv")
 
 cell = "C019"
 start = 0
@@ -16,7 +17,7 @@ fps = 10
 df = pd.read_csv(file)
 
 # Find corresponding columns
-col_zscore = next(c for c in df.columns if f"{cell}_" in c and c.endswith("_zscore"))
+col_dff = next(c for c in df.columns if f"{cell}_" in c and c.endswith("_dff"))
 col_spikeprob = next(c for c in df.columns if f"{cell}_" in c and c.endswith("_spikeprob"))
 
 # Time axis
@@ -28,20 +29,20 @@ mask = (time >= start) & (time <= end)
 # Plot
 fig, ax1 = plt.subplots(figsize=(14, 5))
 
-ax1.plot(time[mask],df.loc[mask, col_zscore],color="black",linewidth=1,label="Z-score")
-ax1.set_ylabel("Z-score", color="black")
+ax1.plot(time[mask],df.loc[mask, col_dff]*100*scaling,color="black",linewidth=1,label="df/f [%]")
+ax1.set_ylabel("df/f [%]", color="black")
 ax1.set_xlabel("Time (s)")
 
 ax2 = ax1.twinx()
 ax2.plot(time[mask],
-df.loc[mask, col_spikeprob],color="red",linewidth=1,label="CASCADE")
-ax2.set_ylabel("Expected spikes/frame", color="red")
+df.loc[mask, col_spikeprob]*10,color="red",linewidth=1,label="CASCADE")
+ax2.set_ylabel("Spikes/s", color="red")
 
-ax1.set_title(f"{cell} | CASCADE vs. Z-score")
+ax1.set_title(f"Spikes vs Df/f - scaling {scaling}")
 
 ax1.spines["top"].set_visible(False)
 ax2.spines["top"].set_visible(False)
-ax2.set_xlim(50,150)
+ax2.set_xlim(90,190)
 
 plt.tight_layout()
 plt.show()
@@ -49,13 +50,13 @@ plt.show()
 # Diagnostics
 spikes = df[col_spikeprob].to_numpy()
 
-print(f"Cell: {cell}")
-print(f"Total inferred spikes: {np.nansum(spikes):.2f}")
-print(f"Maximum CASCADE prediction: {np.nanmax(spikes):.3f}")
+#print(f"Cell: {cell}")
+#print(f"Total inferred spikes: {np.nansum(spikes):.2f}")
+#print(f"Maximum CASCADE prediction: {np.nanmax(spikes):.3f}")
 
 
 
-
+#%%
 
 # Sum CASCADE output between 90 and 100 seconds
 start_spikes = 90

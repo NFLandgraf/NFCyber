@@ -1,25 +1,25 @@
 #%%
 import os
-from pathlib import Path
-import pandas as pd
+import cv2
+import copy
 import numpy as np
+import pandas as pd
+from tqdm import tqdm
+from pathlib import Path
 import matplotlib.pyplot as plt
 from matplotlib.path import Path as MplPath
-import cv2
-from tqdm import tqdm
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
-from torch.utils.data import TensorDataset, DataLoader
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torch.utils.data import TensorDataset, DataLoader
 from scipy import stats, ndimage, interpolate
 from shapely.geometry import Polygon
 from matplotlib.ticker import ScalarFormatter
-import copy
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
 
 
-folder_in   = Path(r"E:\CA1Dopa_Miniscope\2026-11-23_NewRound_InvestigatingSmallSpikeprobValues\D_Master_10_merge_scale3")
+folder_in   = Path(r"E:\CA1Dopa_Miniscope\2026-11-23_NewRound_InvestigatingSmallSpikeprobValues\D_Master_10_merge_scale1")
 folder_out  = Path(r"E:\CA1Dopa_Miniscope\2026-11-23_NewRound_InvestigatingSmallSpikeprobValues\out")
 QC_file     = Path(r"E:\CA1Dopa_Miniscope\QC_pass.csv")
 
@@ -433,7 +433,7 @@ def plot_groups_columns(results_df, column, y_title):
     plt.show()
 
 # Analyze
-def SpikeProb(df, file):
+def SpikeProb(df, file, fps=10):
 
     def save(spikeprob_individ_all, file):
 
@@ -452,12 +452,12 @@ def SpikeProb(df, file):
     mean_of_cell_sums = per_cell_sum.mean()
 
     # Method 1: Mean per cell
-    per_cell_mean = df[cell_cols].mean(axis=0)
+    per_cell_mean = df[cell_cols].mean(axis=0) * fps
     mean_of_cell_means   = per_cell_mean.mean()
     median_of_cell_means = per_cell_mean.median()
 
     # Method 2: Sum per cell / number of rows
-    per_cell_sum_div_rows = df[cell_cols].sum(axis=0) / n_rows
+    per_cell_sum_div_rows = df[cell_cols].sum(axis=0) / n_rows * fps
     mean_of_sum_div_rows   = per_cell_sum_div_rows.mean()
     median_of_sum_div_rows = per_cell_sum_div_rows.median()
 
@@ -1622,15 +1622,14 @@ dist_travelled_df.to_csv(dist_travelled_file, index=False)
 
 #print(Main_summary_df.columns)
 
-plot_groups_columns(Main_summary_df, column='SI_median', y_title='')
-plot_groups_columns(Main_summary_df, column='SpikeRate-Speed_R_Mean', y_title='')
-plot_groups_columns(Main_summary_df, column='SpikeRate-Speed_Slope_Mean', y_title='')
-plot_groups_columns(Main_summary_df, column='Distance_Cutoff_time', y_title='')
+
+#plot_groups_columns(Main_summary_df, column='SI_median', y_title='')
 plot_groups_columns(Main_summary_df, column='SpikeProb_SpikeSum', y_title='')
-plot_groups_columns(Main_summary_df, column='SpikeProb_Mean_of_cell_means', y_title='')
+#plot_groups_columns(Main_summary_df, column='SpikeRate-Speed_R_Mean', y_title='')
 
 
 #%%
+
 
 def plot_groups_columnsZZ(results_df, column, y_title, title):
 
@@ -1656,7 +1655,7 @@ def plot_groups_columnsZZ(results_df, column, y_title, title):
     # t-test
     a = results_df.loc[results_df["file"].str.contains("mKate", regex=False, na=False), column].dropna().to_numpy()
     b = results_df.loc[results_df["file"].str.contains("A53T", regex=False, na=False), column].dropna().to_numpy()
-    t_stat, p_val = stats.ttest_ind(a, b, equal_var=True)
+    t_stat, p_val = stats.ttest_ind(a, b, equal_var=False)
     ax = plt.gca()
     ax.text(0.02, 0.98, f'p = {round(p_val, 3)}', transform=ax.transAxes, va="top")
 
