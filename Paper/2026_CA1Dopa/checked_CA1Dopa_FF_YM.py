@@ -1,13 +1,11 @@
 #%%
 from matplotlib.animation import FuncAnimation, FFMpegWriter
-from scipy.ndimage import gaussian_filter1d
-from scipy import signal, optimize, stats
 import matplotlib.pyplot as plt
 from pathlib import Path
 import pandas as pd
 import numpy as np
+import scipy
 import h5py
-import os
 
 '''
 This code uses the FF (.doric) and YM (.csv) files and looks at correlations between speed and the FF-zscore
@@ -20,14 +18,17 @@ This code uses the FF (.doric) and YM (.csv) files and looks at correlations bet
 7. check the zscore in different speed states
 '''
 
-path = r"E:\FFNE\CA1Dopa_FF-DA(3m)_2024-11-19_YM+FF_Data_Doric"
-file_useless_strings = ['CA1Dopa_FF-NE(3m)_2025-08-07_YM+FF_']
+# path must be the folder where both the .doric and DLC files are inside
+path = r"E:\FF-DA_YM"
+file_useless_strings = ['CA1Dopa_FF-DA(3m)_2024-11-19_YM+FF_']
+
 
 def manage_filename(file):
     name = Path(file).stem
     for word in file_useless_strings:
         name = name.replace(word, "")
     return name
+
 def get_files(path, common_name):
 
     # get files
@@ -41,7 +42,7 @@ def get_files(path, common_name):
     return files
 
 
-def get_signals_1IO(file_doric):
+def get_Doric(file_doric, io_channel_cam=2):
 
     # do this when you have 1 IO-TTLs, e.g. IO2-Cam_TTL
 
@@ -54,39 +55,24 @@ def get_signals_1IO(file_doric):
                 print(leading + key)
                 h5print(item[key], leading + '  ')
     
-    def extend_high_signal(df, column, extra_rows):
-        # for one IO channel, extend the ocurrence of 1 to also see the high state when downsampling to 100Hz
-        # Extend the 1s for x additional rows after a transition
-        
-        transitions = (df[column].shift(1) == 1) & (df[column] == 0)  # where does it change from 1 to 0
-        for i in range(len(df)):
-            if transitions.iloc[i]:  # If there was a transition from 1 to 0
-                for j in range(0, extra_rows + 1):  # Add `1` for x extra rows
-                    if i + j < len(df):  # Ensure we stay within bounds
-                        df.iloc[i + j, df.columns.get_loc(column)] = 1
-        return df
-
     def get_hightimes(df_io, value_threshold=0.9):
+        high = df_io['digi_Cam'].to_numpy() >= value_threshold
+        time = df_io.index.to_numpy(dtype=float)
 
-        # returns a list with the onset (and offset) timepoints, where certain channel is 'high' 
-        s = df_io['digi_Cam'].to_numpy()
-        t = df_io.index.to_numpy()
+        if len(high) == 0:
+            return np.empty((0, 2))
 
-        high = s >= value_threshold
         edges = np.diff(high.astype(np.int8))
+        onsets = np.flatnonzero(edges == 1) + 1
+        offsets = np.flatnonzero(edges == -1) + 1
 
-        onset_idx  = np.where(edges == 1)[0] + 1   # low→high
-        offset_idx = np.where(edges == -1)[0] + 1  # high→low
+        # Exclude incomplete pulses at the recording boundaries
+        if high[0]:
+            offsets = offsets[1:]
+        if high[-1]:
+            onsets = onsets[:-1]
 
-        hightimes = np.c_[t[onset_idx], t[offset_idx]]
-
-        # onsets = np.array(hightimes)[:, 0]
-        # diffs = np.diff(onsets)
-        # unique_vals, counts = np.unique(diffs, return_counts=True)
-        # for val, count in zip(unique_vals, counts):
-        #     print(f"{val} → {count}")
-
-        return hightimes
+        return np.column_stack((time[onsets], time[offsets]))
 
     with h5py.File(file_doric, 'r') as f:
         #h5print(f, '')     # prints the whole structure
@@ -97,21 +83,13 @@ def get_signals_1IO(file_doric):
         sig_fluo  = np.array(f[path + 'LockInAOUT02/AIN01'])
         sig_time  = np.array(f[path + 'LockInAOUT01/Time'])
 
-        digi_Cam    = np.array(f[path + 'DigitalIO/DIO02']).astype(int)
+        digi_Cam    = np.array(f[path + f'DigitalIO/DIO0{io_channel_cam}']).astype(int)
         digi_time   = np.array(f[path + 'DigitalIO/Time'])
 
-    # get signal parameters
-    sig_time = np.round(sig_time, 3)
-    duration = max(sig_time)
-    sig_sampling_rate = int(len(sig_isos) / duration)
 
-    # create frames
-    df_signal  = pd.DataFrame({'Isos': sig_isos, 'Fluo': sig_fluo}, index=pd.Index(sig_time, name='Time'))
-    df_io      = pd.DataFrame({'digi_Cam': digi_Cam}, index=pd.Index(digi_time, name='Time'))
-
-    # get IO parameters
-    df_io = df_io.iloc[0::10]      # downsample to take every 10th frame -> one datapoint every ms
-    #io = extend_high_signal(io, 'digi_Cam', 6)   # increase the duration to see every TTL at 100Hz
+    # extract data
+    df_signal    = pd.DataFrame({'Isos': sig_isos, 'Fluo': sig_fluo}, index=pd.Index(np.round(sig_time, 3), name='Time'))
+    df_io        = pd.DataFrame({'digi_Cam': digi_Cam}, index=pd.Index(digi_time, name='Time'))
     io_hightimes = get_hightimes(df_io)
 
     return df_signal, io_hightimes
@@ -158,7 +136,7 @@ def get_DLC(file_DLC, dist_bp='head', DLC_mm_per_px = 0.12, fps_Cam=30):
 
         # smoothing along time via gaussian filter
         for col in df.columns:
-            df[col] = gaussian_filter1d(df[col].values, sigma=2, mode="nearest")
+            df[col] = scipy.ndimage.gaussian_filter1d(df[col].values, sigma=2, mode="nearest")
 
         return df
     
@@ -176,7 +154,7 @@ def get_DLC(file_DLC, dist_bp='head', DLC_mm_per_px = 0.12, fps_Cam=30):
         
     return df
 
-def merge_signal_DLC(df_trace, df_DLC, io_hightimes):
+def merge_Doric_DLC(df_trace, df_DLC, io_hightimes):
 
     # set the correct index for df_trace
     hightimes = np.array([i[0] for i in io_hightimes])
@@ -191,7 +169,7 @@ def merge_signal_DLC(df_trace, df_DLC, io_hightimes):
     
     # make TTL hightimes the index of DLC and merge
     df_DLC.index = hightimes
-    df_DLC.index.name = 'time'
+    df_DLC = df_DLC.rename_axis('time')
     window_start, window_end = float(df_DLC.index.min()), float(df_DLC.index.max())
 
     # crop trace to DLC window
@@ -202,79 +180,87 @@ def merge_signal_DLC(df_trace, df_DLC, io_hightimes):
 
     return df_merged
 
-def dff(df, filename, bleaching_correct=True, del_values=True):
-    # for the FootShock stuff, dont use bleaching_correction
+def dff(df, filename, del_values=True):
 
-    time_sec = df.index.to_numpy(dtype=float)
-    fluo_raw = df['Fluo'].to_numpy(dtype=float)
-    isos_raw = df['Isos'].to_numpy(dtype=float)
-    sampling_rate = (len(time_sec) - 1) / (time_sec[-1] - time_sec[0])
+    def denoise(trace, sampling_rate):
 
-    # Denoising
-    # low-pass cutoff freq depends on indicator (2-10Hz for GCaMP6f)
-    # use zero-phase filter that changes amplitude but not phase of freq components/ no signal distortion
-    b, a = signal.butter(2, 10, btype='low', fs=sampling_rate)
-    fluo_process = signal.filtfilt(b, a, fluo_raw)
-    isos_process = signal.filtfilt(b, a, isos_raw)
+        # low-pass cutoff freq depends on indicator (2-10Hz for GCaMP6f) with zero-phase filter that changes amplitude
+        b, a          = scipy.signal.butter(2, 10, btype='low', fs=sampling_rate)
+        trace_preproc = scipy.signal.filtfilt(b, a, trace)
 
-    # Bleaching correction
-    if bleaching_correct:
+        return trace_preproc
+
+    def detrend(trace_preproc):
+
         def double_exponential(t, const, amp_fast, amp_slow, tau_slow, tau_multiplier):
-            # fits a double-exponential function to trace to correct for all possible bleaching reasons
-            '''Compute a double exponential function with constant offset.
-            t               : Time vector in seconds.
-            const           : Amplitude of the constant offset. 
-            amp_fast        : Amplitude of the fast component.  
-            amp_slow        : Amplitude of the slow component.  
-            tau_slow        : Time constant of slow component in seconds.
-            tau_multiplier  : Time constant of fast component relative to slow. '''
-            
-            tau_fast = tau_slow * tau_multiplier
-            return const+amp_slow*np.exp(-t/tau_slow)+amp_fast*np.exp(-t/tau_fast)
+                    # fits a double-exponential function to trace to correct for all possible bleaching reasons
+                    '''Compute a double exponential function with constant offset.
+                    t               : Time vector in seconds.
+                    const           : Amplitude of the constant offset. 
+                    amp_fast        : Amplitude of the fast component.  
+                    amp_slow        : Amplitude of the slow component.  
+                    tau_slow        : Time constant of slow component in seconds.
+                    tau_multiplier  : Time constant of fast component relative to slow. '''
+                    
+                    tau_fast = tau_slow * tau_multiplier
+                    return const+amp_slow*np.exp(-t/tau_slow)+amp_fast*np.exp(-t/tau_fast)
+                
         def get_parameters(time_sec, trace):
             max_sig = np.max(trace)
             initial_params = [max_sig/2, max_sig/4, max_sig/4, 3600, 0.1] # initial parmeters
             bounds = ([0, 0, 0, 600, 0], [max_sig, max_sig, max_sig, 36000, 1])
-            trace_params, parm_conv = optimize.curve_fit(double_exponential, time_sec, trace, p0=initial_params, 
+            trace_params, parm_conv = scipy.optimize.curve_fit(double_exponential, time_sec, trace, p0=initial_params, 
                                                         bounds=bounds, maxfev=1000)
             trace_expfit = double_exponential(time_sec, *trace_params)
 
             return trace_expfit
-        fluo_expofit = get_parameters(time_sec, fluo_process)
-        fluo_process = fluo_process / fluo_expofit
-        isos_expofit = get_parameters(time_sec, isos_process)
-        isos_process = isos_process / isos_expofit
+        
+        expofit = get_parameters(time_sec, trace_preproc)
+        trace_preproc_detrend = trace_preproc / expofit
+
+        return trace_preproc_detrend
+
+
+    fluo_raw = df['Fluo'].to_numpy(dtype=float)
+    isos_raw = df['Isos'].to_numpy(dtype=float)
+    time_sec = df.index.to_numpy(dtype=float)
+    sampling_rate = (len(time_sec) - 1) / (time_sec[-1] - time_sec[0])
+
+    # preprocessing
+    fluo_preproc = denoise(fluo_raw, sampling_rate)
+    isos_preproc = denoise(isos_raw, sampling_rate)
+
+    # detrend
+    fluo_detrend = detrend(fluo_preproc)
+    isos_detrend = detrend(isos_preproc)
 
     # Motion
-    slope, intercept, r_value, p_value, std_err = stats.linregress(x=isos_process, y=fluo_process)
-    fluo_est_motion = intercept + slope * isos_process
+    slope, intercept, r_value, p_value, std_err = scipy.stats.linregress(x=isos_detrend, y=fluo_detrend)
+    fluo_est_motion = slope * isos_detrend + intercept
 
     # Normalization
-    fluo_dff = (fluo_process - fluo_est_motion) / fluo_est_motion * 100
-    df['dff'] = fluo_dff
+    df['dff']    = (fluo_detrend - fluo_est_motion) / fluo_est_motion * 100
 
-    # Z-Score: baseline is mean of whole trace
-    baseline = np.mean(fluo_dff)
-    st_dev = np.std(fluo_dff, ddof=1)
-    fluo_zscore = (fluo_dff - baseline) / (st_dev if st_dev > 0 else np.nan)
-    df['zscore'] = fluo_zscore
-
+    # if there are clear issues
     if del_values:
-        # for times where it is clear that the values are wrong
-        if '691' in filename:
-            df.loc[111.00 : 112.50, ["dff","zscore"]] = np.nan
-        if '701' in filename:
-            df.loc[130.3 : 130.5, ["dff","zscore"]] = np.nan
-        if '407' in filename:
-            df.loc[41.4 : 41.6, ["dff","zscore"]] = np.nan
+        exclusions = {  '691': (111.0, 112.5),
+                        '701': (130.3, 130.5),
+                        '407': (41.4, 41.6)}
+        for animal, (start, stop) in exclusions.items():
+            if animal in str(filename):
+                df.loc[start:stop, 'dff'] = np.nan
+
+    # Pandas excludes NaNs from these calculations
+    baseline     = df['dff'].mean()
+    st_dev       = df['dff'].std(ddof=1)
+    df['zscore'] = ((df['dff'] - baseline) / (st_dev if st_dev > 0 else np.nan))
 
     return df
 
 
-def calc_correlate_Speed_Signal(df, file, bin_size_sec=5.0, draw=True):
+def calc_correlate_Speed_Signal(df, file, bin_size_sec=5.0, draw=False): 
 
     # takes bins of certain lengths and for each bin, takes one datapoint of mean speed and one for mean zscore
-
     def draw_correlation(binned, r, p, slope, intercept, file):
 
         r, p = round(r, 3), round(p, 3)
@@ -297,8 +283,8 @@ def calc_correlate_Speed_Signal(df, file, bin_size_sec=5.0, draw=True):
     df["time_bin"] = bins
 
     binned = (df.groupby("time_bin")[["Speed", "zscore"]].mean().dropna())
-    r, p = stats.pearsonr(binned["Speed"], binned["zscore"])
-    slope, intercept, *_ = stats.linregress(binned["Speed"], binned["zscore"])
+    r, p                 = scipy.stats.pearsonr(binned["Speed"], binned["zscore"])
+    slope, intercept, *_ = scipy.stats.linregress(binned["Speed"], binned["zscore"])
 
     if draw:
         draw_correlation(binned, r, p, slope, intercept, file)
@@ -313,7 +299,7 @@ def calc_strong_speed_changes(df, delta_thresh=30):
         keep_mask = np.insert(diffs > (interframe_interval_s + 1e-6), 0, True)
         return event_idxs[keep_mask]
 
-    df['Accel'] = (df['Speed'].diff() / (1/30)).to_numpy()
+    df['Accel'] = df['Speed'].diff() / df.index.to_series().diff()
     accel_idx = df.index[df["Accel"] > delta_thresh].to_numpy()
     decel_idx = df.index[df["Accel"] < -delta_thresh].to_numpy()
 
@@ -322,7 +308,7 @@ def calc_strong_speed_changes(df, delta_thresh=30):
 
     return df, accel_idx, decel_idx
 
-def calc_speed_binning(df, rest=(0,0.7), move=(5,15), slow=(0.7,5), fast=(15,200)):
+def calc_speed_binning(df, rest=(0,0.7), slow=(0.7,5), move=(5,15), fast=(15,200)):
 
     # checks the mean zscores in rest and move bins (defined by the speed)
     rest_low, rest_high = rest
@@ -380,17 +366,19 @@ def calc_speed_border_crossings(df, border=1.0, pre_min_s=0.1, post_min_s=0.5, f
 
     # For each qualifying pre-run, find the first qualifying post-run that starts after it ends
     for i in range(len(pree_runs)):
-        pree_start = int(pree_runs.loc[i,"start_pos"])
-        pree_end = int(pree_runs.loc[i,"end_pos"])
+
+        pree_start = int(pree_runs['start_pos'].to_numpy(dtype=int)[i])
+        pree_end   = int(pree_runs['end_pos'].to_numpy(dtype=int)[i])
 
         # advance post pointer until post_start is after pre_end (so it is a "following" run)
-        while post_ptr < len(post_runs) and int(post_runs.loc[post_ptr,"start_pos"]) <= pree_end: 
+        while post_ptr < len(post_runs) and int(post_runs['start_pos'].to_numpy(dtype=int)[post_ptr]) <= pree_end: 
+            
             post_ptr += 1
         if post_ptr >= len(post_runs):
             break
 
-        post_start = int(post_runs.loc[post_ptr,"start_pos"])
-        post_end = int(post_runs.loc[post_ptr,"end_pos"])
+        post_start = int(post_runs['start_pos'].to_numpy(dtype=int)[post_ptr])
+        post_end = int(post_runs['end_pos'].to_numpy(dtype=int)[post_ptr])
 
         # gap (frames) between the runs; if you want "almost immediate crossing", keep this small
         gap = post_start - pree_end - 1
@@ -438,7 +426,7 @@ def calc_peri_event(df, transit_idx, pre_s=2.0, post_s=5.0, fps=100, baseline=(-
         plt.figure()
         for i in range(perievents.shape[0]): 
             plt.plot(t, perievents[i], alpha=0.25, linewidth=1, color='gray')
-        plt.plot(t, perievents_mean.values, linewidth=2, color='black')
+        plt.plot(t, perievents_mean, linewidth=2, color='black')
         plt.axvline(0, linestyle="-", linewidth=1)
         plt.axhline(0, linestyle="-", linewidth=1)
         plt.xlabel("Time from crossing (s)")
@@ -480,7 +468,7 @@ def calc_peri_event(df, transit_idx, pre_s=2.0, post_s=5.0, fps=100, baseline=(-
         baseline_value = np.nanmean(baseline_values)
         trial = trial - baseline_value
 
-    valid_trials.append(trial)
+        valid_trials.append(trial)
 
     # No valid events
     if len(valid_trials) == 0:
@@ -534,7 +522,7 @@ def create_video(df, z_window=5, flip_x=True):
     scat = ax.scatter([], [], s=10)
 
     # inset for signal
-    inset = ax.inset_axes([0.6, 0.7, 0.35, 0.25])
+    inset = ax.inset_axes((0.6, 0.7, 0.35, 0.25))
     inset.plot(time, Z, linewidth=0.7, color='black')
     vline = inset.axvline(time[0], linewidth=1)
     inset.set_ylim(np.nanmin(Z), np.nanmax(Z))
@@ -553,7 +541,7 @@ def create_video(df, z_window=5, flip_x=True):
     anim.save('sicko.mp4', writer=writer)
     plt.close(fig)
 
-def plot_groups_columns(results_df, column, y_title, title):
+def plot_ttest(results_df, column, y_title, title):
 
     plt.figure()
 
@@ -576,7 +564,7 @@ def plot_groups_columns(results_df, column, y_title, title):
     # t-test
     a = results_df.loc[results_df["group"] == 'mKate', column].dropna().to_numpy()
     b = results_df.loc[results_df["group"] == 'A53T', column].dropna().to_numpy()
-    t_stat, p_val = stats.ttest_ind(a, b, equal_var=False)
+    t_stat, p_val = scipy.stats.ttest_ind(a, b, equal_var=False)
     ax = plt.gca()
     ax.text(0.02, 0.98, f'p = {round(p_val, 3)}', transform=ax.transAxes, va="top")
 
@@ -595,11 +583,15 @@ def plot_xy(df):
     plt.show()
 
 
-groups, results  = ["mKate", "A53T", "GFP"], []
+groups  = ["mKate", "A53T", "GFP"]
+results = []
+
 df_distance_cum  = pd.DataFrame()
 df_perievents    = pd.DataFrame()
 
+
 files = get_files(path, '.doric')
+
 for i, file_doric in enumerate(files):
 
     file_DLC = str(file_doric).replace('.doric', '_DLC.csv')
@@ -607,28 +599,27 @@ for i, file_doric in enumerate(files):
     print(f'----- {file_short} -----')
 
     # extract data
-    df_signal, io_hightimes = get_signals_1IO(file_doric)
+    df_signal, io_hightimes = get_Doric(file_doric)
     df_DLC                  = get_DLC(file_DLC)
-    main_df                 = merge_signal_DLC(df_signal, df_DLC, io_hightimes)
+    main_df                 = merge_Doric_DLC(df_signal, df_DLC, io_hightimes)
     main_df                 = dff(main_df, file_short)
 
     # calculate stuff
-    total_dist                              = main_df['Distance'].sum()
-    mean_speed                              = main_df['Speed'].mean()
-    r, p                                    = calc_correlate_Speed_Signal(main_df, file_short)
+    pearson_r, pearson_p                    = calc_correlate_Speed_Signal(main_df, file_short)
     main_df, accel_idx, decel_idx           = calc_strong_speed_changes(main_df)
     main_df, z_rest, z_slow, z_move, z_fast = calc_speed_binning(main_df)
     transit_idx, df_transit                 = calc_speed_border_crossings(main_df)
     t, perievents_mean                      = calc_peri_event(main_df, transit_idx)
 
     # add stuff to results table
+    distance_cum = main_df['Distance_cum'].dropna()
     group = next((g for g in groups if g in file_short), "Other")
     results.append({'file':file_short, 
                     'group':group, 
-                    'r':r, 
-                    'p':p, 
-                    'Dist':total_dist, 
-                    'MeanSpeed':mean_speed,
+                    'pearson_r':pearson_r, 
+                    'pearson_p':pearson_p, 
+                    'Dist':distance_cum.iloc[-1] - distance_cum.iloc[0], 
+                    'MeanSpeed':main_df['Speed'].mean(),
                     'z_rest':z_rest, 
                     'z_slow':z_slow,
                     'z_move':z_move,
@@ -637,22 +628,21 @@ for i, file_doric in enumerate(files):
                     'duration_slow': main_df['slow_mask'].sum()/100,
                     'duration_move': main_df['move_mask'].sum()/100,
                     'duration_fast': main_df['fast_mask'].sum()/100})
+    
     df_distance_cum[file_short] = main_df["Distance_cum"].reset_index(drop=True)
-    df_perievents[file_short] = perievents_mean
+    df_perievents[file_short]   = perievents_mean
 
-    # plot_xy(main_df)
 
 
 results_df = pd.DataFrame(results)
 results_df = results_df.sort_values(["group"], ascending=True)
 
-results_df.to_csv(     'Results_df.csv')
-df_distance_cum.to_csv('Distance_cum.csv')
-df_perievents.to_csv(  'Perievents.csv')
+if True:
+    results_df.to_csv(     path + '\\Results_df.csv')
+    df_distance_cum.to_csv(path + '\\Distance_cum.csv')
+    df_perievents.to_csv(  path + '\\Perievents.csv')
 
 if True:
-    plot_groups_columns(results_df, 'r', 'Pearson r (Speed vs zscore)', f'FF-NE')
-    plot_groups_columns(results_df, 'z_rest', 'mean zscore', 'mean zcore rest')
-    plot_groups_columns(results_df, 'z_slow', 'mean zscore', 'mean zcore slow')
-    plot_groups_columns(results_df, 'z_move', 'mean zscore', 'mean zcore move')
-    plot_groups_columns(results_df, 'z_fast', 'mean zscore', 'mean zcore fast')
+    plot_ttest(results_df, 'pearson_r', 'Pearson R (Speed vs zscore)', 'Correlation Speed vs Z-Score')
+    plot_ttest(results_df, 'z_rest', 'mean zscore', 'Rest')
+    plot_ttest(results_df, 'z_move', 'mean zscore', 'Move')

@@ -1,23 +1,22 @@
 #%%
-import os
-import cv2
 import copy
+import scipy
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
 from pathlib import Path
-import matplotlib.pyplot as plt
-from matplotlib.path import Path as MplPath
+import sklearn.model_selection
+import sklearn.preprocessing
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import TensorDataset, DataLoader
-from scipy import stats, ndimage, interpolate
-from shapely.geometry import Polygon
-from matplotlib.ticker import ScalarFormatter
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
 
+import matplotlib.pyplot as plt
+from matplotlib.path import Path as MplPath
+from matplotlib.ticker import ScalarFormatter
+from matplotlib.patches import Polygon as MplPolygon, Rectangle
 
 folder_in   = Path(r"E:\CA1Dopa_Miniscope\2026-11-23_NewRound_InvestigatingSmallSpikeprobValues\D_Master_10_merge_scale1")
 folder_out  = Path(r"E:\CA1Dopa_Miniscope\2026-11-23_NewRound_InvestigatingSmallSpikeprobValues\out")
@@ -26,7 +25,7 @@ QC_file     = Path(r"E:\CA1Dopa_Miniscope\QC_pass.csv")
 plot_once = False
 col_spikeprob = '_dff_spikeprob'
 
-# Clean
+
 def get_files(path, common_name1, common_name2, suffix=".csv", printing=False):
     path = Path(path)
     files = sorted([p for p in path.iterdir() if p.is_file() and (common_name1 in p.name) and (common_name2 in p.name) and p.name.endswith(suffix)])
@@ -110,7 +109,7 @@ def clean_df_distance(df, file, dict_dist_travelled, start_row=34, maxtime=600, 
     '''
 
     if df is None:
-        return None
+        return None, None
 
     # trim main_df according to distance travelled
     df = df.iloc[start_row:].copy()
@@ -171,7 +170,7 @@ def clean_df_distance(df, file, dict_dist_travelled, start_row=34, maxtime=600, 
 
     dict_dist_travelled[file] = cum_dist.to_numpy()
 
-    return df, distance_summary, dict_dist_travelled
+    return df, distance_summary
 
 # Plot
 def heatmap_occupancy(df, file, arena_size=(580, 485), blur_sigma=4.0, cmap="Blues", gamma=0.8):
@@ -202,7 +201,7 @@ def heatmap_occupancy(df, file, arena_size=(580, 485), blur_sigma=4.0, cmap="Blu
 
     # optional blur
     if blur_sigma and blur_sigma > 0:
-        heat = ndimage.gaussian_filter(heat, sigma=blur_sigma)
+        heat = scipy.ndimage.gaussian_filter(heat, sigma=blur_sigma)
 
     # normalize for visualization
     if heat.max() > 0:
@@ -214,7 +213,7 @@ def heatmap_occupancy(df, file, arena_size=(580, 485), blur_sigma=4.0, cmap="Blu
 
     # save EXACT pixel size
     fig = plt.figure(figsize=(width / 100, height / 100), dpi=100, frameon=False)
-    ax = plt.Axes(fig, [0, 0, 1, 1])
+    ax = fig.add_axes((0.0, 0.0, 1.0, 1.0))
     ax.set_axis_off()
     fig.add_axes(ax)
     ax.imshow(heat, origin="lower", cmap=cmap, interpolation="nearest")
@@ -261,7 +260,7 @@ def heatmap_cells(df, file, cell, spat_info, arena_size=(580, 485), blur_sigma=3
 
         # blur once at end (much faster than stamping per row)
         if blur_sigma and blur_sigma > 0:
-            heat = ndimage.gaussian_filter(heat, sigma=blur_sigma)
+            heat = scipy.ndimage.gaussian_filter(heat, sigma=blur_sigma)
 
         # normalize for display
         if heat.max() > 0:
@@ -273,7 +272,7 @@ def heatmap_cells(df, file, cell, spat_info, arena_size=(580, 485), blur_sigma=3
 
         # save EXACT pixel dimensions: (width x height)
         fig = plt.figure(figsize=(width/100, height/100), dpi=100, frameon=False)
-        ax = plt.Axes(fig, [0, 0, 1, 1])
+        ax = fig.add_axes((0.0, 0.0, 1.0, 1.0))
         ax.set_axis_off()
         fig.add_axes(ax)
         ax.imshow(heat, origin="lower", cmap=cmap, interpolation="nearest", vmin=vmin, vmax=vmax)
@@ -356,7 +355,7 @@ def heatmap_spikeprob(df, file, min_frames=32, max_frames=1362, max_cells=298, v
         ax.set_ylim(0, mat.shape[0])
 
         fig.tight_layout()
-        fig.savefig(out_path+'_heatmap_vector.pdf', format="pdf", bbox_inches="tight")
+        #fig.savefig(out_path+'_heatmap_vector.pdf', format="pdf", bbox_inches="tight")
         plt.close(fig)
 
     if heatmap is None:
@@ -424,9 +423,9 @@ def plot_groups_columns(results_df, column, y_title):
     # t-test
     a = results_df.loc[results_df["file"].str.contains("mKate", regex=False, na=False), column].dropna().to_numpy()
     b = results_df.loc[results_df["file"].str.contains("A53T", regex=False, na=False), column].dropna().to_numpy()
-    t_stat, p_val = stats.ttest_ind(a, b, equal_var=False)
+    t_stat, p_val = scipy.stats.ttest_ind(a, b, equal_var=False)
     ax = plt.gca()
-    ax.text(0.02, 0.98, f'p = {round(p_val, 3)}', transform=ax.transAxes, va="top")
+    ax.text(0.02, 0.98, f'p = {np.asarray(p_val).item():.3f}',transform=ax.transAxes, va='top')
 
     plt.title(title)
     plt.tight_layout()
@@ -467,7 +466,7 @@ def SpikeProb(df, file, fps=10):
                          "SpikeProb_Median_of_cell_means"       : median_of_cell_means,
                          "SpikeProb_Mean_of_cell_sum_div_rows"  : mean_of_sum_div_rows,
                          "SpikeProb_Median_of_cell_sum_div_rows": median_of_sum_div_rows,
-                         "SpikeProb_RecLength"                     : n_rows}
+                         "SpikeProb_RecLength"                  : n_rows}
     
     # save one per file with individual cell info
     spikeprob_individ_all = []
@@ -516,11 +515,8 @@ def SpikeRate_Speed(df, file, fps=10, bin_size_s=1.0):
     regression_results = []
     for cell in cell_cols:
         y = spikerates[cell]
-        result = stats.linregress(x, y)
-        regression_results.append({"cell": cell,
-                                   "slope": result.slope,
-                                   "r": result.rvalue,
-                                   "p": result.pvalue})
+        slope, intercept, r_val, p_val, stderr = scipy.stats.linregress(x, y)
+        regression_results.append({"cell":cell, "slope":slope, "r":r_val, "p":p_val})
 
     regression_results = pd.DataFrame(regression_results)
     regression_summary = {"SpikeRate-Speed_Slope_Mean": regression_results["slope"].mean(),
@@ -583,7 +579,8 @@ def SI(df, file, fps=10, OF_n_bins=5, YM_bin='mid', YM_head_dir=True, YM_grid_si
 
             fig, ax = plt.subplots(figsize=(7, 6))
 
-            outline = plt.Polygon(arena_outline, fill=False, linewidth=2)
+            vertices = (arena_outline.vertices if isinstance(arena_outline, MplPath) else arena_outline)
+            outline = MplPolygon(vertices, fill=False, linewidth=2)
             ax.add_patch(outline)
 
             for x in x_edges:
@@ -745,10 +742,9 @@ def SI(df, file, fps=10, OF_n_bins=5, YM_bin='mid', YM_head_dir=True, YM_grid_si
                 
             # one concave polygon describing the complete Y-maze, bounds are the smallest and largest y and y coords of that polygon
             arena_outline = make_path([caM1, caM2, ci3, caR2, caR1, ci2, caL2, caL1, ci1])
-            bounds = (arena_outline.vertices[:, 0].min(),
-                      arena_outline.vertices[:, 0].max(),
-                      arena_outline.vertices[:, 1].min(),
-                      arena_outline.vertices[:, 1].max())
+            vertices = np.asarray(arena_outline.vertices, dtype=float)
+            x, y = vertices[:, 0], vertices[:, 1]
+            bounds = (float(x.min()), float(x.max()), float(y.min()), float(y.max()))
             
             return poly_big, poly_mid, arena_outline, arm_vectors, endpoints, bounds
 
@@ -858,32 +854,28 @@ def SI(df, file, fps=10, OF_n_bins=5, YM_bin='mid', YM_head_dir=True, YM_grid_si
             fig, ax = plt.subplots(figsize=(7, 7))
 
             # outer Y-maze border
-            outline = plt.Polygon(arena_outline.vertices, fill=False, linewidth=2)
+            outline = MplPolygon(arena_outline.vertices, fill=False, linewidth=2)
             ax.add_patch(outline)
 
-            if binning == "big":
-                areas = poly_big
-            elif binning == "mid":
-                areas = poly_mid
-            elif binning == "grid":
-                areas = None
+            # Polygon bins
+            areas = poly_big if binning == "big" else poly_mid if binning == "mid" else None
 
             if areas is not None:
-                for name, path in areas.items():
-                    polygon = plt.Polygon(path.vertices, fill=False, linewidth=1)
-                    ax.add_patch(polygon)
-                    center = path.vertices.mean(axis=0)
+                for name, region_path in areas.items():
+                    vertices = np.asarray(region_path.vertices, dtype=float)
+                    ax.add_patch(MplPolygon(vertices, fill=False, linewidth=1))
+
+                    center = region_path.vertices.mean(axis=0)
                     ax.text(center[0],center[1],name,ha="center",va="center")
 
             if binning == "grid":
-                x_values = np.arange(x_min, x_max, grid_size)
-                y_values = np.arange(y_min, y_max, grid_size)
-
-                for x in x_values:
-                    for y in y_values:
-                        rectangle = plt.Rectangle((x, y),grid_size,grid_size,fill=False,linewidth=0.7)
-                        rectangle.set_clip_path(outline)
-                        ax.add_patch(rectangle)
+                 # Grid bins, clipped to the maze
+                if binning == "grid":
+                    for x in np.arange(x_min, x_max, grid_size):
+                        for y in np.arange(y_min, y_max, grid_size):
+                            rectangle = Rectangle((x, y), grid_size, grid_size, fill=False, linewidth=0.7)
+                            rectangle.set_clip_path(outline)
+                            ax.add_patch(rectangle)
 
             ax.set_xlim(x_min - 20, x_max + 20)
             ax.set_ylim(y_min - 20, y_max + 20)
@@ -1331,14 +1323,14 @@ def FFN(df, cells, file, bin_size_frames=5, n_cells_YM=103, n_cells_OF=59, n_rep
         # mean + SEM
         mean_real = np.mean(real)
         mean_shuf = np.mean(shuf)
-        sem_real = stats.sem(real)
-        sem_shuf = stats.sem(shuf)
+        sem_real = scipy.stats.sem(real)
+        sem_shuf = scipy.stats.sem(shuf)
 
         plt.errorbar(0, mean_real, yerr=sem_real, fmt="o", color="black", markersize=8, capsize=5, linewidth=2, zorder=3)
         plt.errorbar(1, mean_shuf, yerr=sem_shuf, fmt="o", color="black", markersize=8, capsize=5, linewidth=2, zorder=3)
 
         # paired t-test
-        t_stat, p_val = stats.ttest_rel(real, shuf)
+        t_stat, p_val = scipy.stats.ttest_rel(real, shuf)
         p_text = f"p = {p_val:.4f}" if p_val >= 0.0001 else "p < 0.0001"
 
         ax = plt.gca()
@@ -1455,7 +1447,7 @@ def FFN(df, cells, file, bin_size_frames=5, n_cells_YM=103, n_cells_OF=59, n_rep
         Y_test  = Y_norm[idx_test]
 
         # scaler
-        scaler = StandardScaler().fit(X_train)
+        scaler = sklearn.preprocessing.StandardScaler().fit(X_train)
         X_train = scaler.transform(X_train).astype(np.float32)
         X_test  = scaler.transform(X_test).astype(np.float32)
 
@@ -1522,7 +1514,7 @@ def FFN(df, cells, file, bin_size_frames=5, n_cells_YM=103, n_cells_OF=59, n_rep
         # prepare X (rows=timebins, columns=neurons) and Y (rows=timebins, columns=x/y)
         X_real, X_shuf, Y_norm = prep_data(df, cells=sampled_cells, bin_size_frames=bin_size_frames, arena_scale=arena_scale)
         indices = np.arange(len(X_real))
-        idx_train, idx_test = train_test_split(indices, test_size=0.2, random_state=42)
+        idx_train, idx_test = sklearn.model_selection.train_test_split(indices, test_size=0.2, random_state=42)
 
         # run main
         results = run(X_real, Y_norm,results, "real")
@@ -1576,10 +1568,12 @@ for anim in animals:
         # Clean
         main_df, QC_summary = clean_df_QC(file, QC_file)
         Summary_ind = Summary_ind | QC_summary
-
+        if main_df is None:
+            continue
+        
         # Trim
-        main_df, Distance_summary, dist_travelled = clean_df_distance(main_df, file.stem, dist_travelled)
-        Summary_ind = Summary_ind | Distance_summary
+        main_df, Distance_summary = clean_df_distance(main_df, file.stem, dist_travelled)
+        Summary_ind = Summary_ind | Distance_summary if Distance_summary is not None else Summary_ind
 
         # drawing
         if False:
@@ -1616,55 +1610,15 @@ Main_summary_df   = pd.DataFrame(Main_summary)
 Main_summary_file = folder_out / 'Summary.csv'
 Main_summary_df.to_csv(Main_summary_file, index=False)
 
+# Distance
+dist_travelled: dict[str, np.ndarray] = {}
 dist_travelled_df = pd.DataFrame({key: pd.Series(value) for key, value in dist_travelled.items()})
 dist_travelled_file = folder_out / 'Distance_travelled.csv'
 dist_travelled_df.to_csv(dist_travelled_file, index=False)
 
 #print(Main_summary_df.columns)
-
-
 #plot_groups_columns(Main_summary_df, column='SI_median', y_title='')
 plot_groups_columns(Main_summary_df, column='SpikeProb_SpikeSum', y_title='')
 #plot_groups_columns(Main_summary_df, column='SpikeRate-Speed_R_Mean', y_title='')
-
-
-#%%
-
-
-def plot_groups_columnsZZ(results_df, column, y_title, title):
-
-    groups = ['mKate', 'A53T']
-
-    plt.figure(figsize=(3, 5))
-
-    for gi, group in enumerate(groups):
-        sub = results_df[results_df["file"].str.contains(group, na=False)][column].dropna()
-
-        # mean ± SEM overlay
-        mean = sub.mean()
-        sem = sub.sem()
-        plt.errorbar(gi, mean, yerr=sem, fmt="-", capsize=10)
-        plt.hlines(mean, gi-0.1, gi+0.1, colors="black", linewidth=2)
-
-        # scatter
-        plt.scatter(gi + np.random.uniform(-0.08, 0.08, len(sub)), sub, s=70)
-
-    plt.xticks(range(len(groups)), groups)
-    plt.ylabel(y_title)
-
-    # t-test
-    a = results_df.loc[results_df["file"].str.contains("mKate", regex=False, na=False), column].dropna().to_numpy()
-    b = results_df.loc[results_df["file"].str.contains("A53T", regex=False, na=False), column].dropna().to_numpy()
-    t_stat, p_val = stats.ttest_ind(a, b, equal_var=False)
-    ax = plt.gca()
-    ax.text(0.02, 0.98, f'p = {round(p_val, 3)}', transform=ax.transAxes, va="top")
-
-    plt.title(title)
-    plt.tight_layout()
-    plt.show()
-
-for c in Main_summary_df.columns:
-    if c != 'file':
-        plot_groups_columnsZZ(Main_summary_df, column=c, y_title='', title=c)
 
 

@@ -8,8 +8,6 @@ import pandas as pd
 import numpy as np
 import cv2
 
-path = r"E:\Weilin_DLC\all\b"
-
 '''
 This script is used to analyze the YM videos
 1. Defines the areas of interest in the YM
@@ -17,6 +15,10 @@ This script is used to analyze the YM videos
 3. Crops the videos to focus on the YM area
 4. Analyzes alternation index
 '''
+
+path = r"E:\YM"
+
+
 def get_files(path, common_name):
     files = [file for file in Path(path).iterdir() if file.is_file() and common_name in file.name]
     print(f'{len(files)} files found')
@@ -24,6 +26,7 @@ def get_files(path, common_name):
         print(file)
     print('\n')
     return files
+
 def get_xmax_ymax(file):
     # get video properties
     vid = cv2.VideoCapture(str(file))
@@ -31,6 +34,7 @@ def get_xmax_ymax(file):
     height = int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
     
     return width, height
+
 def adapt(x, y):
     # add dx/dy and multiplay with dz
     adapt_x = (x + dx) * dz
@@ -53,6 +57,7 @@ def adapt(x, y):
         adapt_y = height
 
     return (adapt_x, adapt_y)
+
 def check_areas(files):
 
     def print_info(file):
@@ -153,7 +158,7 @@ coords_no_mask = check_areas(csv_files)
 
 #%%
 '''
-Crop videos into new dimensions so that YM corners limit the frame:
+Crop videos into new dimensions so that YM corners limit the frame and mask:
     x[left_arm_end_lefter:left_arm_end_righter]
     y[min:max of any y maze point]
 '''
@@ -181,7 +186,7 @@ def mask_video(files, coords_no_mask):
         
 
         # create new video
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        fourcc = cv2.VideoWriter.fourcc('m', 'p', '4', 'v')
         video = cv2.VideoWriter(str(output_file), fourcc, fps, (new_width, new_height)) 
 
         for curr_frame in tqdm(range(nframes)):
@@ -236,6 +241,7 @@ def define_areas():
     center = Polygon([middle_corner, left_corner, right_corner])
         
     return center, left_arm, middle_arm, right_arm
+
 def define_bodyparts():
 
     bps_all = ['nose', 'left_ear', 'right_ear', 'left_ear_tip', 'right_ear_tip', 'left_eye', 'right_eye', 'head_midpoint', 
@@ -448,7 +454,7 @@ def do_stuff(file, create_video=False):
         
         # create new video
         output_video_file = input_video_file.with_name(input_video_file.stem + '_YLineAreas' + '.mp4')
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        fourcc = cv2.VideoWriter.fourcc('m', 'p', '4', 'v')
         video = cv2.VideoWriter(str(output_video_file), fourcc, fps, (width, height)) 
 
         for curr_frame in tqdm(range(nframes)):
