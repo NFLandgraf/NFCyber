@@ -17,13 +17,15 @@ GET TRACE PROPERTIES
 5. Calculate the power spectrum from the df/f trace
 '''
 
-fold                                     = Path(r"E:\2pTube")
-file_RawTraces                           = fold / 'CA1Dopa_2pTube_Results_Spont_RawTraces.csv'
-file_RawTraces_detrend                   = fold / 'CA1Dopa_2pTube_Results_Spont_RawTraces_Detrend.csv'
-file_RawTraces_detrend_dff               = fold / 'CA1Dopa_2pTube_Results_Spont_RawTraces_Detrend_Dff.csv'
-file_RawTraces_detrend_dff_stats         = fold / 'CA1Dopa_2pTube_Results_Spont_RawTraces_Detrend_Dff_Stats.csv'
-file_RawTraces_detrend_dff_spectrum      = fold / 'CA1Dopa_2pTube_Results_Spont_RawTraces_Detrend_Dff_Spectrum.csv'
-file_RawTraces_detrend_dff_spectrum_norm = fold / 'CA1Dopa_2pTube_Results_Spont_RawTraces_Detrend_Dff_Spectrum_Norm.csv'
+fold = Path(r"C:\Users\landgrafn\Desktop\CA1Dopa_FINAL\CA1Dopa_FINAL_Data\2pTube")
+file = 'CA1Dopa_2pTube_TwoAltLasers_Raw_Preprocess_MotCorr_axGCaMP_AxonROIs_Trace_Spont_Raw'
+
+file_RawTraces                           = fold / f'{file}.csv'
+file_RawTraces_detrend                   = fold / f'{file}_Detrend.csv'
+file_RawTraces_detrend_dff               = fold / f'{file}_Detrend_Dff.csv'
+file_RawTraces_detrend_dff_stats         = fold / f'{file}_Detrend_Dff_Stats.csv'
+file_RawTraces_detrend_dff_spectrum      = fold / f'{file}_Detrend_Dff_Spectrum.csv'
+file_RawTraces_detrend_dff_spectrum_norm = fold / f'{file}_Detrend_Dff_Spectrum_Norm.csv'
 
 
 fps = 10.8056
@@ -250,16 +252,18 @@ for col in df.columns:
     spectra_norm[col]   = pd.Series(power_norm, index=freq)
     trace_properties.append(trace_props)
 
-
 if True:
     df_props, df_spectra, df_spectra_norm = assemble_export(traces_detrend, traces_dff, trace_properties, spectra, spectra_norm)
 
 if True:
+    print(df_props.columns)
     plot_ttest(df_props, 'SD_frame_change', individ=True)
-    plot_ttest(df_props, 'SD_frame_change', individ=False)
+    plot_ttest(df_props, 'Mean_abs_change', individ=True)
+    plot_ttest(df_props, 'Variance_dff', individ=True)
+    #plot_ttest(df_props, 'SD_frame_change', individ=False)
 
-    plot_spectra(df_spectra, individ=True)
-    plot_spectra(df_spectra, individ=False)
+    #plot_spectra(df_spectra, individ=True)
+    #plot_spectra(df_spectra, individ=False)
 
 
 #%%
@@ -279,7 +283,7 @@ file_RawTraces_Fcorr_Deconv_Histo_Residuals       = fold / 'CA1Dopa_2pTube_Resul
 file_RawTraces_Fcorr_Deconv_Histo_CurveFit        = fold / 'CA1Dopa_2pTube_Results_Spont_RawTraces_Fcorr_Deconv_Histo_CurveFit.csv'
 file_RawTraces_Fcorr_Deconv_Histo_Residuals_Stats = fold / 'CA1Dopa_2pTube_Results_Spont_RawTraces_Fcorr_Deconv_Histo_Residuals_Stats.csv'
 
-bin_size = 0.1
+bin_size = 0.02
 bands = ((0.0, 0.5), (0.5, 3.1))
 
 
@@ -424,7 +428,7 @@ df_histo  = pd.DataFrame(counts, index=pd.Index(bin_centers, name="Amplitude_bin
 df_residuals, df_curve_fit = expofit(df_histo, bin_centers)
 df_band_means              = band_mean_residuals(df_residuals, bin_centers, bands)
 
-if True:
+if False:
     df_deconv.to_csv(    file_RawTraces_Fcorr_Deconv)
     df_histo.to_csv(     file_RawTraces_Fcorr_Deconv_Histo)
     df_curve_fit.to_csv( file_RawTraces_Fcorr_Deconv_Histo_CurveFit)

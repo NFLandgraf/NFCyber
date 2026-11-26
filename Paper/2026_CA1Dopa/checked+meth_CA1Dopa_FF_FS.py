@@ -18,8 +18,8 @@ This code looks at the FF signal (.doric) (and DLC (.csv)) for Peri-event respon
 7. Calculate Peak and AUC per event, then average them and the traces for each animal
 '''
 
-path = r"E:\FF-DA_Nomi"
-file_useless_string = ['CA1Dopa_FF-DA(3m)_2024-12-09_Nomifensine_', '']
+path = r"Y:\_proj_CA1Dopa\CA1Dopa_FF-NE_done\CA1Dopa_FF-NE(3m)_2025-08-07_FS\CA1Dopa_FF-NE(3m)_2025-08-07_FS_Data_Doric"
+file_useless_string = ['CA1Dopa_FF-NE(3m)_2025-08-07_FS_', '']
 include_DLC = False
 
 
@@ -45,7 +45,7 @@ def get_files(path, common_name, printing=False):
     return files
 
 
-def get_Doric_2IO(file_doric, io_cam_fs=(2,3)):
+def get_Doric_2IO(file_doric, io_cam_fs=(5,6)):
     # do this when you have 2 IO-TTLs, e.g. IO2-Cam_TTL and IO3-FCbox
 
     def h5print(item, leading=''):

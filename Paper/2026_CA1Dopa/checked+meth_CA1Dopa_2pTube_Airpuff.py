@@ -20,13 +20,15 @@ INPUT: Raw brightness from the axon pixels from FIJI
 8. Similarly, individual airpuff responses were averaged to receive one recording average
 '''
 
-fold                                    = Path(r"E:\2pTube")
-file_RawTraces                          = fold / 'CA1Dopa_2pTube_Results_Airpuff_RawTraces.csv'
-file_RawTraces_Detrend                  = fold / 'CA1Dopa_2pTube_Results_Airpuff_RawTraces_Detrend.csv'
-file_RawTraces_Detrend_Dff              = fold / 'CA1Dopa_2pTube_Results_Airpuff_RawTraces_Detrend_Dff.csv'
-fold_RawTraces_Detrend_PeriEvent        = fold / 'CA1Dopa_2pTube_Results_Airpuff_RawTraces_Detrend_PeriEvent'
-file_RawTraces_Detrend_PeriEvent_Means  = fold / 'CA1Dopa_2pTube_Results_Airpuff_RawTraces_Detrend_PeriEvent_Mean.csv'
-file_RawTraces_Detrend_PeriEvent_Max_AUC= fold / 'CA1Dopa_2pTube_Results_Airpuff_RawTraces_Detrend_PeriEvent_Max_AUC.csv'
+fold = Path(r"C:\Users\landgrafn\Desktop\CA1Dopa_FINAL\CA1Dopa_FINAL_Data\2pTube")
+file = 'CA1Dopa_2pTube_TwoAltLasers_Raw_Preprocess_MotCorr_axGCaMP_AxonROIs_Trace_Airpuff_Raw'
+
+file_RawTraces                          = fold / f'{file}.csv'
+file_RawTraces_Detrend                  = fold / f'{file}_Detrend.csv'
+file_RawTraces_Detrend_Dff              = fold / f'{file}_Detrend_Dff.csv'
+fold_RawTraces_Detrend_PeriEvent        = fold / f'{file}_Detrend_PeriEvent'
+file_RawTraces_Detrend_PeriEvent_Means  = fold / f'{file}_Detrend_PeriEvent_Mean.csv'
+file_RawTraces_Detrend_PeriEvent_Max_AUC= fold / f'{file}_Detrend_PeriEvent_Max_AUC.csv'
 
 event_frames = [323, 647, 971, 1296, 1620]
 fps = 10.8056
@@ -242,7 +244,7 @@ for col in df.columns:
     df_event_means[col] = mean_trace
 
 
-if True:
+if False:
     df_detrend.to_csv(      file_RawTraces_Detrend)
     df_dff.to_csv(          file_RawTraces_Detrend_Dff)
     df_event_means.to_csv(  file_RawTraces_Detrend_PeriEvent_Means)
