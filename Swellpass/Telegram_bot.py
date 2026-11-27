@@ -12,7 +12,7 @@ import os
 
 
 path = Path(r"C:\Users\landgrafn\NFCyber\Swellpass")
-#path = Path(r"D:\NFCyber\Swellpass")
+path = Path(r"C:\Users\nicol\NFCyber\Swellpass")
 token = "8935415168:AAHQyMM4THSPcgvdKNbmEfN8_SYoLouagXk"
 
 
