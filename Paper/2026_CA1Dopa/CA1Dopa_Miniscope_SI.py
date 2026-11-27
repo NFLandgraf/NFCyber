@@ -1,4 +1,5 @@
 #%%
+import cv2
 import copy
 import scipy
 import numpy as np
@@ -8,18 +9,13 @@ from pathlib import Path
 import sklearn.model_selection
 import sklearn.preprocessing
 
-import torch
-import torch.nn as nn
-import torch.optim as optim
-from torch.utils.data import TensorDataset, DataLoader
-
 import matplotlib.pyplot as plt
 from matplotlib.path import Path as MplPath
 from matplotlib.ticker import ScalarFormatter
 from matplotlib.patches import Polygon as MplPolygon, Rectangle
 
-folder_in   = Path(r"E:\CA1Dopa_Miniscope\2026-11-23_NewRound_InvestigatingSmallSpikeprobValues\D_Master_10_merge_scale1")
-folder_out  = Path(r"E:\CA1Dopa_Miniscope\2026-11-23_NewRound_InvestigatingSmallSpikeprobValues\out")
+folder_in   = Path(r"E:\CA1Dopa_Miniscope\FINAL\D_Master_10_merge_scale1")
+folder_out  = Path(r"E:\CA1Dopa_Miniscope\FINAL\out")
 QC_file     = Path(r"E:\CA1Dopa_Miniscope\QC_pass.csv")
 
 plot_once = False
@@ -504,7 +500,7 @@ def SpikeRate_Speed(df, file, fps=10, bin_size_s=1.0):
     mean_speed = grouped_obj["speed_mm_s"].mean()
 
     # each cell one column, spike summed for each time bin
-    spikerates = grouped_obj[cell_cols].sum()
+    spikerates = grouped_obj[cell_cols].mean() * fps
     # add metadata columns together
     info = pd.DataFrame({"time_bin_s": (spikerates.index + 0.5) * bin_size_s, "mean_speed_mm_s": mean_speed}, index=spikerates.index)
     spikerates = pd.concat([info, spikerates], axis=1)
@@ -525,7 +521,7 @@ def SpikeRate_Speed(df, file, fps=10, bin_size_s=1.0):
 
     return regression_summary
 
-def SI(df, file, fps=10, OF_n_bins=5, YM_bin='mid', YM_head_dir=True, YM_grid_size=73.5, draw_cells=False, do_shuffle=False, n_shuffles=1000, sig_level=0.05, min_occup_s=1.0):
+def SI(df, file, fps=10, OF_n_bins=5, YM_bin='mid', YM_head_dir=True, YM_grid_size=73.5, draw_cells=False, do_shuffle=False, n_shuffles=1000, sig_level=0.05, min_occup_s=1.0, make_video=False):
     
     # real spatial info
     # assumes place_df entries are sums of spike probabilities (expected spike counts)
@@ -934,7 +930,26 @@ def SI(df, file, fps=10, OF_n_bins=5, YM_bin='mid', YM_head_dir=True, YM_grid_si
             plot_YM_bins(arena_outline, poly_big, poly_mid, bounds, binning, grid_size)
             plot_once = False
 
-        return place_df, df
+        video_geom = None
+        if make_video:
+            if binning == "big":
+                areas = {name: path.vertices for name, path in poly_big.items()}
+            elif binning == "mid":
+                areas = {name: path.vertices for name, path in poly_mid.items()}
+            else:
+                x_min, x_max, y_min, y_max = bounds
+                areas = {}
+                # Include buckets at exact maximum edges, matching floor bins.
+                for iy in range(int(np.floor((y_max-y_min)/grid_size))+1):
+                    for ix in range(int(np.floor((x_max-x_min)/grid_size))+1):
+                        x, y = x_min+ix*grid_size, y_min+iy*grid_size
+                        areas[f"C_y{iy:03d}_x{ix:03d}"] = np.array([
+                            [x, y], [x+grid_size, y],
+                            [x+grid_size, y+grid_size], [x, y+grid_size],
+                        ], dtype=float)
+            video_geom = {"areas": areas, "outline": arena_outline}
+
+        return place_df, df, video_geom
 
     def get_occupancy(df, place_df):
 
@@ -976,22 +991,6 @@ def SI(df, file, fps=10, OF_n_bins=5, YM_bin='mid', YM_head_dir=True, YM_grid_si
                 info += bin_occ_probability * ratio * np.log2(ratio)
 
         return info
-
-    def save(file, SI_real_cells):
-
-        # save each SI values of the file individually
-        df_SI_individ = pd.DataFrame(SI_real_cells)
-        SI_individ_folder = folder_out / "Individ_SpatialInfo"
-        SI_individ_folder.mkdir(parents=True, exist_ok=True)
-        df_SI_individ.to_csv(f'{SI_individ_folder}\\{file}.csv', index=False)
-    
-        # return a summary of the SI
-        SI_real_values = np.array([d["SI"] for d in SI_real_cells])
-        SI_summary = {"SI_mean": np.mean(SI_real_values),
-                      "SI_median": np.median(SI_real_values),
-                      "SI_n_cells": len(SI_real_values)}
-
-        return SI_summary
 
     def shuffle_cells(place_df, place_cells, occupancy, occ_nonzero, SI_real_cells, SI_summary, n_shuffles, sig_level):
 
@@ -1041,8 +1040,229 @@ def SI(df, file, fps=10, OF_n_bins=5, YM_bin='mid', YM_head_dir=True, YM_grid_si
 
         return place_cells, SI_summary
 
+
+    def save(file, SI_real_cells):
+
+        # save each SI values of the file individually
+        df_SI_individ = pd.DataFrame(SI_real_cells)
+        SI_individ_folder = folder_out / "Individ_SpatialInfo"
+        SI_individ_folder.mkdir(parents=True, exist_ok=True)
+        df_SI_individ.to_csv(f'{SI_individ_folder}\\{file}.csv', index=False)
+    
+        # return a summary of the SI
+        SI_real_values = np.array([d["SI"] for d in SI_real_cells])
+        SI_summary = {"SI_mean": np.mean(SI_real_values),
+                      "SI_median": np.median(SI_real_values),
+                      "SI_n_cells": len(SI_real_values)}
+
+        return SI_summary
+
+    def create_YM_video(main_df, output_path, cell, areas, arena_outline, spike_threshold=0.0):
+
+        def transform(points):
+            return (np.asarray(points, dtype=float)-low)*scale + offset
+
+        def polygon_pixels(vertices):
+            vertices = np.asarray(getattr(vertices, "vertices", vertices), dtype=float)
+            if (vertices.ndim != 2 or vertices.shape[1] != 2 or len(vertices) < 3
+                    or not np.isfinite(vertices).all()):
+                raise ValueError("Each maze region must contain finite (x, y) vertices.")
+            return np.rint(transform(vertices)).astype(np.int32)
+
+        def text(image, value, xy, font_scale=0.45, color=(35, 35, 35)):
+            # White halo keeps dark labels readable over accumulated activity dots.
+            cv2.putText(image, str(value), xy, cv2.FONT_HERSHEY_SIMPLEX,
+                        font_scale, (255, 255, 255), 3, cv2.LINE_AA)
+            cv2.putText(image, str(value), xy, cv2.FONT_HERSHEY_SIMPLEX,
+                        font_scale, color, 1, cv2.LINE_AA)
+
+        def head_direction_color(direction, default=(0, 0, 255)):
+            """BGR color: blue for 'out', green for 'in', otherwise the default (red)."""
+            direction = str(direction).strip().lower()
+            if direction == "out":
+                return (255, 0, 0)      # blue
+            if direction == "in":
+                return (0, 200, 0)      # green
+            return default
+
+        def draw_head_direction_arrow(image, head_px, direction, maze_center, bin_pixels, outline_pixels, length=35, color=(255, 100, 0), thickness=2):
+            
+            #Arrow from the head: 'in' -> towards maze center, 'out' -> towards end of the current arm
+            if bin_pixels is None or not np.isfinite(head_px).all():
+                return
+            direction = str(direction).strip().lower()
+            head_px = np.asarray(head_px, dtype=float)
+
+            if direction == "in":
+                target = np.asarray(maze_center, dtype=float)
+            elif direction == "out":
+                u = bin_pixels.mean(axis=0) - maze_center          # center -> current bin
+                norm = np.linalg.norm(u)
+                if norm < 1e-6:                                    # bin sits on the center
+                    return
+                u /= norm
+                rel = outline_pixels.astype(float) - maze_center
+                along = rel @ u
+                perp = np.abs(rel[:, 0]*u[1] - rel[:, 1]*u[0])
+                ok = (along > 0) & (perp <= 0.4*along)             # outline vertices lying on this arm's axis
+                if ok.any():
+                    target = outline_pixels[ok][np.argmax(along[ok])].astype(float)
+                else:                                              # fallback: bin vertex farthest from center
+                    target = bin_pixels[np.argmax(np.linalg.norm(bin_pixels - maze_center, axis=1))].astype(float)
+            else:
+                return
+
+            vec = target - head_px
+            dist = np.linalg.norm(vec)
+            if dist < 1e-6:
+                return
+            end = head_px + vec/dist*min(length, dist)
+            cv2.arrowedLine(image, tuple(np.rint(head_px).astype(int)), tuple(np.rint(end).astype(int)),
+                            color, thickness, cv2.LINE_AA, tipLength=0.35)
+
+
+        canvas_size = (1000, 850)
+        dot_radius = 4
+        show_progress = True
+        
+        
+        size = np.asarray(canvas_size, dtype=float)
+        width, height = map(int, size)
+
+        # Even image dimensions are needed by common MP4 encoders.
+        width += width % 2
+        height += height % 2
+        fps_out = 10.0
+
+        required = ["head_x", "head_y", "ym_position_bin", "ym_direction", cell]
+        missing = [name for name in required if name not in main_df.columns]
+        outline = np.asarray(getattr(arena_outline, "vertices", arena_outline), dtype=float)
+
+        # One common transform for the maze, tracking points and persistent dots.
+        low, high = outline.min(axis=0), outline.max(axis=0)
+        extent = high - low
+        margin, header_height = 30, 100
+        available = np.array([width-2*margin, height-header_height-2*margin])
+        scale = float(np.min(available / extent))
+        offset = np.array([margin, header_height+margin]) + (available-extent*scale)/2
+
+        
+
+        
+
+        pairs = [(name, name[:-2]+"_y") for name in main_df.columns if isinstance(name, str) and name.endswith("_x") and name[:-2]+"_y" in main_df.columns]
+        positions = transform(np.stack([main_df[[x, y]].apply(pd.to_numeric, errors="coerce").to_numpy(dtype=float) for x, y in pairs], axis=1))
+        head = transform(main_df[["head_x", "head_y"]].apply(pd.to_numeric, errors="coerce").to_numpy(dtype=float))
+        probability = pd.to_numeric(main_df[cell], errors="coerce").to_numpy(dtype=float)
+        position_names = main_df["ym_position_bin"].to_numpy()
+        directions = main_df["ym_direction"].to_numpy()
+
+        # Draw the background and static maze once.
+        background = np.full((height, width, 3), 255, dtype=np.uint8)
+        outline_pixels = polygon_pixels(outline)
+        arena_mask = np.zeros((height, width), dtype=np.uint8)
+        cv2.fillPoly(arena_mask, [outline_pixels], 255)
+        m = cv2.moments(arena_mask, binaryImage=True)
+        maze_center = np.array([m["m10"]/m["m00"], m["m01"]/m["m00"]])
+
+        grid_lines = np.zeros_like(arena_mask)
+        labels = []
+        bin_pixels = {}
+        for name, vertices in areas.items():
+            pixels = polygon_pixels(vertices)
+            center = pixels.mean(axis=0)
+            bin_pixels[str(name)] = pixels
+
+            if YM_bin == "grid":
+                cell_mask = np.zeros_like(arena_mask)
+                cv2.fillPoly(cell_mask, [pixels], 255)
+                ys, xs = np.nonzero((cell_mask > 0) & (arena_mask > 0))
+                if not len(xs):
+                    continue
+                cv2.polylines(grid_lines, [pixels], True, 255, 1)
+                nearest = np.argmin((xs-center[0])**2 + (ys-center[1])**2)
+                center = np.array([xs[nearest], ys[nearest]])
+            else:
+                cv2.polylines(background, [pixels], True, (110, 110, 110), 1)
+            labels.append((str(name), center))
+
+        if YM_bin == "grid":
+            background[(grid_lines > 0) & (arena_mask > 0)] = (150, 150, 150)
+
+        cv2.polylines(background, [outline_pixels], True, (45, 45, 45), 2)
+        for name, center in labels:
+            font_scale = 0.45
+            if YM_bin == "grid":
+                (natural_width, _), _ = cv2.getTextSize(name, cv2.FONT_HERSHEY_SIMPLEX, font_scale, 1)
+                font_scale *= min(1.0, max(12, YM_grid_size*scale-6)/max(1, natural_width))
+            (tw, th), _ = cv2.getTextSize(name, cv2.FONT_HERSHEY_SIMPLEX, font_scale, 1)
+            xy = (max(2, min(width-tw-2, int(center[0])-tw//2)), max(header_height+th, min(height-2, int(center[1]))))
+            text(background, name, xy, font_scale)
+
+        # The history canvas accumulates activity only. Current DLC points and changing text are drawn onto a fresh copy, so they leave no trails.
+        history = background.copy()
+        output_path = Path(output_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        writer = cv2.VideoWriter(str(output_path), cv2.VideoWriter.fourcc('m', 'p', '4', 'v'), fps_out, (width, height))
+
+
+        # FRAME LOOP
+        spike_dots = 0
+        if writer.isOpened():
+            for row in range(len(main_df)):
+                if (np.isfinite(head[row]).all() and np.isfinite(probability[row]) and probability[row] > spike_threshold):
+                    px, py = np.rint(head[row])
+                    if 0 <= px < width and header_height <= py < height:
+                        cv2.circle(history, (int(px), int(py)), int(dot_radius), (0, 0, 255), -1)
+                        spike_dots += 1
+
+                frame = history.copy()
+                for point in positions[row]:
+                    if np.isfinite(point).all():
+                        px, py = np.rint(point)
+                        if 0 <= px < width and header_height <= py < height:
+                            cv2.circle(frame, (int(px), int(py)), 2, (50, 50, 50), -1)
+
+
+                value, direction = position_names[row], directions[row]
+                bin_key = str(value) if pd.notna(value) else None
+                pixels = bin_pixels.get(bin_key)
+                color = head_direction_color(direction)
+                if pixels is not None:
+                    cv2.polylines(frame, [pixels], True, color, 2, cv2.LINE_AA)
+                if YM_head_dir:
+                    draw_head_direction_arrow(frame, head[row], direction, maze_center, bin_pixels.get(bin_key), outline_pixels, color=color)
+                lines = [f"Frame: {row+1}/{len(main_df)} | t={row/fps_out:.1f} s"]
+
+
+                for line_number, line in enumerate(lines):
+                    # Fit the text within the right half of the header.
+                    font_scale = 0.45
+                    (tw, _), _ = cv2.getTextSize(line, cv2.FONT_HERSHEY_SIMPLEX, font_scale, 1)
+                    font_scale *= min(1.0, (width/2-16)/max(1, tw))
+                    (tw, _), _ = cv2.getTextSize(line, cv2.FONT_HERSHEY_SIMPLEX, font_scale, 1)
+                    text(frame, line, (width-tw-12, 20+line_number*22), font_scale)
+
+                cell_label = f"Cell: {cell}"
+                (tw, _), _ = cv2.getTextSize(cell_label, cv2.FONT_HERSHEY_SIMPLEX, 0.45, 1)
+                cell_font = 0.45*min(1.0, (width/2-20)/max(1, tw))
+                text(frame, cell_label, (12, 22), cell_font)
+                text(frame, "Activity history: red", (12, 72), color=(0, 0, 210))
+                writer.write(frame)
+
+                if show_progress and ((row+1) % 100 == 0 or row+1 == len(main_df)):
+                    print(f"Writing Y-maze video: {row+1}/{len(main_df)}", end="\r", flush=True)
+            if show_progress:
+                print()
+
+       
+        writer.release()
+            
+        return output_path
+
+
     if 'YM' in file:
-        place_df, df = bin_cellspikes_prob_YM(df, YM_bin, YM_head_dir, YM_grid_size)
+        place_df, df, video_geom = bin_cellspikes_prob_YM(df, YM_bin, YM_head_dir, YM_grid_size)
     elif 'OF' in file:
         place_df, df = bin_cellspikes_prob_OF(df, OF_n_bins)
 
@@ -1066,10 +1286,19 @@ def SI(df, file, fps=10, OF_n_bins=5, YM_bin='mid', YM_head_dir=True, YM_grid_si
     if do_shuffle:
         place_cells, SI_summary = shuffle_cells(place_df, place_cells, occupancy, occ_nonzero, SI_real_cells, SI_summary, n_shuffles, sig_level)
 
+    if make_video and video_geom is not None and '66' in file:
+        path_vid_out = r"E:\CA1Dopa_Miniscope\FINAL\66_Week8_YM_crop_mask_DLC_trim_FINAL.mp4"
+        create_YM_video(df, path_vid_out, '66_Week8_YM_C013_dff_spikeprob', areas=video_geom["areas"], arena_outline=video_geom["outline"])
+        
 
     return place_cells, SI_summary
 
 def FFN(df, cells, file, bin_size_frames=5, n_cells_YM=103, n_cells_OF=59, n_repeats_rand_cells=100, n_train_epochs=200, acc_threshold_mm=50, arena_size=(600,600)):
+
+    import torch
+    import torch.nn as nn
+    import torch.optim as optim
+    from torch.utils.data import TensorDataset, DataLoader
 
     # helper definitions
     def prep_data(df, cells, bin_size_frames, arena_scale, fps=10, input_mode="rate"):
@@ -1562,7 +1791,7 @@ for anim in animals:
     for file in files:
         
         file = Path(file)
-        #print(f'\n------- {file.stem} -------')
+        print(f'------- {file.stem} -------')
         Summary_ind = {"file": file.stem}
 
         # Clean
@@ -1574,6 +1803,7 @@ for anim in animals:
         # Trim
         main_df, Distance_summary = clean_df_distance(main_df, file.stem, dist_travelled)
         Summary_ind = Summary_ind | Distance_summary if Distance_summary is not None else Summary_ind
+        
 
         # drawing
         if False:
@@ -1602,7 +1832,11 @@ for anim in animals:
             FFN_summary  = FFN(main_df, cells_to_use, file.stem)
             Summary_ind  = Summary_ind | FFN_summary
 
+        heatmap_occupancy(main_df, file.stem)
+        
+    
         Main_summary.append(Summary_ind)
+    
 
 
 # save the data
@@ -1611,14 +1845,15 @@ Main_summary_file = folder_out / 'Summary.csv'
 Main_summary_df.to_csv(Main_summary_file, index=False)
 
 # Distance
-dist_travelled: dict[str, np.ndarray] = {}
 dist_travelled_df = pd.DataFrame({key: pd.Series(value) for key, value in dist_travelled.items()})
 dist_travelled_file = folder_out / 'Distance_travelled.csv'
 dist_travelled_df.to_csv(dist_travelled_file, index=False)
 
 #print(Main_summary_df.columns)
-#plot_groups_columns(Main_summary_df, column='SI_median', y_title='')
+plot_groups_columns(Main_summary_df, column='SI_median', y_title='')
 plot_groups_columns(Main_summary_df, column='SpikeProb_SpikeSum', y_title='')
 #plot_groups_columns(Main_summary_df, column='SpikeRate-Speed_R_Mean', y_title='')
 
+
+#%%
 
